@@ -1,0 +1,26 @@
+# Personal mail, settings and local database side files
+mail.db
+mail.db-*
+preferences.json
+*.sqlite
+*.sqlite3
+*.db
+*.db-*
+
+# Credentials and local environment
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.log
+
+# Generated files
+__pycache__/
+*.py[cod]
+.DS_Store
+CredentialBridge
+AppleCalendarBridge.app/
+
+# Local historical notes; README.md is the maintained project guide
+使用说明.txt
