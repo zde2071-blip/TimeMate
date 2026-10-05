@@ -67,11 +67,6 @@ def db():
     c.execute("CREATE TABLE IF NOT EXISTS pins (mail_id TEXT NOT NULL,event_index INTEGER NOT NULL,title TEXT NOT NULL,due TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'active',PRIMARY KEY(mail_id,event_index))")
     return c
 
-def from_school_forward(sender,subject,school_sender):
-    address=parseaddr(sender)[1].casefold()
-    expected=parseaddr(school_sender)[1].casefold()
-    return bool(expected and address==expected and re.match(r'^\s*(?:转发|fw|fwd)\s*[:：]',subject,re.I))
-
 def mail_id(account,validity,uid):
     return hashlib.sha256((account.lower()+validity+str(uid)).encode()).hexdigest()
 
@@ -91,25 +86,25 @@ def close_mail(conn):
     try: conn.shutdown()
     except Exception: pass
 
-def headers_for(conn,uid):
-    chunks=checked(conn.uid('FETCH',str(uid),'(RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM SUBJECT)])'))
+def mail_sender(conn,uid):
+    chunks=checked(conn.uid('FETCH',str(uid),'(BODY.PEEK[HEADER.FIELDS (FROM)])'))
     raw=b''.join(x[1] for x in chunks if isinstance(x,tuple))
     header=email.message_from_bytes(raw,policy=policy.default)
-    meta=b' '.join(x[0] for x in chunks if isinstance(x,tuple))
-    size=re.search(rb'RFC822.SIZE (\d+)',meta)
-    return str(header.get('From','')),str(header.get('Subject','')),int(size.group(1)) if size else None
+    return str(header.get('From',''))
+
+def matches_school_sender(sender,school_sender):
+    actual=parseaddr(sender)[1].strip().casefold()
+    expected=parseaddr(school_sender)[1].strip().casefold()
+    return bool(expected and actual==expected)
 
 def import_uid(conn,cfg,validity,uid,source):
     ident=mail_id(cfg['account'],validity,uid)
+    if not matches_school_sender(mail_sender(conn,uid),cfg['school_sender']): return None,False
     with db() as c:
         if c.execute('SELECT 1 FROM mails WHERE id=?',(ident,)).fetchone(): return ident,False
-    sender,subject,size=headers_for(conn,uid)
-    if not from_school_forward(sender,subject,cfg['school_sender']): return None,False
-    if size is None or size>2_000_000: return None,False
     chunks=checked(conn.uid('FETCH',str(uid),'(BODY.PEEK[])'))
     raw=b''.join(x[1] for x in chunks if isinstance(x,tuple))
     m=parse_mail(raw)
-    if not from_school_forward(m['sender'],m['subject'],cfg['school_sender']): return None,False
     with db() as c:
         cur=c.execute('INSERT OR IGNORE INTO mails (id,subject,sender,date,body,result,created,source,source_links,original) VALUES (?,?,?,?,?,?,?,?,?,?)',
                       (ident,m['subject'],m['sender'],m['date'],m['body'],None,time.time(),source,json.dumps(m['links'],ensure_ascii=False),json.dumps(m['original'],ensure_ascii=False)))
@@ -145,8 +140,6 @@ def original_mail(ident):
         cfg=CFG.copy();conn,validity,ids=connect_mail(cfg)
         uid=next((uid for uid in ids if mail_id(cfg['account'],validity,uid)==ident),None)
         if uid is None: raise ValueError('QQ 邮箱中已找不到这封原邮件。')
-        sender,subject,size=headers_for(conn,uid)
-        if not from_school_forward(sender,subject,cfg['school_sender']) or size is None or size>2_000_000: raise ValueError('无法读取此邮件原文。')
         chunks=checked(conn.uid('FETCH',str(uid),'(BODY.PEEK[])'))
         parsed=parse_mail(b''.join(x[1] for x in chunks if isinstance(x,tuple)))
         with db() as c: c.execute('UPDATE mails SET original=?,source_links=? WHERE id=?',(json.dumps(parsed['original'],ensure_ascii=False),json.dumps(parsed['links'],ensure_ascii=False),ident))
@@ -158,14 +151,17 @@ def original_mail(ident):
 def fetch_mail():
     cfg=CFG.copy()
     if not cfg['account'] or not cfg['password']: raise ValueError('请先填写并应用 QQ 邮箱与授权码。')
-    conn=None; added=0
+    conn=None; added=0; matched=0
     try:
         STATUS['message']='正在登录 QQ 邮箱…'
         conn,validity,ids=connect_mail(cfg)
         for uid in reversed(ids[-50:]):
-            STATUS['message']='正在检查最近 50 封的发件人和主题…'
-            added+=import_uid(conn,cfg,validity,uid,'manual')[1]
-        return f'检查完成：新增 {added} 封学校邮箱转发邮件。其他 QQ 邮件已跳过。'
+            STATUS['message']='正在检查 QQ 邮箱最近 50 封邮件的发件人地址…'
+            ident,was_added=import_uid(conn,cfg,validity,uid,'manual')
+            matched+=ident is not None
+            added+=was_added
+        checked_count=min(50,len(ids))
+        return f'检查完成：最近 {checked_count} 封中，{matched} 封发件人匹配学校邮箱，新增 {added} 封；其余邮件的发件人不匹配。'
     finally:
         if conn: close_mail(conn)
 
@@ -174,8 +170,8 @@ def cursor_key(account):
 
 def start_auto():
     cfg=CFG.copy()
-    if not all(cfg[k] for k in ('account','password','base','model','key','school_sender')):
-        raise ValueError('先填写 QQ 授权码、学校发件地址及模型 API Key。')
+    if not all(cfg[k] for k in ('account','password','school_sender','base','model','key')):
+        raise ValueError('先填写 QQ 邮箱授权码、学校邮箱和模型 API Key。')
     conn=None
     try:
         STATUS['message']='正在记录当前邮件位置，旧邮件不会自动分析…'
@@ -184,14 +180,14 @@ def start_auto():
             c.execute('INSERT OR REPLACE INTO cursors VALUES (?,?,?)',
                       (cursor_key(cfg['account']),validity,max(ids,default=0)))
         STATUS['auto']=True
-        return '自动分析已开启。只处理开启后新到的学校邮箱转发邮件，每分钟检查一次。'
+        return '自动分析已开启。每分钟检查新邮件，只处理发件人地址匹配设置中学校邮箱的邮件。'
     finally:
         if conn: close_mail(conn)
 
 def process_new():
     cfg=CFG.copy()
     if not STATUS['auto']: return '自动分析已停止。'
-    conn=None; imported=0; analyzed=0
+    conn=None; imported=0; analyzed=0; matched=0
     try:
         STATUS['message']='自动检查新邮件…'
         conn,validity,ids=connect_mail(cfg)
@@ -205,16 +201,17 @@ def process_new():
             last=cursor['uid']
         for uid in (x for x in ids if x>last):
             ident,added=import_uid(conn,cfg,validity,uid,'auto')
+            matched+=ident is not None
             imported+=added
             with db() as c:
                 c.execute('UPDATE cursors SET uid=? WHERE account=?',(uid,key))
         with db() as c:
             pending=[r['id'] for r in c.execute("SELECT id FROM mails WHERE source='auto' AND result IS NULL ORDER BY created")]
         for ident in pending:
-            STATUS['message']='正在分析新转发的学校邮件…'
+            STATUS['message']='正在分析 QQ 邮箱新邮件…'
             analyze(ident)
             analyzed+=1
-        return f'自动检查完成：新导入 {imported} 封，分析 {analyzed} 封。'
+        return f'自动检查完成：发现 {matched} 封发件人匹配学校邮箱的新邮件，导入 {imported} 封，分析 {analyzed} 封；发件人不匹配的邮件已忽略。'
     except Exception:
         STATUS['auto']=False
         raise
@@ -523,7 +520,7 @@ class Handler(BaseHTTPRequestHandler):
                 row['category']=category_for(row,result)
                 row['links']=json.loads(row['source_links']) if row.get('source_links') else extract_source_links(row['body'])
             visible_cfg={k:CFG[k] for k in ('account','base','model','school_sender','calendar_method','calendar_provider','calendar_subscription_confirmed','provider')}
-            return self.reply(200,{'status':STATUS,'mails':rows,'pins':pins,'calendarEvents':written,'config':visible_cfg,'providers':ai_services.PROVIDERS,'calendarAvailable':CALENDAR_BRIDGE.is_file(),'ready':{'mail':bool(CFG['account'] and CFG['password']),'ai':bool(CFG['base'] and CFG['model'] and CFG['key'])}})
+            return self.reply(200,{'status':STATUS,'mails':rows,'pins':pins,'calendarEvents':written,'config':visible_cfg,'providers':ai_services.PROVIDERS,'calendarAvailable':CALENDAR_BRIDGE.is_file(),'ready':{'mail':bool(CFG['account'] and CFG['password'] and CFG['school_sender']),'ai':bool(CFG['base'] and CFG['model'] and CFG['key'])}})
         self.reply(404,{})
     def do_POST(self):
         if not self.valid_host() or self.headers.get('X-Token')!=TOKEN: return self.reply(403,{})
