@@ -59,6 +59,17 @@ class CloudTests(unittest.TestCase):
    self.assertNotIn(b'private-mail-secret',blob)
    stored=c.execute('SELECT password FROM users WHERE id=?',(self.ua,)).fetchone()[0]
    self.assertNotEqual(stored,'test-password-123')
+ def test_cloud_translation_forwards_max_tokens_keyword(self):
+  engine=self.app.store.engine(self.ua)
+  engine.CFG.update(provider='deepseek',base='https://api.deepseek.com',model='deepseek-flash',key='test-key')
+  with engine.db() as c:
+   c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
+             ('translate-cloud','School notice','school@xjtlu.edu.cn','2026-10-05','Please register by Friday.',time.time(),'manual'))
+  expected={'subject':'学校通知','translation':'请在周五前注册。'}
+  with patch('cloud.ai_services.complete',return_value=expected) as complete:
+   result=engine.translate_source('translate-cloud')
+  self.assertEqual(result['translation'],expected['translation'])
+  self.assertIn('max_tokens',complete.call_args.kwargs)
  def test_mail_read_and_delete_are_persistent_and_account_scoped(self):
   e=self.app.store.engine(self.ua)
   with e.db() as c:

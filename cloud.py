@@ -116,8 +116,8 @@ class Store:
                             raise ValueError('多人版请使用所选服务商的预设接口地址。')
                         ai_services.validate(cfg,model)
                     @staticmethod
-                    def complete(cfg,*args):
-                        CloudAI.validate(cfg); return ai_services.complete(cfg,*args)
+                    def complete(cfg,*args,**kwargs):
+                        CloudAI.validate(cfg); return ai_services.complete(cfg,*args,**kwargs)
                     @staticmethod
                     def list_models(cfg):
                         CloudAI.validate(cfg,False); return ai_services.list_models(cfg)
