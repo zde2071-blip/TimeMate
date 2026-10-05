@@ -52,6 +52,11 @@ assert.equal(isVagueTimetableWeek({ title: 'CSI101 Week 4 实验课', start: '20
 assert.equal(isVagueTimetableWeek({ title: '实验课', start: '2026-10-07T14:00:00', end: '2026-10-07T16:00:00', allDay: false, evidence: 'Check your timetable' }), false);
 assert.equal(addDurationToDateTime('2026-10-07T14:00', 60), '2026-10-07T15:00');
 assert.equal(addDurationToDateTime('2026-10-07T23:30', 60), '2026-10-08T00:30');
+const editorStart = html.indexOf('function openEventEditor(');
+const editorEnd = html.indexOf('\nfunction addSchedule(', editorStart);
+const editorSource = html.slice(editorStart, editorEnd);
+assert.match(editorSource, /\['\+30分钟',30\],\['\+1小时',60\],\['\+2小时',120\]/, 'event editing offers the same end-time duration shortcuts');
+assert.match(editorSource, /start\.oninput=\(\)=>\{updateShortcuts\(\);if\(selectedDuration!==null\)end\.value=addDurationToDateTime\(start\.value,selectedDuration\)\}/, 'a chosen duration follows later start-time edits');
 
 const sorted = sortDeadlineItems([
   deadline('2026-10-04T23:59:00'),
