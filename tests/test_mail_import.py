@@ -28,6 +28,21 @@ class MailImportTests(unittest.TestCase):
         ]
         return conn
 
+    def test_mail_sort_uses_sent_time_instead_of_import_time(self):
+        older_but_imported_later = {
+            'date': 'Mon, 05 Oct 2026 09:00:00 +0800',
+            'created': 200,
+        }
+        newer_but_imported_earlier = {
+            'date': 'Mon, 05 Oct 2026 10:00:00 +0800',
+            'created': 100,
+        }
+
+        self.assertGreater(
+            app.mail_sort_timestamp(newer_but_imported_earlier),
+            app.mail_sort_timestamp(older_but_imported_later),
+        )
+
     def test_imports_matching_sender_without_forward_prefix(self):
         conn = self.fake_mail('School Office <school@xjtlu.edu.cn>', 'Weekly notice')
         cfg = {'account': 'user@qq.com', 'school_sender': 'school@xjtlu.edu.cn'}

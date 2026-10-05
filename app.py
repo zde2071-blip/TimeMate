@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from html.parser import HTMLParser
 from email import policy
-from email.utils import parseaddr
+from email.utils import parseaddr, parsedate_to_datetime
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.request import Request, build_opener, HTTPSHandler, HTTPRedirectHandler
@@ -129,6 +129,14 @@ def parse_mail(raw):
     if not body:
         body=html.unescape(re.sub('<[^>]+>',' ',re.sub(r'(?is)<(script|style).*?</\1>','','\n'.join(rich))))
     return {'subject':str(m.get('Subject','')),'sender':str(m.get('From','')),'date':str(m.get('Date','')),'body':body[:20000],'links':extract_source_links(body,'\n'.join(rich)),'original':mail_original.extract(m,body)}
+
+def mail_sort_timestamp(row):
+    try:
+        value=parsedate_to_datetime(row.get('date') or '')
+        if value.tzinfo is None: value=value.replace(tzinfo=timezone.utc)
+        return value.timestamp()
+    except (TypeError,ValueError,OverflowError):
+        return float(row.get('created') or 0)
 
 def original_mail(ident):
     with db() as c: row=c.execute('SELECT original FROM mails WHERE id=?',(ident,)).fetchone()
@@ -514,6 +522,7 @@ class Handler(BaseHTTPRequestHandler):
                 rows=[dict(r) for r in c.execute("SELECT * FROM mails WHERE is_deleted=0 AND source NOT IN ('simulation','test_archive') ORDER BY created DESC")]
                 written=[dict(r) for r in c.execute('SELECT mail_id,event_index,status,calendar_name,detail FROM calendar_events')]
                 pins=[dict(r) for r in c.execute("SELECT pins.* FROM pins JOIN mails ON mails.id=pins.mail_id WHERE pins.state IN ('active','completed') AND mails.is_deleted=0 AND mails.source NOT IN ('simulation','test_archive') ORDER BY pins.due")]
+            rows.sort(key=mail_sort_timestamp,reverse=True)
             for row in rows:
                 row.pop('original',None)
                 result=json.loads(row['result']) if row['result'] else {}
