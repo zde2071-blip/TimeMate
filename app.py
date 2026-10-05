@@ -15,8 +15,10 @@ import mail_original
 
 ROOT=Path(__file__).resolve().parent
 os.umask(0o077)
-DB=ROOT/'mail.db'
-PREFS=ROOT/'preferences.json'
+RUNTIME=globals().get('_runtime')
+DATA=RUNTIME.directory if RUNTIME else ROOT
+DB=DATA/'mail.db'
+PREFS=DATA/'preferences.json'
 CALENDAR_BRIDGE=ROOT/'AppleCalendarBridge.app/Contents/MacOS/CalendarBridge'
 TOKEN=secrets.token_urlsafe(32)
 DEFAULTS={'account':'','base':'https://api.deepseek.com','model':'deepseek-flash','school_sender':'','calendar_method':'unset','provider':'deepseek'}
@@ -31,6 +33,7 @@ def credential_id(group,cfg):
     return group+':'+hashlib.sha256(identity.encode()).hexdigest()
 
 def credential_store(action,group,cfg,secret=''):
+    if RUNTIME: return RUNTIME.credential(action,credential_id(group,cfg),secret)
     result=subprocess.run([str(ROOT/'CredentialBridge')],input=json.dumps({'action':action,'account':credential_id(group,cfg),'secret':secret}),text=True,capture_output=True,timeout=30)
     if result.returncode: raise ValueError('无法保存或读取 macOS 钥匙串，请允许钥匙串访问后重试。')
     return json.loads(result.stdout).get('secret','')
@@ -40,7 +43,8 @@ for group,field in [('mail','password'),('ai','key')]:
     try: CFG[field]=credential_store('load',group,CFG)
     except (OSError,ValueError,subprocess.TimeoutExpired): pass
 LOCK=threading.Lock()
-STATUS={'busy':False,'message':'填写邮箱后，点击检查邮件。','auto':False}
+STATUS=RUNTIME.status if RUNTIME else {'busy':False,'message':'填写邮箱后，点击检查邮件。','auto':False}
+if RUNTIME: CALENDAR_BRIDGE=DATA/'unavailable-calendar-bridge'
 PORT=18743
 
 class Connection(sqlite3.Connection):

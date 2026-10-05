@@ -42,3 +42,8 @@ python3 app.py
 ## 后续更新
 
 在 GitHub Desktop 中选择本仓库，检查 Changes 中的文件，填写本次修改说明并点击 Commit to main，最后点击 Push origin。提交会先保存在本机；推送后才会出现在 GitHub。修改程序后请先在本机验证，再提交版本。
+
+
+## 多人版开发分支
+
+本分支新增邮箱密码登录与账号隔离，详见 [多人版说明](多人版说明.md)。原单人版仍由 `app.py` 启动，多人版使用独立数据目录和 `cloud.py`。
