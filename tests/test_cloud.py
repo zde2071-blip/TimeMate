@@ -80,26 +80,6 @@ class CloudTests(unittest.TestCase):
   self.assertEqual(self.state(self.b,self.tb).json['mails'],[])
   with e.db() as c:self.assertEqual(c.execute('SELECT is_deleted FROM mails WHERE id=?',('mail-1',)).fetchone()[0],1)
 
- def test_mail_edit_and_deadline_bulk_toggle(self):
-  e=self.app.store.engine(self.ua)
-  events=[{'title':'报名截止','start':'2026-10-10T00:00:00','end':'','location':'线上','kind':'截止','allDay':True},{'title':'课程分享','start':'2026-10-11T13:00:00','end':'2026-10-11T14:00:00','location':'教室','kind':'活动','allDay':False}]
-  with e.db() as c:
-   c.execute('INSERT INTO mails(id,subject,sender,date,body,result,created) VALUES (?,?,?,?,?,?,?)',('mail-edit','测试邮件','school@example.com','2026-10-05','body',json.dumps({'time':'10月10日','location':'线上','events':events}),time.time()))
-   c.execute('INSERT INTO calendar_events (mail_id,event_index,status,event_id,calendar_name,detail,created) VALUES (?,?,?,?,?,?,?)',('mail-edit',0,'subscribed',None,'邮件助手',json.dumps(events[0]),time.time()))
-  self.assertEqual(self.post(self.a,'/api/pin',{'id':'mail-edit','action':'pin_all'},self.ta).status_code,200)
-  self.assertEqual([p['event_index'] for p in self.state(self.a,self.ta).json['pins']],[0])
-  self.assertEqual(self.post(self.a,'/api/pin',{'id':'mail-edit','action':'remove_all'},self.ta).status_code,200)
-  self.assertEqual(self.state(self.a,self.ta).json['pins'],[])
-  changed={'id':'mail-edit','action':'edit','time':'10月10日 10:00–11:00','location':'报告厅','events':[{'start':'2026-10-10T10:00','end':'2026-10-10T11:00','location':'报告厅'},{'start':'2026-10-11T14:00','end':'2026-10-11T15:00','location':'新教室'}]}
-  self.assertEqual(self.post(self.a,'/api/mail',changed,self.ta).status_code,200)
-  result=json.loads(self.state(self.a,self.ta).json['mails'][0]['result'])
-  self.assertEqual(result['events'][0]['start'],'2026-10-10T10:00:00')
-  self.assertEqual(result['events'][1]['location'],'新教室')
-  self.assertEqual(result['location'],'报告厅')
-  self.assertEqual(json.loads(self.state(self.a,self.ta).json['calendarEvents'][0]['detail'])['start'],'2026-10-10T10:00:00')
-  changed['events'][0]['end']='2026-10-10T09:00'
-  self.assertEqual(self.post(self.a,'/api/mail',changed,self.ta).status_code,400)
-
  def test_restart_restores_settings_and_cursor(self):
   self.post(self.a,'/api/settings/mail',{'account':'123@qq.com','school_sender':'a@school.edu','password':'secret-value'},self.ta)
   e=self.app.store.engine(self.ua)

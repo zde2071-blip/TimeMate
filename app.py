@@ -411,59 +411,17 @@ def export_calendar_event(data):
 def update_mail(data):
     ident=data.get('id'); action=data.get('action')
     if not isinstance(ident,str) or not ident: raise ValueError('邮件编号无效。')
+    updates={'read':('is_read',1),'unread':('is_read',0),'delete':('is_deleted',1)}
+    if action not in updates: raise ValueError('邮件操作无效。')
+    column,value=updates[action]
     with db() as c:
-        row=c.execute("SELECT result FROM mails WHERE id=? AND is_deleted=0 AND source NOT IN ('simulation','test_archive')",(ident,)).fetchone()
-        if not row: raise ValueError('找不到这封邮件。')
-        if action in ('read','unread','delete'):
-            column,value={'read':('is_read',1),'unread':('is_read',0),'delete':('is_deleted',1)}[action]
-            c.execute(f'UPDATE mails SET {column}=? WHERE id=?',(value,ident))
-            return
-        if action!='edit': raise ValueError('邮件操作无效。')
-        result=json.loads(row['result']) if row['result'] else {'time':'','location':'','events':[]}
-        for key,limit in (('time',500),('location',500)):
-            if key in data:
-                if not isinstance(data[key],str): raise ValueError('时间和地点需填写为文字。')
-                result[key]=data[key].strip()[:limit]
-        if 'events' in data:
-            events=result.get('events',[]); edits=data['events']
-            if not isinstance(edits,list) or len(edits)!=len(events): raise ValueError('日程项目已变化，请重新打开调整窗口。')
-            for i,edit in enumerate(edits):
-                if not isinstance(edit,dict): raise ValueError('日程信息无效。')
-                start=datetime.fromisoformat(str(edit.get('start','')).strip())
-                end=datetime.fromisoformat(str(edit.get('end','')).strip()) if edit.get('end') else None
-                if start.tzinfo or (end and (end.tzinfo or end<=start)) or not 2000<=start.year<=2100 or (end and (end-start).days>31): raise ValueError('请填写有效的日程开始和结束时间。')
-                events[i]['start']=start.isoformat(timespec='seconds')
-                events[i]['end']=end.isoformat(timespec='seconds') if end else ''
-                if 'allDay' in edit:
-                    if not isinstance(edit['allDay'],bool): raise ValueError('全天设置无效。')
-                    events[i]['allDay']=edit['allDay']
-                if 'location' in edit:
-                    if not isinstance(edit['location'],str): raise ValueError('地点需填写为文字。')
-                    events[i]['location']=edit['location'].strip()[:200]
-            result['events']=events
-        c.execute('UPDATE mails SET result=? WHERE id=?',(json.dumps(result,ensure_ascii=False),ident))
-        for i,event in enumerate(result.get('events',[])):
-            linked=c.execute("SELECT detail FROM calendar_events WHERE mail_id=? AND event_index=? AND status='subscribed'",(ident,i)).fetchone()
-            if linked:
-                try: detail=json.loads(linked['detail'] or '{}')
-                except (TypeError,json.JSONDecodeError): detail={}
-                detail.update({key:event.get(key,'') for key in ('title','start','end','location','allDay')})
-                c.execute("UPDATE calendar_events SET detail=? WHERE mail_id=? AND event_index=? AND status='subscribed'",(json.dumps(detail,ensure_ascii=False),ident,i))
+        cursor=c.execute(f"UPDATE mails SET {column}=? WHERE id=? AND is_deleted=0 AND source NOT IN ('simulation','test_archive')",(value,ident))
+        if cursor.rowcount!=1: raise ValueError('找不到这封邮件。')
 
 def update_pin(data):
     ident=data.get('id'); index=data.get('index'); action=data.get('action')
-    if not isinstance(ident,str): raise ValueError('提醒编号无效。')
+    if not isinstance(ident,str) or not isinstance(index,int) or isinstance(index,bool): raise ValueError('提醒编号无效。')
     with db() as c:
-        if action in ('pin_all','remove_all'):
-            row=c.execute('SELECT result FROM mails WHERE id=? AND is_deleted=0',(ident,)).fetchone()
-            events=json.loads(row['result']).get('events',[]) if row and row['result'] else []
-            deadlines=[(i,event) for i,event in enumerate(events) if event.get('kind')=='截止']
-            if not deadlines: raise ValueError('这封邮件没有已识别的截止事项。')
-            for i,event in deadlines:
-                if action=='pin_all': c.execute('INSERT OR REPLACE INTO pins VALUES (?,?,?,?,?)',(ident,i,event['title'],event['start'],'active'))
-                else: c.execute("UPDATE pins SET state='removed' WHERE mail_id=? AND event_index=?",(ident,i))
-            return
-        if not isinstance(index,int) or isinstance(index,bool): raise ValueError('提醒编号无效。')
         if action in ('remove','complete'):
             c.execute('UPDATE pins SET state=? WHERE mail_id=? AND event_index=?',('completed' if action=='complete' else 'removed',ident,index))
             return
