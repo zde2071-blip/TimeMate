@@ -311,7 +311,7 @@ def extract_source_links(body,rich=''):
 
 EVENT_RULES=('只提出原始正文中明确的活动或截止日期；邮件发送时间、转发头时间不是日程。'
  '不能猜测日期、年份、时区或结束时间；不确定的信息写在 uncertainties，不能生成猜测的日程。'
- '每条 events 包含 title、start、end、location、kind、evidence、allDay。kind 仅活动或截止。'
+ '每条 events 包含 title、action、start、end、location、kind、evidence、allDay。action写用户要做的事，可为空；title写活动或事项名称。kind 仅活动或截止。'
  'start/end 用本机当地时间 YYYY-MM-DDTHH:MM:SS；只有开始时间时 end 为空字符串，用户补充。'
  '截止只写日期时 allDay=true，start 为当天00:00，end 为次日00:00；明确截止时刻时 start 为该时刻，end 为空供用户填写。最多5条。')
 
@@ -328,6 +328,7 @@ def normalize_events(value):
             if end and (end-start).days>31: continue
             events.append({'title':title,'start':start.isoformat(timespec='seconds'),
                            'end':end.isoformat(timespec='seconds') if end else '','location':str(item.get('location','')).strip()[:200],
+                           'action':str(item.get('action','')).strip()[:500],
                            'kind':str(item.get('kind','日程')).strip()[:40],
                            'evidence':str(item.get('evidence','')).strip()[:400],
                            'allDay':item.get('allDay') is True})
