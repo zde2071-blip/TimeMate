@@ -371,6 +371,11 @@ def analyze(ident):
         if not isinstance(result,dict) or not all(isinstance(result.get(k),str) for k in keys): raise ValueError('模型没有返回完整结构，未保存结果，可以重试。')
         clean={k:result[k] for k in keys}
         clean['events']=normalize_events(result.get('events'))
+        # Mail IDs are stable across QQ re-imports. If the mail table was reset
+        # while pins survived, an old pin could otherwise attach to a newly
+        # analyzed event with the same index. A first analysis is an unreviewed
+        # draft, so it must not inherit any saved pin state.
+        c.execute('DELETE FROM pins WHERE mail_id=?',(ident,))
         c.execute('UPDATE mails SET result=? WHERE id=?',(json.dumps(clean,ensure_ascii=False),ident))
     return f'分析完成，提出 {len(clean["events"])} 条待审核日程；尚未写入 Apple 日历。'
 

@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -96,6 +97,27 @@ class MailImportTests(unittest.TestCase):
             message = app.fetch_mail()
         analyze.assert_called_once_with('mail-1')
         self.assertIn('自动分析 1 封', message)
+
+    def test_first_analysis_does_not_restore_orphaned_deadline_pin(self):
+        with app.db() as c:
+            c.execute('INSERT INTO mails (id,subject,sender,date,body,result,created,source) VALUES (?,?,?,?,?,?,?,?)',
+                      ('reimported-mail','Notice','school@xjtlu.edu.cn','2026-10-05','body',None,1,'manual'))
+            c.execute('INSERT INTO pins VALUES (?,?,?,?,?)',
+                      ('reimported-mail',0,'Old deadline','2026-10-10T23:59:00','active'))
+        model_result={
+            'category':'学籍与行政','summary':'学校通知投票安排。','time':'','location':'',
+            'action':'','uncertainties':'',
+            'events':[{'title':'投票截止','start':'2026-10-10T23:59:00','kind':'截止'}],
+        }
+        with patch.object(app, 'model_reply', return_value=model_result):
+            message=app.analyze('reimported-mail')
+        self.assertIn('尚未写入 Apple 日历',message)
+        with app.db() as c:
+            self.assertEqual(c.execute('SELECT COUNT(*) FROM pins WHERE mail_id=?',
+                                       ('reimported-mail',)).fetchone()[0],0)
+            saved=json.loads(c.execute('SELECT result FROM mails WHERE id=?',
+                                       ('reimported-mail',)).fetchone()[0])
+        self.assertEqual(saved['events'][0]['title'],'投票截止')
 
 
 if __name__ == '__main__':
