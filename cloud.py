@@ -4,7 +4,7 @@ Run exactly one application process; its scheduler services all user engines.
 import argparse, hashlib, importlib.util, io, json, os, re, secrets, sqlite3, threading, time
 from contextlib import contextmanager
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlencode
 from cryptography.fernet import Fernet
 from flask import Flask, request, jsonify, redirect, g, make_response
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -12,6 +12,9 @@ import ai_services
 
 ROOT=Path(__file__).resolve().parent
 os.umask(0o077)
+
+def invitation_link(origin,email,token):
+    return origin+'/login#'+urlencode({'email':valid_email(email),'invite':token})
 
 def digest(value): return hashlib.sha256(value.encode()).hexdigest()
 
@@ -220,7 +223,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                     with store.db() as c:
                         c.execute('BEGIN IMMEDIATE')
                         invite=c.execute('SELECT * FROM invites WHERE token=? AND email=? AND used=0 AND expires>?',(digest(str(d.get('invite',''))),address,time.time())).fetchone()
-                        if not invite: raise ValueError('邀请码无效、已使用或与邮箱不匹配。')
+                        if not invite: raise ValueError('邀请链接无效、已过期、已使用或与邮箱不匹配，请联系管理员重新邀请。')
                         c.execute('INSERT INTO users VALUES (?,?,?)',(uid,address,hashed))
                         c.execute('UPDATE invites SET used=1 WHERE token=?',(invite['token'],))
                 else:
@@ -317,7 +320,7 @@ if __name__=='__main__':
     directory,key,origin=settings(); app=create_app(directory,key,origin)
     if args.command!='serve':
         if not args.email: parser.error('需要 --email')
-        print(app.store.invite(args.email) if args.command=='invite' else app.store.reset(args.email))
+        print(invitation_link(origin,args.email,app.store.invite(args.email)) if args.command=='invite' else app.store.reset(args.email))
     else:
         # An OS lock rejects a second process sharing this data directory.
         import fcntl

@@ -31,7 +31,7 @@ async function copyCalendarUrl(){try{await navigator.clipboard.writeText($('cale
 
 function chooseCalendar(){$('calendar-dialog').close();showPage('settings');$('calendar-heading').scrollIntoView({behavior:'smooth'});changeCalendar()}
 async function exportCalendar(data){try{let r=await fetch('/api/calendar/export',{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify(data)});let d=await r.json();if(!r.ok)throw Error(d.error);const url=URL.createObjectURL(new Blob([d.ics],{type:'text/calendar;charset=utf-8'}));let link=document.createElement('a');link.href=url;link.download='审核后的日程.ics';link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);notify('请打开日历文件，确认导入。');$('calendar-dialog').close()}catch(e){$('status').textContent=e.message}}
-async function toggleAuto(){let starting=!enabled;if(await call('/api/auto',{enabled:starting})){if(starting&&!localStorage.getItem('auto-tip-seen')){notify('电脑保持开机且程序运行时，自动分析会持续工作。');localStorage.setItem('auto-tip-seen','1')}}}
+async function toggleAuto(){let starting=!enabled;if(await call('/api/auto',{enabled:starting})){if(starting&&!localStorage.getItem('auto-tip-cloud-seen')){notify('服务器运行时会每分钟检查新邮件，无需保持你的电脑开机。');localStorage.setItem('auto-tip-cloud-seen','1')}}}
 function element(tag,text,cls){let e=document.createElement(tag);e.textContent=text;if(cls)e.className=cls;return e}
 function field(label,value,type){let wrap=element('label',label);let input=document.createElement('input');input.type=type||'text';input.value=value||'';wrap.append(input);return [wrap,input]}
 function notify(text){$('notice').hidden=false;$('notice').textContent=text;let target=$('settings-page').hidden?$('notice'):$('settings-status');if(target)target.textContent=text}

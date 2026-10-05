@@ -2,7 +2,8 @@ import json,os,re,tempfile,time,unittest
 from pathlib import Path
 from unittest.mock import patch
 from cryptography.fernet import Fernet
-from cloud import create_app,settings
+from cloud import create_app,settings,invitation_link
+from urllib.parse import urlsplit,parse_qs
 
 class CloudTests(unittest.TestCase):
  def setUp(self):
@@ -19,6 +20,18 @@ class CloudTests(unittest.TestCase):
   with self.app.store.db() as db:uid=db.execute('SELECT id FROM users WHERE email=?',(address,)).fetchone()[0]
   return token,uid
  def state(self,c,t):return c.get('/api/state',headers={'X-Token':t})
+ def test_invitation_link_registration_and_expiry(self):
+  email='friend+class@example.com';token=self.app.store.invite(email)
+  link=invitation_link('http://127.0.0.1:18744',email,token)
+  parts=urlsplit(link);params=parse_qs(parts.fragment)
+  self.assertEqual(parts.query,'');self.assertEqual(params['email'],[email])
+  self.assertEqual(self.anon.get(parts.path).status_code,200)
+  payload={'email':params['email'][0],'invite':params['invite'][0],'password':'12345678'}
+  self.assertEqual(self.post(self.anon,'/api/auth/register',payload).status_code,200)
+  self.assertEqual(self.post(self.anon,'/api/auth/register',payload).status_code,400)
+  expired=self.app.store.invite('expired@example.com')
+  with self.app.store.db() as c:c.execute("UPDATE invites SET expires=0 WHERE email=?",('expired@example.com',))
+  self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'expired@example.com','invite':expired,'password':'12345678'}).status_code,400)
  def test_auth_csrf_invite_logout(self):
   self.assertEqual(self.anon.get('/').status_code,302);self.assertEqual(self.state(self.anon,'').status_code,401)
   self.assertEqual(self.post(self.b,'/api/pin',{},self.ta).status_code,403)
