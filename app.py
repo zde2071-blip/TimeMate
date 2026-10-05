@@ -328,16 +328,31 @@ def extract_source_links(body,rich=''):
 
 EVENT_RULES=('只提出原始正文中明确的活动或截止日期；邮件发送时间、转发头时间不是日程。'
  '不能猜测日期、年份、时区或结束时间；不确定的信息写在 uncertainties，不能生成猜测的日程。'
+ '课程或实验邮件只说“本周开始”、标注教学周日期范围、并让学生查个人课表时，不代表一条覆盖整周的日程；没有明确到个人课次的日期和时间就不要生成该课程日程。'
  '每条 events 包含 title、action、start、end、location、kind、evidence、allDay。action只写与这条日程/截止事项直接相关、原文明示且收件人需要完成的具体动作；没有则空字符串。title写活动或事项名称。kind 仅活动或截止。'
  'start/end 用本机当地时间 YYYY-MM-DDTHH:MM:SS；只有开始时间时 end 为空字符串，用户补充。'
  '截止只写日期时 allDay=true，start 为当天00:00，end 为次日00:00；明确截止时刻时 start 为该时刻，end 为空供用户填写。最多5条。')
 
-def normalize_events(value):
+def is_course_week_window(item,source_text):
+    if item.get('allDay') is not True or not source_text: return False
+    try:
+        start=datetime.fromisoformat(str(item.get('start','')).strip())
+        end=datetime.fromisoformat(str(item.get('end','')).strip())
+    except (TypeError,ValueError): return False
+    span=(end-start).total_seconds()/86400
+    text=' '.join((source_text,str(item.get('title','')),str(item.get('action','')),str(item.get('evidence','')))).lower()
+    course=bool(re.search(r'\b(?:[a-z]{2,5}\s?\d{3,4}|lab|tutorial|course|class)\b|实验课|课程|课表',text))
+    teaching_week=bool(re.search(r'\bweek\s*\d*\b|\bthis week\b|本周|第\s*\d+\s*周',text))
+    check_timetable=bool(re.search(r'timetable|check your schedule|查看.{0,8}课表|按.{0,8}课表|个人课表',text))
+    return 2<=span<=14 and course and teaching_week and check_timetable
+
+def normalize_events(value,source_text=''):
     if not isinstance(value,list): return []
     events=[]
     for item in value[:5]:
         if not isinstance(item,dict): continue
         try:
+            if is_course_week_window(item,source_text): continue
             title=str(item['title']).strip()[:120]
             start=datetime.fromisoformat(str(item['start']).strip())
             end=datetime.fromisoformat(str(item['end']).strip()) if item.get('end') else None
@@ -370,7 +385,8 @@ def analyze(ident):
         keys=('category','summary','time','location','action','uncertainties')
         if not isinstance(result,dict) or not all(isinstance(result.get(k),str) for k in keys): raise ValueError('模型没有返回完整结构，未保存结果，可以重试。')
         clean={k:result[k] for k in keys}
-        clean['events']=normalize_events(result.get('events'))
+        source_text=row['subject']+'\n'+row['body']
+        clean['events']=normalize_events(result.get('events'),source_text)
         # Mail IDs are stable across QQ re-imports. If the mail table was reset
         # while pins survived, an old pin could otherwise attach to a newly
         # analyzed event with the same index. A first analysis is an unreviewed
@@ -392,7 +408,8 @@ def extract_events(ident):
         answer=model_reply(cfg,prompt,{**{k:row[k] for k in ('subject','sender','date','body')},
                                        'analysis':result,
                                        'currentLocalTime':datetime.now().astimezone().isoformat(timespec='seconds')})
-        result['events']=normalize_events(answer.get('events') if isinstance(answer,dict) else None)
+        source_text=row['subject']+'\n'+row['body']
+        result['events']=normalize_events(answer.get('events') if isinstance(answer,dict) else None,source_text)
         c.execute('UPDATE mails SET result=? WHERE id=?',(json.dumps(result,ensure_ascii=False),ident))
     return f'已提出 {len(result["events"])} 条日程草稿。请核对后再加入 Apple 日历。'
 
