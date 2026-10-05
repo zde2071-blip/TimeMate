@@ -263,7 +263,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         raw=request.get_data() if request.method=='POST' else b''
         if request.method=='POST' and not isinstance(request.get_json(silent=True),dict): return jsonify(error='请求格式不正确。'),400
         if path=='calendar/subscription' and request.method=='POST':
-            if engine.CFG['calendar_method']!='subscribe': return jsonify(error='请先在日历设置中选择同步到日历并保存。'),400
+            if engine.CFG['calendar_method']!='subscribe': return jsonify(error='请先选择 Apple 或 Outlook 日历并点击连接。'),400
             return jsonify(url=store.create_calendar_feed(g.auth['user_id'],origin))
         if path=='calendar/approve' and request.method=='POST':
             if engine.CFG['calendar_method']!='subscribe': return jsonify(error='请先连接日历。'),400

@@ -22,7 +22,7 @@ DB=DATA/'mail.db'
 PREFS=DATA/'preferences.json'
 CALENDAR_BRIDGE=ROOT/'AppleCalendarBridge.app/Contents/MacOS/CalendarBridge'
 TOKEN=secrets.token_urlsafe(32)
-DEFAULTS={'account':'','base':'https://api.deepseek.com','model':'deepseek-flash','school_sender':'','calendar_method':'unset','provider':'deepseek'}
+DEFAULTS={'account':'','base':'https://api.deepseek.com','model':'deepseek-flash','school_sender':'','calendar_method':'unset','calendar_provider':'','calendar_subscription_confirmed':'no','provider':'deepseek'}
 try:
     stored=json.loads(PREFS.read_text())
     if not isinstance(stored,dict): stored={}
@@ -508,7 +508,7 @@ class Handler(BaseHTTPRequestHandler):
                 result=json.loads(row['result']) if row['result'] else {}
                 row['category']=category_for(row,result)
                 row['links']=json.loads(row['source_links']) if row.get('source_links') else extract_source_links(row['body'])
-            visible_cfg={k:CFG[k] for k in ('account','base','model','school_sender','calendar_method','provider')}
+            visible_cfg={k:CFG[k] for k in ('account','base','model','school_sender','calendar_method','calendar_provider','calendar_subscription_confirmed','provider')}
             return self.reply(200,{'status':STATUS,'mails':rows,'pins':pins,'calendarEvents':written,'config':visible_cfg,'providers':ai_services.PROVIDERS,'calendarAvailable':CALENDAR_BRIDGE.is_file(),'ready':{'mail':bool(CFG['account'] and CFG['password']),'ai':bool(CFG['base'] and CFG['model'] and CFG['key'])}})
         self.reply(404,{})
     def do_POST(self):
@@ -545,7 +545,16 @@ class Handler(BaseHTTPRequestHandler):
                 allowed=('unset','ics','subscribe') if RUNTIME else ('unset','ics','apple')
                 if method not in allowed: raise ValueError('请选择有效的日历添加方式。')
                 if method=='apple' and not CALENDAR_BRIDGE.is_file(): raise ValueError('本机没有 Apple 日历连接组件，请选择日历文件。')
+                provider=d.get('calendar_provider',CFG['calendar_provider'])
+                if provider not in ('','apple','outlook'): raise ValueError('请选择 Apple 或 Outlook 日历。')
+                confirmed=d.get('calendar_subscription_confirmed')
+                if confirmed not in (None,'yes','no'): raise ValueError('订阅状态无效。')
+                if confirmed=='yes' and (method!='subscribe' or not provider): raise ValueError('请先选择日历并完成订阅。')
+                if method!=CFG['calendar_method'] or provider!=CFG['calendar_provider']:
+                    CFG['calendar_subscription_confirmed']='no'
                 CFG['calendar_method']=method
+                CFG['calendar_provider']=provider
+                if confirmed is not None: CFG['calendar_subscription_confirmed']=confirmed
                 PREFS.write_text(json.dumps({k:CFG[k] for k in DEFAULTS},ensure_ascii=False))
                 STATUS['message']='日历偏好已保存。只有逐条审核确认后才会添加或导出日程。'
             elif self.path=='/api/calendar/add': job(lambda:add_calendar_event(d))

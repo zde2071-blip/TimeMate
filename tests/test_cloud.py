@@ -118,6 +118,19 @@ class CloudTests(unittest.TestCase):
   restarted=create_app(self.tmp.name,self.key)
   restarted.config['SERVER_NAME']='127.0.0.1:18744'
   self.assertIn('课程会议',restarted.test_client().get(path).text)
+ def test_calendar_provider_and_user_confirmation_persist(self):
+  self.assertEqual(self.post(self.a,'/api/calendar/settings',{'calendar_method':'subscribe','calendar_provider':'apple'},self.ta).status_code,200)
+  self.assertEqual(self.state(self.a,self.ta).json['config']['calendar_subscription_confirmed'],'no')
+  self.post(self.a,'/api/calendar/subscription',{},self.ta)
+  self.assertEqual(self.post(self.a,'/api/calendar/settings',{'calendar_method':'subscribe','calendar_provider':'apple','calendar_subscription_confirmed':'yes'},self.ta).status_code,200)
+  restarted=create_app(self.tmp.name,self.key)
+  self.assertEqual(restarted.store.engine(self.ua).CFG['calendar_subscription_confirmed'],'yes')
+  self.assertEqual(self.post(self.a,'/api/calendar/settings',{'calendar_method':'subscribe','calendar_provider':'outlook'},self.ta).status_code,200)
+  cfg=self.state(self.a,self.ta).json['config']
+  self.assertEqual(cfg['calendar_provider'],'outlook');self.assertEqual(cfg['calendar_subscription_confirmed'],'no')
+  self.assertEqual(self.post(self.a,'/api/calendar/settings',{'calendar_method':'subscribe','calendar_provider':'unknown'},self.ta).status_code,400)
+  self.assertEqual(self.state(self.a,self.ta).json['config']['calendar_provider'],'outlook')
+  self.assertEqual(self.state(self.b,self.tb).json['config']['calendar_provider'],'')
  def test_rate_limit(self):
   for _ in range(10):r=self.post(self.anon,'/api/auth/login',{'email':'absent@example.com','password':'wrong'})
   self.assertEqual(r.status_code,400)
