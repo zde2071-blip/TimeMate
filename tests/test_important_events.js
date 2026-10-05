@@ -10,10 +10,13 @@ assert.notEqual(start, -1, 'event helpers exist in index.html');
 assert.notEqual(end, -1, 'event helpers end before render()');
 const context = vm.createContext({});
 vm.runInContext(html.slice(start, end), context);
+const durationStart = html.indexOf('function addDurationToDateTime(');
+const durationEnd = html.indexOf('\nfunction isVagueTimetableWeek(', durationStart);
+vm.runInContext(html.slice(durationStart, durationEnd), context);
 const deadlineHelpersStart = html.indexOf('function deadlineRemainingMs(');
 const deadlineHelpersEnd = html.indexOf('\nfunction renderMonthCalendar(', deadlineHelpersStart);
 vm.runInContext(html.slice(deadlineHelpersStart, deadlineHelpersEnd), context);
-const { mergeScheduleDuplicates, deadlineReminder, sortDeadlineItems } = vm.runInContext('({ mergeScheduleDuplicates, deadlineReminder, sortDeadlineItems })', context);
+const { mergeScheduleDuplicates, deadlineReminder, sortDeadlineItems, addDurationToDateTime } = vm.runInContext('({ mergeScheduleDuplicates, deadlineReminder, sortDeadlineItems, addDurationToDateTime })', context);
 const vagueWeekStart = html.indexOf('function isVagueTimetableWeek(');
 const vagueWeekEnd = html.indexOf('\nfunction openCalendar(', vagueWeekStart);
 vm.runInContext(html.slice(vagueWeekStart, vagueWeekEnd), context);
@@ -47,6 +50,8 @@ assert.equal(deadlineReminder(deadline('2026-10-06T11:59:00'), now).label, '已�
 assert.equal(deadlineReminder(deadline('2026-10-07T00:00:00', true), new Date('2026-10-07T12:00:00')).label, '1天内截止');
 assert.equal(isVagueTimetableWeek({ title: 'CSI101 Week 4 实验课', start: '2026-10-05T00:00:00', end: '2026-10-10T00:00:00', allDay: true, evidence: 'Your lab begins this week. Check your timetable. Section: Week 4 October 5th-9th' }), true);
 assert.equal(isVagueTimetableWeek({ title: '实验课', start: '2026-10-07T14:00:00', end: '2026-10-07T16:00:00', allDay: false, evidence: 'Check your timetable' }), false);
+assert.equal(addDurationToDateTime('2026-10-07T14:00', 60), '2026-10-07T15:00');
+assert.equal(addDurationToDateTime('2026-10-07T23:30', 60), '2026-10-08T00:30');
 
 const sorted = sortDeadlineItems([
   deadline('2026-10-04T23:59:00'),
