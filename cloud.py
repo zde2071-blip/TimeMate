@@ -280,6 +280,15 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                                   (d['id'],d['index'],'subscribed',None,'邮件助手',json.dumps(d,ensure_ascii=False),time.time()))
                 except (KeyError,ValueError,TypeError): return jsonify(error='请核对日程标题和起止时间。'),400
             return jsonify(ok=True)
+        if path=='calendar/cancel' and request.method=='POST':
+            d=request.get_json(); ident=d.get('id'); index=d.get('index')
+            if not isinstance(ident,str) or not ident or not isinstance(index,int) or isinstance(index,bool):
+                return jsonify(error='日程编号无效。'),400
+            with engine.RUNTIME.request_lock:
+                with engine.db() as c:
+                    cursor=c.execute("UPDATE calendar_events SET status='removed' WHERE mail_id=? AND event_index=? AND status='subscribed'",(ident,index))
+                    if cursor.rowcount!=1: return jsonify(error='没有找到已同步的这条日程。'),400
+            return jsonify(ok=True)
         class Adapter(engine.Handler):
             def __init__(self):
                 self.path='/api/'+path; self.headers={'X-Token':engine.TOKEN,'Content-Length':str(len(raw))}; self.rfile=io.BytesIO(raw)
