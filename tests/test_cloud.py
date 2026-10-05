@@ -80,6 +80,17 @@ class CloudTests(unittest.TestCase):
   self.assertEqual(self.state(self.b,self.tb).json['mails'],[])
   with e.db() as c:self.assertEqual(c.execute('SELECT is_deleted FROM mails WHERE id=?',('mail-1',)).fetchone()[0],1)
 
+ def test_deadline_pin_can_be_removed_and_added_again(self):
+  e=self.app.store.engine(self.ua)
+  result={'events':[{'title':'提交材料','start':'2026-10-10T00:00:00','kind':'截止'}]}
+  with e.db() as c:
+   c.execute('INSERT INTO mails(id,subject,sender,date,body,result,created) VALUES (?,?,?,?,?,?,?)',('deadline-mail','截止通知','school@example.com','2026-10-05','body',json.dumps(result),time.time()))
+   c.execute('INSERT INTO pins VALUES (?,?,?,?,?)',('deadline-mail',0,'提交材料','2026-10-10','active'))
+  self.assertEqual(self.post(self.a,'/api/pin',{'id':'deadline-mail','index':0,'action':'remove'},self.ta).status_code,200)
+  with e.db() as c:self.assertEqual(c.execute('SELECT state FROM pins WHERE mail_id=? AND event_index=0',('deadline-mail',)).fetchone()[0],'removed')
+  self.assertEqual(self.post(self.a,'/api/pin',{'id':'deadline-mail','index':0,'action':'pin'},self.ta).status_code,200)
+  with e.db() as c:self.assertEqual(c.execute('SELECT state FROM pins WHERE mail_id=? AND event_index=0',('deadline-mail',)).fetchone()[0],'active')
+
  def test_restart_restores_settings_and_cursor(self):
   self.post(self.a,'/api/settings/mail',{'account':'123@qq.com','school_sender':'a@school.edu','password':'secret-value'},self.ta)
   e=self.app.store.engine(self.ua)
