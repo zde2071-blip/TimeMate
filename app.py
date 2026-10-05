@@ -67,6 +67,7 @@ def db():
     c.execute('CREATE TABLE IF NOT EXISTS cursors (account TEXT PRIMARY KEY, validity TEXT NOT NULL, uid INTEGER NOT NULL)')
     c.execute("CREATE TABLE IF NOT EXISTS calendar_events (mail_id TEXT NOT NULL, event_index INTEGER NOT NULL, status TEXT NOT NULL, event_id TEXT, calendar_name TEXT, detail TEXT, created REAL NOT NULL, PRIMARY KEY(mail_id,event_index))")
     c.execute("CREATE TABLE IF NOT EXISTS pins (mail_id TEXT NOT NULL,event_index INTEGER NOT NULL,title TEXT NOT NULL,due TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'active',PRIMARY KEY(mail_id,event_index))")
+    c.execute("CREATE TABLE IF NOT EXISTS event_overrides (mail_id TEXT NOT NULL,event_index INTEGER NOT NULL,fields TEXT NOT NULL DEFAULT '{}',state TEXT NOT NULL DEFAULT 'active',PRIMARY KEY(mail_id,event_index))")
     return c
 
 def mail_id(account,validity,uid):
@@ -491,7 +492,9 @@ def update_pin(data):
     if not isinstance(ident,str) or not isinstance(index,int) or isinstance(index,bool): raise ValueError('提醒编号无效。')
     with db() as c:
         if action in ('remove','complete'):
-            c.execute('UPDATE pins SET state=? WHERE mail_id=? AND event_index=?',('completed' if action=='complete' else 'removed',ident,index))
+            state='completed' if action=='complete' else 'removed'
+            c.execute('UPDATE pins SET state=? WHERE mail_id=? AND event_index=?',(state,ident,index))
+            c.execute("INSERT INTO event_overrides(mail_id,event_index,fields,state) VALUES (?,?, '{}',?) ON CONFLICT(mail_id,event_index) DO UPDATE SET state=excluded.state",(ident,index,state))
             return
         if action!='pin': raise ValueError('提醒操作无效。')
         row=c.execute('SELECT result FROM mails WHERE id=?',(ident,)).fetchone()
@@ -500,6 +503,61 @@ def update_pin(data):
         event=events[index]
         datetime.fromisoformat(event['start'])
         c.execute('INSERT OR REPLACE INTO pins VALUES (?,?,?,?,?)',(ident,index,event['title'],event['start'],'active'))
+        c.execute("INSERT INTO event_overrides(mail_id,event_index,fields,state) VALUES (?,?, '{}','active') ON CONFLICT(mail_id,event_index) DO UPDATE SET state='active'",(ident,index))
+
+def manage_event(data):
+    ident=data.get('id');index=data.get('index');action=data.get('action')
+    if not isinstance(ident,str) or not ident or not isinstance(index,int) or isinstance(index,bool): raise ValueError('事项编号无效。')
+    with db() as c:
+        row=c.execute('SELECT result FROM mails WHERE id=? AND is_deleted=0',(ident,)).fetchone()
+        if not row or not row['result']: raise ValueError('找不到这条事项对应的邮件。')
+        result=json.loads(row['result']);events=result.get('events',[])
+        if index<0 or index>=len(events): raise ValueError('事项已不存在，请刷新后重试。')
+        event=events[index]
+        if event.get('kind') not in ('活动','截止'): raise ValueError('这条邮件内容不是可编辑事项。')
+        current=c.execute('SELECT fields,state FROM event_overrides WHERE mail_id=? AND event_index=?',(ident,index)).fetchone()
+        fields=json.loads(current['fields']) if current else {}
+        state=current['state'] if current else 'active'
+        if action=='edit':
+            updates=data.get('fields')
+            if not isinstance(updates,dict): raise ValueError('事项修改内容无效。')
+            title=updates.get('title');todo=updates.get('action');start=updates.get('start');end=updates.get('end','');location=updates.get('location','');all_day=updates.get('allDay',False)
+            if not isinstance(title,str) or not title.strip() or len(title.strip())>160: raise ValueError('标题不能为空，且不能超过 160 个字符。')
+            if not isinstance(todo,str) or len(todo)>1000: raise ValueError('待办内容不能超过 1000 个字符。')
+            if not isinstance(location,str) or len(location)>300: raise ValueError('地点不能超过 300 个字符。')
+            if not isinstance(all_day,bool): raise ValueError('全天设置无效。')
+            try:
+                start_dt=datetime.fromisoformat(start);end_dt=datetime.fromisoformat(end) if end else None
+            except (TypeError,ValueError): raise ValueError('请填写有效的日期和时间。') from None
+            if start_dt.tzinfo or (end_dt and end_dt.tzinfo) or not (2000<=start_dt.year<=2100): raise ValueError('日期或时区无效。')
+            if event['kind']=='活动' and (not end_dt or end_dt<=start_dt or (end_dt-start_dt).days>31): raise ValueError('日程安排需要有效的开始和结束时间。')
+            if event['kind']=='截止' and end_dt: raise ValueError('截止事项只需要设置截止时间。')
+            fields={'title':title.strip(),'action':todo.strip(),'start':start_dt.isoformat(timespec='minutes'),'end':end_dt.isoformat(timespec='minutes') if end_dt else '', 'location':location.strip(),'allDay':all_day}
+            c.execute('INSERT INTO event_overrides(mail_id,event_index,fields,state) VALUES (?,?,?,?) ON CONFLICT(mail_id,event_index) DO UPDATE SET fields=excluded.fields',
+                      (ident,index,json.dumps(fields,ensure_ascii=False),state))
+            if event['kind']=='截止': c.execute('UPDATE pins SET title=?,due=? WHERE mail_id=? AND event_index=?',(fields['title'],fields['start'],ident,index))
+            else:
+                saved=c.execute('SELECT status,detail FROM calendar_events WHERE mail_id=? AND event_index=?',(ident,index)).fetchone()
+                if saved and saved['status'] in ('subscribed','saved'):
+                    try: detail=json.loads(saved['detail'] or '{}')
+                    except ValueError: detail={}
+                    detail.update({'title':fields['title'],'start':fields['start'],'end':fields['end'],'location':fields['location'],'allDay':fields['allDay']})
+                    c.execute('UPDATE calendar_events SET detail=? WHERE mail_id=? AND event_index=?',(json.dumps(detail,ensure_ascii=False),ident,index))
+            return
+        if action not in ('complete','restore','remove'): raise ValueError('事项操作无效。')
+        if event['kind']=='截止':
+            pin=c.execute('SELECT 1 FROM pins WHERE mail_id=? AND event_index=?',(ident,index)).fetchone()
+            if not pin: raise ValueError('这条截止事项当前未加入重要事项。')
+            next_state={'complete':'completed','restore':'active','remove':'removed'}[action]
+            c.execute('UPDATE pins SET state=? WHERE mail_id=? AND event_index=?',(next_state,ident,index))
+        else:
+            if action=='complete': raise ValueError('日程安排不支持标记完成。')
+            if action=='remove':
+                c.execute("UPDATE calendar_events SET status='removed' WHERE mail_id=? AND event_index=? AND status IN ('saved','subscribed')",(ident,index))
+                next_state='removed'
+            else: next_state='active'
+        c.execute("INSERT INTO event_overrides(mail_id,event_index,fields,state) VALUES (?,?,?,?) ON CONFLICT(mail_id,event_index) DO UPDATE SET state=excluded.state",
+                  (ident,index,json.dumps(fields,ensure_ascii=False),next_state))
 
 class CalendarNotSaved(Exception): pass
 
@@ -540,6 +598,8 @@ def add_calendar_event(data):
         with db() as c:
             c.execute('UPDATE calendar_events SET status=?,event_id=?,calendar_name=?,detail=? WHERE mail_id=? AND event_index=?',
                       ('saved',reply.get('eventId',''),reply.get('calendar',''),json.dumps(request,ensure_ascii=False),ident,index))
+        manage_event({'id':ident,'index':index,'action':'edit','fields':{'title':title,'action':event.get('action',''),'start':request['start'],'end':request['end'],'location':location,'allDay':request['allDay']}})
+        with db() as c:c.execute("UPDATE event_overrides SET state='active' WHERE mail_id=? AND event_index=?",(ident,index))
         return '已加入 Apple 日历：'+title
     except CalendarNotSaved as e:
         with db() as c:c.execute('UPDATE calendar_events SET status=?,detail=? WHERE mail_id=? AND event_index=?',('failed',str(e)[:240],ident,index))
@@ -583,6 +643,7 @@ class Handler(BaseHTTPRequestHandler):
                 rows=[dict(r) for r in c.execute("SELECT * FROM mails WHERE is_deleted=0 AND source NOT IN ('simulation','test_archive') ORDER BY created DESC")]
                 written=[dict(r) for r in c.execute('SELECT mail_id,event_index,status,calendar_name,detail FROM calendar_events')]
                 pins=[dict(r) for r in c.execute("SELECT pins.* FROM pins JOIN mails ON mails.id=pins.mail_id WHERE pins.state IN ('active','completed') AND mails.is_deleted=0 AND mails.source NOT IN ('simulation','test_archive') ORDER BY pins.due")]
+                overrides=[dict(r) for r in c.execute("SELECT event_overrides.* FROM event_overrides JOIN mails ON mails.id=event_overrides.mail_id WHERE mails.is_deleted=0 AND mails.source NOT IN ('simulation','test_archive')")]
             rows.sort(key=mail_sort_timestamp,reverse=True)
             for row in rows:
                 row.pop('original',None)
@@ -590,7 +651,7 @@ class Handler(BaseHTTPRequestHandler):
                 row['category']=category_for(row,result)
                 row['links']=json.loads(row['source_links']) if row.get('source_links') else extract_source_links(row['body'])
             visible_cfg={k:CFG[k] for k in ('account','base','model','school_sender','calendar_method','calendar_provider','calendar_subscription_confirmed','provider')}
-            return self.reply(200,{'status':STATUS,'mails':rows,'pins':pins,'calendarEvents':written,'config':visible_cfg,'providers':ai_services.PROVIDERS,'calendarAvailable':CALENDAR_BRIDGE.is_file(),'ready':{'mail':bool(CFG['account'] and CFG['password'] and CFG['school_sender']),'ai':bool(CFG['base'] and CFG['model'] and CFG['key'])}})
+            return self.reply(200,{'status':STATUS,'mails':rows,'pins':pins,'calendarEvents':written,'eventOverrides':overrides,'config':visible_cfg,'providers':ai_services.PROVIDERS,'calendarAvailable':CALENDAR_BRIDGE.is_file(),'ready':{'mail':bool(CFG['account'] and CFG['password'] and CFG['school_sender']),'ai':bool(CFG['base'] and CFG['model'] and CFG['key'])}})
         self.reply(404,{})
     def do_POST(self):
         if not self.valid_host() or self.headers.get('X-Token')!=TOKEN: return self.reply(403,{})
@@ -618,6 +679,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200,translate_source(d.get('id')))
             elif self.path=='/api/pin':
                 update_pin(d)
+            elif self.path=='/api/event/manage':
+                manage_event(d)
             elif self.path=='/api/mail':
                 update_mail(d)
             elif self.path=='/api/fetch': job(fetch_mail)

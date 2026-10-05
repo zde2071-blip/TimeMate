@@ -276,8 +276,13 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                 try:
                     engine.export_calendar_event(d)
                     with engine.db() as c:
+                        result=json.loads(c.execute('SELECT result FROM mails WHERE id=?',(d['id'],)).fetchone()['result'])
+                    event=result['events'][d['index']]
+                    engine.manage_event({'id':d['id'],'index':d['index'],'action':'edit','fields':{'title':d['title'],'action':event.get('action',''),'start':d['start'],'end':d['end'],'location':d.get('location',''),'allDay':d.get('allDay') is True}})
+                    with engine.db() as c:
                         c.execute('INSERT OR REPLACE INTO calendar_events (mail_id,event_index,status,event_id,calendar_name,detail,created) VALUES (?,?,?,?,?,?,?)',
                                   (d['id'],d['index'],'subscribed',None,'邮件助手',json.dumps(d,ensure_ascii=False),time.time()))
+                    with engine.db() as c:c.execute("UPDATE event_overrides SET state='active' WHERE mail_id=? AND event_index=?",(d['id'],d['index']))
                 except (KeyError,ValueError,TypeError): return jsonify(error='请核对日程标题和起止时间。'),400
             return jsonify(ok=True)
         if path=='calendar/cancel' and request.method=='POST':
