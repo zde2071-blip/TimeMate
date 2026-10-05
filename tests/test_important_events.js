@@ -10,7 +10,10 @@ assert.notEqual(start, -1, 'event helpers exist in index.html');
 assert.notEqual(end, -1, 'event helpers end before render()');
 const context = vm.createContext({});
 vm.runInContext(html.slice(start, end), context);
-const { mergeScheduleDuplicates } = vm.runInContext('({ mergeScheduleDuplicates })', context);
+const deadlineHelpersStart = html.indexOf('function deadlineRemainingMs(');
+const deadlineHelpersEnd = html.indexOf('\nfunction renderMonthCalendar(', deadlineHelpersStart);
+vm.runInContext(html.slice(deadlineHelpersStart, deadlineHelpersEnd), context);
+const { mergeScheduleDuplicates, deadlineReminder, sortDeadlineItems } = vm.runInContext('({ mergeScheduleDuplicates, deadlineReminder, sortDeadlineItems })', context);
 
 const title = '第二届西交利物浦大学芯片学院学术沙龙暨校外导师半导体行业专委会思享汇';
 const location = '西浦创业家学院 G-1006（太仓）';
@@ -29,3 +32,25 @@ assert.equal(merged.length, 1, 'the same activity is shown once');
 assert.equal(merged[0].m.id, 'corrected', 'the correction email is the source');
 assert.equal(merged[0].action, action, 'the available todo is carried onto the merged card');
 assert.equal(merged[0].event.end, '', 'conflicting end times are left for confirmation');
+
+const now = new Date('2026-10-06T12:00:00');
+const deadline = (start, allDay = false) => ({ kind: 'deadline', start, event: { start, allDay } });
+assert.equal(deadlineReminder(deadline('2026-10-06T23:00:00'), now).label, '1天内截止');
+assert.equal(deadlineReminder(deadline('2026-10-08T12:00:00'), now).label, '3天内截止');
+assert.equal(deadlineReminder(deadline('2026-10-12T12:00:00'), now).label, '7天内截止');
+assert.equal(deadlineReminder(deadline('2026-10-14T12:00:00'), now), null);
+assert.equal(deadlineReminder(deadline('2026-10-06T11:59:00'), now).label, '已截止');
+assert.equal(deadlineReminder(deadline('2026-10-07T00:00:00', true), new Date('2026-10-07T12:00:00')).label, '1天内截止');
+
+const sorted = sortDeadlineItems([
+  deadline('2026-10-04T23:59:00'),
+  deadline('2026-10-15T00:00:00'),
+  deadline('2026-10-03T12:00:00'),
+  deadline('2026-10-08T12:00:00'),
+], now);
+assert.deepEqual([...sorted].map(item => item.start), [
+  '2026-10-08T12:00:00',
+  '2026-10-15T00:00:00',
+  '2026-10-03T12:00:00',
+  '2026-10-04T23:59:00',
+], 'upcoming deadlines are nearest-first and overdue deadlines are last');
