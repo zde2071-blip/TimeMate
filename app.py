@@ -60,6 +60,8 @@ def db():
     if 'original' not in cols: c.execute("ALTER TABLE mails ADD COLUMN original TEXT")
     if 'source_links' not in cols: c.execute("ALTER TABLE mails ADD COLUMN source_links TEXT")
     if 'source' not in cols: c.execute("ALTER TABLE mails ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'")
+    if 'is_read' not in cols: c.execute('ALTER TABLE mails ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0')
+    if 'is_deleted' not in cols: c.execute('ALTER TABLE mails ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0')
     c.execute('CREATE TABLE IF NOT EXISTS cursors (account TEXT PRIMARY KEY, validity TEXT NOT NULL, uid INTEGER NOT NULL)')
     c.execute("CREATE TABLE IF NOT EXISTS calendar_events (mail_id TEXT NOT NULL, event_index INTEGER NOT NULL, status TEXT NOT NULL, event_id TEXT, calendar_name TEXT, detail TEXT, created REAL NOT NULL, PRIMARY KEY(mail_id,event_index))")
     c.execute("CREATE TABLE IF NOT EXISTS pins (mail_id TEXT NOT NULL,event_index INTEGER NOT NULL,title TEXT NOT NULL,due TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'active',PRIMARY KEY(mail_id,event_index))")
@@ -406,6 +408,16 @@ def export_calendar_event(data):
         folded.append(chunk)
     return '\r\n'.join(folded)+'\r\n'
 
+def update_mail(data):
+    ident=data.get('id'); action=data.get('action')
+    if not isinstance(ident,str) or not ident: raise ValueError('邮件编号无效。')
+    updates={'read':('is_read',1),'unread':('is_read',0),'delete':('is_deleted',1)}
+    if action not in updates: raise ValueError('邮件操作无效。')
+    column,value=updates[action]
+    with db() as c:
+        cursor=c.execute(f"UPDATE mails SET {column}=? WHERE id=? AND is_deleted=0 AND source NOT IN ('simulation','test_archive')",(value,ident))
+        if cursor.rowcount!=1: raise ValueError('找不到这封邮件。')
+
 def update_pin(data):
     ident=data.get('id'); index=data.get('index'); action=data.get('action')
     if not isinstance(ident,str) or not isinstance(index,int) or isinstance(index,bool): raise ValueError('提醒编号无效。')
@@ -500,9 +512,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path=='/api/state':
             if self.headers.get('X-Token')!=TOKEN: return self.reply(403,{})
             with db() as c:
-                rows=[dict(r) for r in c.execute("SELECT * FROM mails WHERE source NOT IN ('simulation','test_archive') ORDER BY created DESC")]
+                rows=[dict(r) for r in c.execute("SELECT * FROM mails WHERE is_deleted=0 AND source NOT IN ('simulation','test_archive') ORDER BY created DESC")]
                 written=[dict(r) for r in c.execute('SELECT mail_id,event_index,status,calendar_name,detail FROM calendar_events')]
-                pins=[dict(r) for r in c.execute("SELECT pins.* FROM pins JOIN mails ON mails.id=pins.mail_id WHERE pins.state IN ('active','completed') AND mails.source NOT IN ('simulation','test_archive') ORDER BY pins.due")]
+                pins=[dict(r) for r in c.execute("SELECT pins.* FROM pins JOIN mails ON mails.id=pins.mail_id WHERE pins.state IN ('active','completed') AND mails.is_deleted=0 AND mails.source NOT IN ('simulation','test_archive') ORDER BY pins.due")]
             for row in rows:
                 row.pop('original',None)
                 result=json.loads(row['result']) if row['result'] else {}
@@ -535,6 +547,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200,original_mail(d.get('id')))
             elif self.path=='/api/pin':
                 update_pin(d)
+            elif self.path=='/api/mail':
+                update_mail(d)
             elif self.path=='/api/fetch': job(fetch_mail)
             elif self.path=='/api/analyze': job(lambda:analyze(d['id']))
             elif self.path=='/api/events/extract': job(lambda:extract_events(d['id']))
@@ -556,7 +570,7 @@ class Handler(BaseHTTPRequestHandler):
                 CFG['calendar_provider']=provider
                 if confirmed is not None: CFG['calendar_subscription_confirmed']=confirmed
                 PREFS.write_text(json.dumps({k:CFG[k] for k in DEFAULTS},ensure_ascii=False))
-                STATUS['message']='日历偏好已保存。只有逐条审核确认后才会添加或导出日程。'
+                STATUS['message']='日历偏好已保存。你在邮件处理中点击“加入日程安排”后，日程才会同步或导出。'
             elif self.path=='/api/calendar/add': job(lambda:add_calendar_event(d))
             elif self.path=='/api/auto':
                 if d.get('enabled'):

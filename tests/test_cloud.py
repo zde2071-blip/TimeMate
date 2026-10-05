@@ -59,6 +59,27 @@ class CloudTests(unittest.TestCase):
    self.assertNotIn(b'private-mail-secret',blob)
    stored=c.execute('SELECT password FROM users WHERE id=?',(self.ua,)).fetchone()[0]
    self.assertNotEqual(stored,'test-password-123')
+ def test_mail_read_and_delete_are_persistent_and_account_scoped(self):
+  e=self.app.store.engine(self.ua)
+  with e.db() as c:
+   c.execute('INSERT INTO mails(id,subject,sender,date,body,result,created) VALUES (?,?,?,?,?,?,?)',('mail-1','测试邮件','school@example.com','2026-10-05','body',json.dumps({'events':[]}),time.time()))
+   c.execute('INSERT INTO pins VALUES (?,?,?,?,?)',('mail-1',0,'截止项','2026-10-10','active'))
+   c.execute('INSERT INTO calendar_events (mail_id,event_index,status,event_id,calendar_name,detail,created) VALUES (?,?,?,?,?,?,?)',('mail-1',0,'subscribed',None,'邮件助手','{}',time.time()))
+  state=self.state(self.a,self.ta).json
+  self.assertEqual(state['mails'][0]['is_read'],0)
+  self.assertEqual(self.post(self.a,'/api/mail',{'id':'mail-1','action':'read'},self.ta).status_code,200)
+  self.assertEqual(self.state(self.a,self.ta).json['mails'][0]['is_read'],1)
+  self.assertEqual(self.post(self.a,'/api/mail',{'id':'mail-1','action':'unread'},self.ta).status_code,200)
+  self.assertEqual(self.state(self.a,self.ta).json['mails'][0]['is_read'],0)
+  self.assertEqual(self.post(self.b,'/api/mail',{'id':'mail-1','action':'delete'},self.tb).status_code,400)
+  self.assertEqual(self.post(self.a,'/api/mail',{'id':'mail-1','action':'delete'},self.ta).status_code,200)
+  deleted=self.state(self.a,self.ta).json
+  self.assertEqual(deleted['mails'],[])
+  self.assertEqual(deleted['pins'],[])
+  self.assertEqual(len(deleted['calendarEvents']),1)
+  self.assertEqual(self.state(self.b,self.tb).json['mails'],[])
+  with e.db() as c:self.assertEqual(c.execute('SELECT is_deleted FROM mails WHERE id=?',('mail-1',)).fetchone()[0],1)
+
  def test_restart_restores_settings_and_cursor(self):
   self.post(self.a,'/api/settings/mail',{'account':'123@qq.com','school_sender':'a@school.edu','password':'secret-value'},self.ta)
   e=self.app.store.engine(self.ua)
