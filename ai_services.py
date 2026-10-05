@@ -58,14 +58,14 @@ def list_models(cfg):
  if not models:raise ValueError('没有获取到模型，请手动填写服务商控制台中的模型 ID。')
  return models
 
-def complete(cfg,prompt,data):
+def complete(cfg,prompt,data,max_tokens=4096):
  validate(cfg)
  user=json.dumps(data,ensure_ascii=False)
  if cfg['provider']=='claude':
-  result=request_json(cfg,'/messages',{'model':cfg['model'],'max_tokens':4096,'system':prompt,'messages':[{'role':'user','content':user}]})
+  result=request_json(cfg,'/messages',{'model':cfg['model'],'max_tokens':max_tokens,'system':prompt,'messages':[{'role':'user','content':user}]})
   content=''.join(x.get('text','') for x in result.get('content',[]) if x.get('type')=='text')
  else:
-  result=request_json(cfg,'/chat/completions',{'model':cfg['model'],'messages':[{'role':'system','content':prompt},{'role':'user','content':user}],'stream':False})
+  result=request_json(cfg,'/chat/completions',{'model':cfg['model'],'messages':[{'role':'system','content':prompt},{'role':'user','content':user}],'max_tokens':max_tokens,'stream':False})
   try:content=result['choices'][0]['message']['content']
   except (KeyError,IndexError,TypeError):raise ValueError('没有收到文本回答，请选择支持文本对话的模型。') from None
  if not isinstance(content,str) or not content.strip():raise ValueError('模型未返回文本，请选择文本对话模型。')
