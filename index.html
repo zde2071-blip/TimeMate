@@ -92,7 +92,9 @@ function renderImportant(d){
  for(let [id,view] of [['view-all','all'],['view-schedule','schedule'],['view-deadline','deadline']]){$(id).className=importantView===view?'active':'secondary';$(id).setAttribute('aria-pressed',String(importantView===view))}
  $('calendar-view').replaceChildren();
  let pins=[...(d.pins||[])].sort((a,b)=>new Date(a.due)-new Date(b.due)||a.title.localeCompare(b.title));let items=[],completed=[];
- for(let item of d.calendarEvents||[]){if(!['saved','subscribed'].includes(item.status))continue;let detail={};try{detail=typeof item.detail==='string'?JSON.parse(item.detail||'{}'):(item.detail||{})}catch{}let m=d.mails.find(x=>x.id===item.mail_id),result=m&&m.result?JSON.parse(m.result):{},event=result.events?.[item.event_index],start=detail.start||event?.start||'',date=start.slice(0,10);if(!date)continue;if(importantView==='deadline')continue;let savedEvent={...(event||{}),kind:'活动',title:detail.title||event?.title||'日程安排',start,end:detail.end||event?.end||'',location:detail.location||event?.location||'',allDay:detail.allDay===true||(detail.allDay===undefined&&event?.allDay===true)};items.push({key:item.mail_id+':'+item.event_index,kind:'schedule',date,m,index:item.event_index,title:savedEvent.title,action:relatedEventAction(event,result,d.mails),event:savedEvent,status:item.status})}
+ for(let item of d.calendarEvents||[]){if(!['saved','subscribed'].includes(item.status))continue;let detail={};try{detail=typeof item.detail==='string'?JSON.parse(item.detail||'{}'):(item.detail||{})}catch{}let m=d.mails.find(x=>x.id===item.mail_id),result=m&&m.result?JSON.parse(m.result):{},event=result.events?.[item.event_index],start=detail.start||event?.start||'',date=start.slice(0,10);if(!date)continue;if(importantView==='deadline')continue;let savedEvent={...(event||{}),kind:'活动',title:detail.title||event?.title||'日程安排',start,end:detail.end||event?.end||'',location:detail.location||event?.location||'',allDay:detail.allDay===true||(detail.allDay===undefined&&event?.allDay===true)};items.push({key:item.mail_id+':'+item.event_index,kind:'schedule',date,m,index:item.event_index,title:savedEvent.title,event:savedEvent,result,status:item.status})}
+ items=mergeScheduleDuplicates(items,d.mails);
+ for(let item of items)item.action=relatedEventAction(item.event,item.result,d.mails);
  for(let pin of pins){if(importantView==='schedule')continue;let m=d.mails.find(x=>x.id===pin.mail_id);if(!m||!m.result)continue;let result=JSON.parse(m.result),event=result.events?.[pin.event_index];if(event?.kind!=='截止')continue;let date=String(pin.due||event.start||'').slice(0,10);if(!date)continue;let savedEvent={...event,title:pin.title||event.title,start:pin.due||event.start};let item={key:pin.mail_id+':'+pin.event_index,mail_id:pin.mail_id,index:pin.event_index,kind:'deadline',date,m,title:savedEvent.title,start:savedEvent.start,location:savedEvent.location||'',allDay:savedEvent.allDay===true,action:relatedEventAction(event,result,d.mails),event:savedEvent,state:pin.state};if(pin.state==='completed')completed.push(item);else if(pin.state==='active')items.push(item)}
  if(importantView==='schedule')items=items.filter(x=>x.kind==='schedule');if(importantView==='deadline')items=items.filter(x=>x.kind==='deadline');
  if(!items.some(x=>x.kind==='deadline')&&importantView!=='schedule')selectedDeadlineKey='';renderMonthCalendar(items,completed)
@@ -106,11 +108,26 @@ function renderCourses(d){let box=$('course-filters');box.replaceChildren();box.
 function matchesCourse(m,code){let codes=courseCodes(m);return code==='全部课程'||(code==='未识别课程'?!codes.length:codes.includes(code))}
 function genericHelpSuggestion(line){return /(?:如有|如遇|如果遇到|若遇到|遇到).{0,24}(?:困难|问题|疑问).{0,20}(?:向.{0,10}(?:求助|咨询)|联系|求助|咨询)/i.test(line)||/(?:if|should you).{0,60}(?:questions?|difficult(?:y|ies)|issues?).{0,40}(?:contact|reach out|ask|seek help)|please feel free to (?:contact|reach out|ask)/i.test(line)}
 function eventAction(event,result){let action=String(event?.action||'').trim();if(action&&!genericHelpSuggestion(action))return action;if((result?.events||[]).length!==1)return '';let legacy=String(result?.action||'').trim();return legacy&&!genericHelpSuggestion(legacy)?legacy:''}
+function normalizeEventLabel(value){return String(value||'').toLocaleLowerCase().replace(/^\s*(?:活动邀请|邀请|活动)\s*[|｜:：\-—]?\s*/,'').replace(/[\s\p{P}\p{S}_]+/gu,'')}
+function sameScheduledEvent(a,b){
+ let x=a?.event||a,y=b?.event||b;if(!x?.title||!y?.title||!x?.start||!y?.start)return false;
+ if(normalizeEventLabel(x.title)!==normalizeEventLabel(y.title)||String(x.start).slice(0,16)!==String(y.start).slice(0,16))return false;
+ let lx=normalizeEventLabel(x.location),ly=normalizeEventLabel(y.location);return !lx||!ly||lx===ly
+}
+function mergeScheduleDuplicates(items,mails){
+ let groups=[];for(let item of items){let group=groups.find(entries=>sameScheduledEvent(entries[0],item));if(group)group.push(item);else groups.push([item])}
+ return groups.map(group=>{
+  let canonical=[...group].sort((a,b)=>Date.parse(b.m?.date||'')-Date.parse(a.m?.date||''))[0],ends=[...new Set(group.map(x=>String(x.event.end||'').slice(0,16)).filter(Boolean))];
+  let event={...canonical.event};if(ends.length>1)event.end='';else if(!event.end&&ends.length===1)event.end=ends[0];
+  if(!event.location)event.location=group.find(x=>x.event.location)?.event.location||'';
+  let actions=[...new Set(group.flatMap(x=>relatedEventAction(x.event,x.result,mails).split('；').map(s=>s.trim()).filter(Boolean)))];
+  return {...canonical,event,title:event.title,action:actions.join('；')}
+ })
+}
 function relatedEventAction(event,result,mails){
- let direct=eventAction(event,result);if(direct||!event?.title||!event?.start)return direct;
- let title=String(event.title).replace(/\s+/g,'').toLowerCase(),date=String(event.start).slice(0,10);
- for(let mail of mails||[]){if(!mail.result)continue;let other;try{other=JSON.parse(mail.result)}catch{continue}for(let candidate of other.events||[]){if(candidate.kind!==event.kind||String(candidate.start||'').slice(0,10)!==date||String(candidate.title||'').replace(/\s+/g,'').toLowerCase()!==title)continue;let action=eventAction(candidate,other);if(action)return action}}
- return ''
+ let actions=[];let direct=eventAction(event,result);if(direct)actions.push(direct);if(!event?.title||!event?.start)return [...new Set(actions)].join('；');
+ for(let mail of mails||[]){if(!mail.result)continue;let other;try{other=JSON.parse(mail.result)}catch{continue}for(let candidate of other.events||[]){if(!sameScheduledEvent({event},{event:candidate}))continue;let action=eventAction(candidate,other);if(action)actions.push(action)}}
+ return [...new Set(actions)].join('；')
 }
 function render(){if(!state)return;let d=state;$('filters').replaceChildren();for(let cat of ['全部',...categories]){let count=d.mails.filter(m=>cat==='全部'||m.category===cat).length;let b=element('button',cat+' '+count,selected===cat?'active':'');b.onclick=()=>{selected=cat;selectedCourse='全部课程';render()};$('filters').append(b)}
  renderImportant(d);renderCourses(d);
