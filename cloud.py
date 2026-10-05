@@ -184,11 +184,11 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
     @app.get('/')
     def index():
         if not g.auth: return redirect('/login')
-        return (ROOT/'index.html').read_text().replace('__TOKEN__',g.auth['csrf']).replace('<h1>邮件助手</h1>','<h1>邮件助手</h1><button class="secondary" onclick="location.href=\'/account\'">账号</button>')
+        return (ROOT/'index.html').read_text().replace('__TOKEN__',g.auth['csrf'])
     @app.get('/account')
     def account():
         if not g.auth: return redirect('/login')
-        return (ROOT/'account.html').read_text().replace('__TOKEN__',g.auth['csrf'])
+        return redirect('/#settings')
     @app.get('/calendar/<token>.ics')
     def calendar_feed(token):
         if not re.fullmatch(r'[A-Za-z0-9_-]{43}',token): return '',404
