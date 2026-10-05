@@ -125,7 +125,7 @@ def valid_email(value):
     return value
 
 def password_hash(value):
-    if not isinstance(value,str) or not 12<=len(value)<=128: raise ValueError('密码需为 12–128 个字符。')
+    if not isinstance(value,str) or not 8<=len(value)<=128: raise ValueError('密码需为 8–128 个字符。')
     return generate_password_hash(value,method='scrypt')
 
 def create_app(directory,key,origin='http://127.0.0.1:18744'):

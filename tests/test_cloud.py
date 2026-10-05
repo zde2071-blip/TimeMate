@@ -74,6 +74,13 @@ class CloudTests(unittest.TestCase):
   self.assertEqual(self.state(self.a,self.ta).status_code,403)
   self.assertEqual(self.post(self.b,'/api/auth/login',{'email':'a@example.com','password':'test-password-123'}).status_code,400)
   self.assertEqual(self.post(self.b,'/api/auth/login',{'email':'a@example.com','password':'changed-password-123'}).status_code,200)
+ def test_eight_character_password_applies_to_registration_and_reset(self):
+  invite=self.app.store.invite('short@example.com')
+  self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'short@example.com','password':'1234567','invite':invite}).status_code,400)
+  self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'short@example.com','password':'12345678','invite':invite}).status_code,200)
+  reset=self.app.store.reset('short@example.com')
+  self.assertEqual(self.post(self.anon,'/api/auth/reset',{'reset':reset,'password':'1234567'}).status_code,400)
+  self.assertEqual(self.post(self.anon,'/api/auth/reset',{'reset':reset,'password':'abcdefgh'}).status_code,200)
  def test_expired_session_and_secure_cookie(self):
   with self.app.store.db() as c:c.execute('UPDATE sessions SET expires=0 WHERE user_id=?',(self.ua,))
   self.assertEqual(self.state(self.a,self.ta).status_code,401)
