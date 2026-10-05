@@ -1,5 +1,6 @@
 import email, hashlib, html, imaplib, json, os, re, secrets, sqlite3, ssl, subprocess, threading, time, webbrowser
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from html.parser import HTMLParser
 from email import policy
 from email.utils import parseaddr
@@ -388,9 +389,13 @@ def export_calendar_event(data):
             raise ValueError('全天日程请将开始和结束时间都设为 00:00；结束日期不包含在日程内。')
         dates=['DTSTART;VALUE=DATE:'+start.strftime('%Y%m%d'),'DTEND;VALUE=DATE:'+end.strftime('%Y%m%d')]
     else:
-        dates=['DTSTART:'+start.astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),'DTEND:'+end.astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')]
+        zone_name=data.get('timeZone')
+        try: zone=ZoneInfo(zone_name) if zone_name else datetime.now().astimezone().tzinfo
+        except (TypeError,ZoneInfoNotFoundError): raise ValueError('时区无效，请重新打开日程。') from None
+        dates=['DTSTART:'+start.replace(tzinfo=zone).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
+               'DTEND:'+end.replace(tzinfo=zone).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')]
     uid=hashlib.sha256((ident+':'+str(index)).encode()).hexdigest()+'@mail-assistant.local'
-    lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Mail Assistant//Calendar//ZH','CALSCALE:GREGORIAN','BEGIN:VEVENT','UID:'+uid,'DTSTAMP:'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),*dates,'SUMMARY:'+escape(event['title']),'LOCATION:'+escape(event['location']),'DESCRIPTION:'+escape('由用户审核导出。原邮件：'+row['subject']),'END:VEVENT','END:VCALENDAR']
+    lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Mail Assistant//Calendar//ZH','CALSCALE:GREGORIAN','BEGIN:VEVENT','UID:'+uid,'DTSTAMP:'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),*dates,'SUMMARY:'+escape(event['title']),'LOCATION:'+escape(event['location']),'DESCRIPTION:'+escape('由用户审核加入。原邮件：'+row['subject']),'END:VEVENT','END:VCALENDAR']
     folded=[]
     for line in lines:
         chunk=''
@@ -537,7 +542,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200,{'ics':export_calendar_event(d)})
             elif self.path=='/api/calendar/settings':
                 method=d.get('calendar_method')
-                if method not in ('unset','ics','apple'): raise ValueError('请选择有效的日历添加方式。')
+                allowed=('unset','ics','subscribe') if RUNTIME else ('unset','ics','apple')
+                if method not in allowed: raise ValueError('请选择有效的日历添加方式。')
                 if method=='apple' and not CALENDAR_BRIDGE.is_file(): raise ValueError('本机没有 Apple 日历连接组件，请选择日历文件。')
                 CFG['calendar_method']=method
                 PREFS.write_text(json.dumps({k:CFG[k] for k in DEFAULTS},ensure_ascii=False))

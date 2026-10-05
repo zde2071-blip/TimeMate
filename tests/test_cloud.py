@@ -87,6 +87,37 @@ class CloudTests(unittest.TestCase):
   secure=create_app(self.tmp.name,self.key,'https://mail.example.com');secure.config['SERVER_NAME']='mail.example.com'
   c=secure.test_client();response=c.post('/api/auth/login',json={'email':'a@example.com','password':'test-password-123'},headers={'Origin':'https://mail.example.com'},base_url='https://mail.example.com')
   self.assertEqual(response.status_code,200);self.assertIn('Secure',response.headers['Set-Cookie'])
+ def test_personal_calendar_subscription_only_contains_approved_events(self):
+  a=self.app.store.engine(self.ua)
+  with a.db() as c:
+   c.execute('INSERT INTO mails(id,subject,sender,date,body,result,created) VALUES (?,?,?,?,?,?,?)',
+             ('one','课程会议','school@example.com','2026-10-05','邮件正文',json.dumps({'events':[{'title':'课程会议','start':'2026-10-10T10:00:00','end':'2026-10-10T11:00:00','location':'教室','kind':'活动'}]}),time.time()))
+  self.assertEqual(self.post(self.a,'/api/calendar/settings',{'calendar_method':'subscribe'},self.ta).status_code,200)
+  response=self.post(self.a,'/api/calendar/subscription',{},self.ta)
+  self.assertEqual(response.status_code,200);url=response.json['url'];path=url.removeprefix('http://127.0.0.1:18744')
+  self.assertNotIn('课程会议',self.anon.get(path).text)
+  reviewed={'id':'one','index':0,'title':'课程会议','start':'2026-10-10T10:00:00','end':'2026-10-10T11:00:00','location':'教室','allDay':False,'timeZone':'Asia/Shanghai'}
+  self.assertEqual(self.post(self.a,'/api/calendar/approve',reviewed,self.ta).status_code,200)
+  feed=self.anon.get(path)
+  self.assertEqual(feed.status_code,200);self.assertIn('课程会议',feed.text);self.assertIn('DTSTART:20261010T020000Z',feed.text)
+  self.assertNotIn('邮件正文',feed.text)
+  self.assertEqual(self.post(self.b,'/api/calendar/approve',reviewed,self.tb).status_code,400)
+  self.assertIsNone(self.state(self.b,self.tb).json['calendarSubscriptionUrl'])
+  b=self.app.store.engine(self.ub)
+  with b.db() as c:
+   c.execute('INSERT INTO mails(id,subject,sender,date,body,result,created) VALUES (?,?,?,?,?,?,?)',
+             ('two','另一位同学的日程','school@example.com','2026-10-05','私人正文',json.dumps({'events':[{'title':'另一位同学的日程','start':'2026-10-12T10:00:00','end':'2026-10-12T11:00:00','location':'教室','kind':'活动'}]}),time.time()))
+  self.assertEqual(self.post(self.b,'/api/calendar/settings',{'calendar_method':'subscribe'},self.tb).status_code,200)
+  b_url=self.post(self.b,'/api/calendar/subscription',{},self.tb).json['url']
+  self.assertNotEqual(url,b_url)
+  self.assertEqual(self.post(self.b,'/api/calendar/approve',{**reviewed,'id':'two','title':'另一位同学的日程'},self.tb).status_code,200)
+  self.assertIn('另一位同学的日程',self.anon.get(b_url.removeprefix('http://127.0.0.1:18744')).text)
+  self.assertNotIn('另一位同学的日程',self.anon.get(path).text)
+  self.assertNotIn('课程会议',self.anon.get(b_url.removeprefix('http://127.0.0.1:18744')).text)
+  self.assertEqual(self.anon.get('/calendar/invalid.ics').status_code,404)
+  restarted=create_app(self.tmp.name,self.key)
+  restarted.config['SERVER_NAME']='127.0.0.1:18744'
+  self.assertIn('课程会议',restarted.test_client().get(path).text)
  def test_rate_limit(self):
   for _ in range(10):r=self.post(self.anon,'/api/auth/login',{'email':'absent@example.com','password':'wrong'})
   self.assertEqual(r.status_code,400)

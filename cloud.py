@@ -54,6 +54,7 @@ class Store:
             CREATE TABLE IF NOT EXISTS credentials(user_id TEXT,identity TEXT,value BLOB,PRIMARY KEY(user_id,identity));
             CREATE TABLE IF NOT EXISTS resets(token TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS attempts(bucket TEXT PRIMARY KEY,count INTEGER NOT NULL,expires REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS calendar_feeds(user_id TEXT PRIMARY KEY,token_hash TEXT UNIQUE NOT NULL,token BLOB NOT NULL);
             ''')
     @contextmanager
     def db(self):
@@ -80,6 +81,17 @@ class Store:
             c.execute('DELETE FROM attempts WHERE expires<?',(now,))
             c.execute('INSERT INTO attempts VALUES (?,1,?) ON CONFLICT(bucket) DO UPDATE SET count=count+1',(digest(bucket),now+900))
             return c.execute('SELECT count FROM attempts WHERE bucket=?',(digest(bucket),)).fetchone()[0]>limit
+    def calendar_feed(self,uid,origin):
+        with self.db() as c:
+            row=c.execute('SELECT token FROM calendar_feeds WHERE user_id=?',(uid,)).fetchone()
+        return origin+'/calendar/'+self.cipher.decrypt(row['token']).decode()+'.ics' if row else None
+    def create_calendar_feed(self,uid,origin):
+        current=self.calendar_feed(uid,origin)
+        if current: return current
+        token=secrets.token_urlsafe(32)
+        with self.db() as c:
+            c.execute('INSERT OR IGNORE INTO calendar_feeds VALUES (?,?,?)',(uid,digest(token),self.cipher.encrypt(token.encode())))
+        return self.calendar_feed(uid,origin)
     def engine(self,uid):
         with self.lock:
             if uid not in self.engines:
@@ -174,6 +186,26 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
     def account():
         if not g.auth: return redirect('/login')
         return (ROOT/'account.html').read_text().replace('__TOKEN__',g.auth['csrf'])
+    @app.get('/calendar/<token>.ics')
+    def calendar_feed(token):
+        if not re.fullmatch(r'[A-Za-z0-9_-]{43}',token): return '',404
+        with store.db() as c:
+            owner=c.execute('SELECT user_id FROM calendar_feeds WHERE token_hash=?',(digest(token),)).fetchone()
+        if not owner: return '',404
+        engine=store.engine(owner['user_id'])
+        with engine.db() as c:
+            items=[json.loads(r['detail']) for r in c.execute("SELECT detail FROM calendar_events WHERE status='subscribed' ORDER BY created")]
+        lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Campus Mail Assistant//ZH','CALSCALE:GREGORIAN','METHOD:PUBLISH','X-WR-CALNAME:邮件助手']
+        for item in items:
+            try:
+                event=engine.export_calendar_event(item)
+                lines.append(event[event.index('BEGIN:VEVENT'):event.index('END:VEVENT')+len('END:VEVENT')].strip())
+            except (KeyError,ValueError,TypeError): continue
+        response=make_response('\r\n'.join(lines+['END:VCALENDAR','']))
+        response.headers['Content-Type']='text/calendar; charset=utf-8'
+        response.headers['Content-Disposition']='inline; filename="mail-assistant.ics"'
+        response.headers['X-Robots-Tag']='noindex, nofollow'
+        return response
     @app.post('/api/auth/<action>')
     def auth(action):
         d=request.get_json(silent=True)
@@ -230,12 +262,30 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         engine=store.engine(g.auth['user_id'])
         raw=request.get_data() if request.method=='POST' else b''
         if request.method=='POST' and not isinstance(request.get_json(silent=True),dict): return jsonify(error='请求格式不正确。'),400
+        if path=='calendar/subscription' and request.method=='POST':
+            if engine.CFG['calendar_method']!='subscribe': return jsonify(error='请先在日历设置中选择同步到日历并保存。'),400
+            return jsonify(url=store.create_calendar_feed(g.auth['user_id'],origin))
+        if path=='calendar/approve' and request.method=='POST':
+            if engine.CFG['calendar_method']!='subscribe': return jsonify(error='请先连接日历。'),400
+            d=request.get_json()
+            with engine.RUNTIME.request_lock:
+                if not store.calendar_feed(g.auth['user_id'],origin): return jsonify(error='请先建立日历订阅链接。'),400
+                try:
+                    engine.export_calendar_event(d)
+                    with engine.db() as c:
+                        c.execute('INSERT OR REPLACE INTO calendar_events (mail_id,event_index,status,event_id,calendar_name,detail,created) VALUES (?,?,?,?,?,?,?)',
+                                  (d['id'],d['index'],'subscribed',None,'邮件助手',json.dumps(d,ensure_ascii=False),time.time()))
+                except (KeyError,ValueError,TypeError): return jsonify(error='请核对日程标题和起止时间。'),400
+            return jsonify(ok=True)
         class Adapter(engine.Handler):
             def __init__(self):
                 self.path='/api/'+path; self.headers={'X-Token':engine.TOKEN,'Content-Length':str(len(raw))}; self.rfile=io.BytesIO(raw)
             def valid_host(self): return True
             def reply(self,code,data,ctype='application/json; charset=utf-8'):
                 if code>=400: data={'error':'操作未完成，请检查设置和所选邮件。'}
+                if code==200 and self.path=='/api/state':
+                    data['calendarSubscriptionSupported']=True
+                    data['calendarSubscriptionUrl']=store.calendar_feed(g.auth['user_id'],origin)
                 self.result=make_response(jsonify(data),code)
         handler=Adapter()
         with engine.RUNTIME.request_lock:
