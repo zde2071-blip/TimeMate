@@ -1,7 +1,8 @@
-import json,re,tempfile,time,unittest
+import json,os,re,tempfile,time,unittest
 from pathlib import Path
+from unittest.mock import patch
 from cryptography.fernet import Fernet
-from cloud import create_app
+from cloud import create_app,settings
 
 class CloudTests(unittest.TestCase):
  def setUp(self):
@@ -139,5 +140,22 @@ class CloudTests(unittest.TestCase):
   self.assertEqual(self.a.get('/',headers={'Host':'evil.example'}).status_code,400)
   response=self.post(self.anon,'/api/auth/login',{'email':'a@example.com','password':'test-password-123'})
   cookie=response.headers['Set-Cookie'];self.assertIn('HttpOnly',cookie);self.assertIn('SameSite=Lax',cookie)
+
+class RailwaySettingsTests(unittest.TestCase):
+ def test_requires_persistent_volume_and_https_domain(self):
+  env={'RAILWAY_ENVIRONMENT_ID':'test','MAIL_MASTER_KEY':Fernet.generate_key().decode()}
+  with patch.dict(os.environ,env,clear=True):
+   with self.assertRaisesRegex(ValueError,'Volume'):settings()
+   os.environ['RAILWAY_VOLUME_MOUNT_PATH']='/data'
+   with self.assertRaisesRegex(ValueError,'公网域名'):settings()
+   os.environ['RAILWAY_PUBLIC_DOMAIN']='mail.example.up.railway.app'
+   directory,key,origin=settings()
+   self.assertEqual(directory,Path('/data'))
+   self.assertEqual(origin,'https://mail.example.up.railway.app')
+   os.environ['MAIL_DATA_DIR']='/temporary'
+   with self.assertRaisesRegex(ValueError,'Volume'):settings()
+   os.environ['MAIL_DATA_DIR']='/data'
+   os.environ['MAIL_ORIGIN']='http://mail.example.up.railway.app'
+   with self.assertRaisesRegex(ValueError,'HTTPS'):settings()
 
 if __name__=='__main__':unittest.main()

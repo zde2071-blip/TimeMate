@@ -296,10 +296,20 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
     return app
 
 def settings():
-    directory=Path(os.environ.get('MAIL_DATA_DIR',ROOT/'cloud-data'))
+    railway=bool(os.environ.get('RAILWAY_ENVIRONMENT_ID'))
+    mount=os.environ.get('RAILWAY_VOLUME_MOUNT_PATH','')
+    directory=Path(os.environ.get('MAIL_DATA_DIR') or mount or ROOT/'cloud-data')
     key=os.environ.get('MAIL_MASTER_KEY','')
-    origin=os.environ.get('MAIL_ORIGIN','http://127.0.0.1:18744')
+    domain=os.environ.get('RAILWAY_PUBLIC_DOMAIN','')
+    origin=os.environ.get('MAIL_ORIGIN') or ('https://'+domain if railway and domain else 'http://127.0.0.1:18744')
     if not key: raise ValueError('缺少 MAIL_MASTER_KEY。请按多人版说明配置独立加密密钥。')
+    if railway:
+        if not mount or directory.resolve()!=Path(mount).resolve():
+            raise ValueError('Railway 必须挂载持久化 Volume；数据目录须使用其挂载路径。')
+        if not os.environ.get('MAIL_ORIGIN') and not domain:
+            raise ValueError('请先在 Railway 生成公网域名，或设置 MAIL_ORIGIN。')
+        if urlsplit(origin).scheme!='https':
+            raise ValueError('Railway 必须设置 HTTPS 公网地址。')
     return directory,key,origin
 
 if __name__=='__main__':
@@ -318,4 +328,4 @@ if __name__=='__main__':
         threading.Thread(target=scheduler,daemon=True).start()
         from waitress import serve
         print('多人版已启动：'+origin,flush=True)
-        serve(app,host=os.environ.get('MAIL_BIND','127.0.0.1'),port=int(os.environ.get('PORT','18744')),threads=12)
+        serve(app,host=os.environ.get('MAIL_BIND','0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT_ID') else '127.0.0.1'),port=int(os.environ.get('PORT','18744')),threads=12)
