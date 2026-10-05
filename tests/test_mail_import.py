@@ -84,6 +84,19 @@ class MailImportTests(unittest.TestCase):
         with app.db() as c:
             self.assertEqual(c.execute('SELECT COUNT(*) FROM mails').fetchone()[0], 0)
 
+    def test_immediate_check_automatically_analyzes_new_matching_mail(self):
+        conn = Mock()
+        app.CFG.update(account='user@qq.com', password='secret', school_sender='school@xjtlu.edu.cn')
+        with app.db() as c:
+            c.execute('INSERT INTO mails (id,subject,sender,date,body,result,created,source) VALUES (?,?,?,?,?,?,?,?)',
+                      ('mail-1','Notice','school@xjtlu.edu.cn','Mon, 05 Oct 2026 10:00:00 +0800','body',None,1,'manual'))
+        with patch.object(app, 'connect_mail', return_value=(conn, '1', [42])), \
+             patch.object(app, 'import_uid', return_value=('mail-1', True)), \
+             patch.object(app, 'analyze', return_value='done') as analyze:
+            message = app.fetch_mail()
+        analyze.assert_called_once_with('mail-1')
+        self.assertIn('自动分析 1 封', message)
+
 
 if __name__ == '__main__':
     unittest.main()

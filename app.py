@@ -159,7 +159,7 @@ def original_mail(ident):
 def fetch_mail():
     cfg=CFG.copy()
     if not cfg['account'] or not cfg['password']: raise ValueError('请先填写并应用 QQ 邮箱与授权码。')
-    conn=None; added=0; matched=0
+    conn=None; added=0; matched=0; candidates=[]
     try:
         STATUS['message']='正在登录 QQ 邮箱…'
         conn,validity,ids=connect_mail(cfg)
@@ -168,10 +168,25 @@ def fetch_mail():
             ident,was_added=import_uid(conn,cfg,validity,uid,'manual')
             matched+=ident is not None
             added+=was_added
+            if ident: candidates.append(ident)
         checked_count=min(50,len(ids))
-        return f'检查完成：最近 {checked_count} 封中，{matched} 封发件人匹配学校邮箱，新增 {added} 封；其余邮件的发件人不匹配。'
     finally:
         if conn: close_mail(conn)
+    analyzed=analyze_pending(candidates)
+    return f'检查完成：最近 {checked_count} 封中，{matched} 封发件人匹配学校邮箱，新增 {added} 封，自动分析 {analyzed} 封；其余邮件的发件人不匹配。'
+
+def analyze_pending(identifiers):
+    with db() as c:
+        pending=[r['id'] for r in c.execute(
+            'SELECT id FROM mails WHERE result IS NULL AND id IN ('+','.join('?' for _ in identifiers)+') ORDER BY created',
+            tuple(dict.fromkeys(identifiers))
+        )] if identifiers else []
+    analyzed=0
+    for ident in pending:
+        STATUS['message']='正在自动分析新邮件…'
+        analyze(ident)
+        analyzed+=1
+    return analyzed
 
 def cursor_key(account):
     return hashlib.sha256(account.casefold().encode()).hexdigest()
@@ -215,10 +230,7 @@ def process_new():
                 c.execute('UPDATE cursors SET uid=? WHERE account=?',(uid,key))
         with db() as c:
             pending=[r['id'] for r in c.execute("SELECT id FROM mails WHERE source='auto' AND result IS NULL ORDER BY created")]
-        for ident in pending:
-            STATUS['message']='正在分析 QQ 邮箱新邮件…'
-            analyze(ident)
-            analyzed+=1
+        analyzed=analyze_pending(pending)
         return f'自动检查完成：发现 {matched} 封发件人匹配学校邮箱的新邮件，导入 {imported} 封，分析 {analyzed} 封；发件人不匹配的邮件已忽略。'
     except Exception:
         STATUS['auto']=False
