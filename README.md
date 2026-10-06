@@ -34,11 +34,12 @@ web/                     浏览器页面
   styles.css             主界面样式
 native/                  单人 Mac 模式使用的 Swift 桥接源码
 tools/                   本机开发辅助工具
+requirements/            单人版与多人版的依赖清单
 tests/                   自动验证功能的测试
 docs/                    使用与部署说明
 ```
 
-根目录的 `cloud.py`、`app.py` 和 `preview.py` 是简短的启动入口，实际代码在上面的目录里。保留这些入口，是为了继续使用原来的启动命令。`Dockerfile`、依赖清单和 Git 配置也保留在根目录，方便部署工具找到它们。
+程序直接从目录里的模块启动，不再保留根目录的三个启动文件。根目录只保留 `README.md`、`Dockerfile`、`.gitignore` 和 `.dockerignore`：它们分别供 GitHub 展示说明、部署构建、Git 忽略文件和 Docker 忽略文件使用。
 
 如果想逐步理解这个项目，建议按一次操作走过的路径阅读：
 
@@ -55,22 +56,22 @@ docs/                    使用与部署说明
 
 ```sh
 python3 -m venv .venv
-.venv/bin/pip install -r requirements-cloud.txt
-.venv/bin/python preview.py
+.venv/bin/pip install -r requirements/cloud.txt
+.venv/bin/python -m tools.preview
 ```
 
 预览工具只监听本机，并在被 Git 忽略的 `cloud-data/development.secret` 中保存开发密钥。账号邀请、正式运行、日历订阅和 Railway 部署步骤见 [多人版说明](docs/多人版说明.md)。
 
-生产环境仍通过 `python cloud.py serve` 启动，本次目录整理不改变该命令。
+生产环境通过 `python -m backend.cloud serve` 启动。仓库中的 Docker 配置已同步更新。下面的命令均在仓库根目录运行。
 
 ## 单人 Mac 模式
 
 此分支仍保留单人本机入口：
 
 ```sh
-.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements/local.txt
 swiftc native/credential_bridge.swift -o CredentialBridge
-.venv/bin/python app.py
+.venv/bin/python -m backend.app
 ```
 
 打开 `http://127.0.0.1:18743/`。本机日历桥接源码在 `native/calendar_bridge.swift`，需要单独构建应用包；缺少桥接程序时仍可导出日历文件。

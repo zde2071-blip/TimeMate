@@ -14,5 +14,5 @@ os.environ['MAIL_ORIGIN']='http://127.0.0.1:18744'
 os.environ['MAIL_BIND']='127.0.0.1'
 os.environ['PORT']='18744'
 import runpy,sys
-sys.argv=[str(root/'cloud.py'),'serve']
-runpy.run_path(str(root/'cloud.py'),run_name='__main__')
+sys.argv=['backend.cloud','serve']
+runpy.run_module('backend.cloud',run_name='__main__')

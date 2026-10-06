@@ -1,4 +1,4 @@
--r requirements.txt
+-r local.txt
 Flask>=3.1,<4
 cryptography>=46
 waitress>=3,<4
