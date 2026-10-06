@@ -5,7 +5,7 @@ const vm = require('node:vm');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const start = html.indexOf('function genericHelpSuggestion(');
-const end = html.indexOf('\nfunction render()', start);
+const end = html.indexOf('\nfunction matchesMailSearch(', start);
 assert.notEqual(start, -1, 'event helpers exist in index.html');
 assert.notEqual(end, -1, 'event helpers end before render()');
 const context = vm.createContext({});
