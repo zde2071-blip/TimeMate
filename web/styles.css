@@ -228,10 +228,8 @@ body {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  background: #f5f7f6;
-  border-radius: 10px;
-  margin: 12px 0;
-  padding: 16px;
+  margin: 24px 0;
+  padding: 0;
 }
 
 .event-row span {
@@ -889,10 +887,6 @@ footer p {
   padding: 7px 10px;
   font-size: 13px;
   white-space: nowrap;
-}
-
-.mail-card.unread .mail-title {
-  font-weight: 750;
 }
 
 .mail-header {
@@ -1578,8 +1572,8 @@ footer p {
   background: #edf5f0;
 }
 
-.mail-list-item.unread .mail-list-title {
-  font-weight: 750;
+.mail-list-item.unread {
+  box-shadow: inset 4px 0 #397158;
 }
 
 .mail-list-category {
