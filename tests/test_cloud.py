@@ -70,6 +70,16 @@ class CloudTests(unittest.TestCase):
    result=engine.translate_source('translate-cloud')
   self.assertEqual(result['translation'],expected['translation'])
   self.assertIn('max_tokens',complete.call_args.kwargs)
+ def test_cloud_translation_returns_sanitized_provider_error(self):
+  engine=self.app.store.engine(self.ua)
+  engine.CFG.update(provider='deepseek',base='https://api.deepseek.com',model='deepseek-flash',key='test-key')
+  with engine.db() as c:
+   c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
+             ('translation-error','School notice','school@xjtlu.edu.cn','2026-10-05','Please register.',time.time(),'manual'))
+  with patch('cloud.ai_services.complete',side_effect=ValueError('连接超时或网络不可达，请检查网络和接口地址。')):
+   response=self.post(self.a,'/api/source/translate',{'id':'translation-error'},self.ta)
+  self.assertEqual(response.status_code,400)
+  self.assertEqual(response.json['error'],'连接超时或网络不可达，请检查网络和接口地址。')
  def test_mail_read_and_delete_are_persistent_and_account_scoped(self):
   e=self.app.store.engine(self.ua)
   with e.db() as c:

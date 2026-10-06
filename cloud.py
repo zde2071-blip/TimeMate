@@ -299,7 +299,19 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                 self.path='/api/'+path; self.headers={'X-Token':engine.TOKEN,'Content-Length':str(len(raw))}; self.rfile=io.BytesIO(raw)
             def valid_host(self): return True
             def reply(self,code,data,ctype='application/json; charset=utf-8'):
-                if code>=400: data={'error':'操作未完成，请检查设置和所选邮件。'}
+                if code>=400:
+                    error=data.get('error','') if isinstance(data,dict) else ''
+                    safe_translation_errors=(
+                        '邮件不存在。','请先在账户设置中配置 AI 服务。','AI 没有返回完整译文，请重试。',
+                        '多人版请使用所选服务商的预设接口地址。','请选择模型服务商。','请填写不含查询参数的 HTTPS 接口基础地址。',
+                        '请填写当前服务商的 API Key。','请先选择模型，或手动填写模型 ID。',
+                        '请求或模型参数不受支持','API Key 无效','账户余额不足','没有调用权限','接口或模型不存在',
+                        '服务商限流或额度不足','服务商暂时无法完成请求','连接超时或网络不可达',
+                        '服务商返回了无法识别的数据','没有收到文本回答','模型未返回文本','模型没有返回所需格式',
+                    )
+                    expose_translation_error=(self.path=='/api/source/translate' and isinstance(error,str)
+                                              and error.startswith(safe_translation_errors))
+                    data={'error':error if expose_translation_error else '操作未完成，请检查设置和所选邮件。'}
                 if code==200 and self.path=='/api/state':
                     data['calendarSubscriptionSupported']=True
                     data['calendarSubscriptionUrl']=store.calendar_feed(g.auth['user_id'],origin)
