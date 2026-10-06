@@ -39,6 +39,23 @@ class CloudTests(unittest.TestCase):
   self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'x@example.com','password':'test-password-123','invite':'invalid'}).status_code,400)
   self.assertEqual(self.post(self.a,'/api/auth/logout',{},self.ta).status_code,200)
   self.assertEqual(self.state(self.a,self.ta).status_code,401)
+ def test_courses_and_manual_categories_are_user_isolated(self):
+  self.assertEqual(self.post(self.a,'/api/courses/add',{'code':'csi 101'},self.ta).status_code,200)
+  self.assertEqual(self.post(self.a,'/api/courses/add',{'code':'CSI101'},self.ta).status_code,200)
+  self.assertEqual(self.state(self.a,self.ta).json['courseCodes'],['CSI101'])
+  self.assertEqual(self.state(self.b,self.tb).json['courseCodes'],[])
+  invalid=self.post(self.a,'/api/courses/add',{'code':'IELTS'},self.ta)
+  self.assertEqual(invalid.status_code,400);self.assertIn('课程代码无效',invalid.json['error'])
+  engine=self.app.store.engine(self.ua)
+  with engine.db() as c:
+   c.execute('INSERT INTO mails(id,subject,body,result,created) VALUES (?,?,?,?,?)',('course-mail','IELTS for students','报名语言培训',json.dumps({'category':'课程与教学'}),1))
+  self.assertEqual(self.state(self.a,self.ta).json['mails'][0]['category'],'活动与机会')
+  foreign=self.post(self.b,'/api/mail/category',{'id':'course-mail','category':'校园服务'},self.tb)
+  self.assertEqual(foreign.status_code,400);self.assertIn('找不到这封邮件',foreign.json['error'])
+  self.assertEqual(self.post(self.a,'/api/mail/category',{'id':'course-mail','category':'课程与教学'},self.ta).status_code,200)
+  self.assertEqual(self.state(self.a,self.ta).json['mails'][0]['category'],'课程与教学')
+  with engine.db() as c:c.execute('UPDATE mails SET result=? WHERE id=?',(json.dumps({'category':'其他'}),'course-mail'))
+  self.assertEqual(self.state(self.a,self.ta).json['mails'][0]['category'],'课程与教学')
  def test_mail_pins_and_secrets_isolated(self):
   a=self.app.store.engine(self.ua);b=self.app.store.engine(self.ub)
   self.assertNotEqual(a.DB,b.DB);self.assertIsNot(a.CFG,b.CFG);self.assertIsNot(a.LOCK,b.LOCK)

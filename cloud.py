@@ -321,7 +321,8 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                         '事项编号无效','事项已不存在','找不到这条事项对应的邮件','这条事项当前未加入重要事项',
                         '这条截止事项当前未加入重要事项','这条邮件内容不是可编辑事项','事项操作无效','日程安排不支持标记完成','事项修改内容无效')
                     expose_event_error=(self.path in ('/api/event/check','/api/event/link','/api/event/manage') and isinstance(error,str) and error.startswith(safe_event_errors))
-                    data={'error':error if expose_translation_error or expose_event_error else '操作未完成，请检查设置和所选邮件。'}
+                    expose_course_error=(self.path in ('/api/courses/add','/api/mail/category') and isinstance(error,str) and error.startswith(('课程代码无效','邮件分类无效','找不到这封邮件。')))
+                    data={'error':error if expose_translation_error or expose_event_error or expose_course_error else '操作未完成，请检查设置和所选邮件。'}
                 if code==200 and self.path=='/api/state':
                     data['calendarSubscriptionSupported']=True
                     data['calendarSubscriptionUrl']=store.calendar_feed(g.auth['user_id'],origin)

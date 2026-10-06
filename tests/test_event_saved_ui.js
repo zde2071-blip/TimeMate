@@ -4,7 +4,7 @@ class Element{constructor(tag,text=''){this.tag=tag;this.textContent=text;this.c
 const flatten=node=>[node,...node.children.flatMap(flatten)];
 async function run(){
  const pane=new Element('section'),content=[];
- const context=vm.createContext({$:()=>pane,element:(tag,text)=>new Element(tag,text),displaySubject:s=>s,mailDateLabel:()=>'',value:s=>s,eventAction:e=>e.action,eventContent:e=>{content.push(e);return new Element('div',e.title)},Object});
+ const context=vm.createContext({$:()=>pane,element:(tag,text)=>new Element(tag,text),displaySubject:s=>s,mailCategoryPicker:()=>new Element('select'),mailDateLabel:()=>'',value:s=>s,eventAction:e=>e.action,eventContent:e=>{content.push(e);return new Element('div',e.title)},Object});
  vm.runInContext(html.slice(html.indexOf('function eventTarget('),html.indexOf('\nfunction editEventMenu(')),context);
  vm.runInContext(html.slice(html.indexOf('function renderMailDetail('),html.indexOf('\nfunction render(){')),context);
  const event={title:'项目截止',action:'提交主题',kind:'截止',start:'2026-10-11T00:00',end:'',allDay:true};
