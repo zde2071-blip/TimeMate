@@ -1,0 +1,80 @@
+"""Versioned account database initialization; ordinary connections do no upgrades."""
+from pathlib import Path
+import sqlite3
+import threading
+import mail_titles
+
+SCHEMA_VERSION = 2
+MAIL_COLUMNS = {
+    'original': 'TEXT', 'source_links': 'TEXT',
+    'source': "TEXT NOT NULL DEFAULT 'manual'",
+    'is_read': 'INTEGER NOT NULL DEFAULT 0', 'is_deleted': 'INTEGER NOT NULL DEFAULT 0',
+    'translation': 'TEXT', 'translation_subject': 'TEXT', 'source_body': 'TEXT',
+    'translation_format': 'TEXT', 'translation_body_length': 'INTEGER',
+    'manual_category': 'TEXT', 'display_title': 'TEXT', 'title_version': 'INTEGER',
+    'analysis_attempts': 'INTEGER NOT NULL DEFAULT 0',
+    'analysis_retry_at': 'REAL NOT NULL DEFAULT 0', 'analysis_error': 'TEXT',
+}
+TABLES = (
+    'CREATE TABLE IF NOT EXISTS courses (code TEXT PRIMARY KEY)',
+    'CREATE TABLE IF NOT EXISTS cursors (account TEXT PRIMARY KEY, validity TEXT NOT NULL, uid INTEGER NOT NULL)',
+    'CREATE TABLE IF NOT EXISTS calendar_events (mail_id TEXT NOT NULL, event_index INTEGER NOT NULL, status TEXT NOT NULL, event_id TEXT, calendar_name TEXT, detail TEXT, created REAL NOT NULL, PRIMARY KEY(mail_id,event_index))',
+    "CREATE TABLE IF NOT EXISTS pins (mail_id TEXT NOT NULL,event_index INTEGER NOT NULL,title TEXT NOT NULL,due TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'active',PRIMARY KEY(mail_id,event_index))",
+    "CREATE TABLE IF NOT EXISTS event_overrides (mail_id TEXT NOT NULL,event_index INTEGER NOT NULL,fields TEXT NOT NULL DEFAULT '{}',state TEXT NOT NULL DEFAULT 'active',PRIMARY KEY(mail_id,event_index))",
+    'CREATE TABLE IF NOT EXISTS event_links (mail_id TEXT NOT NULL,event_index INTEGER NOT NULL,target_mail_id TEXT NOT NULL,target_index INTEGER NOT NULL,PRIMARY KEY(mail_id,event_index))',
+)
+
+
+class Connection(sqlite3.Connection):
+    def __exit__(self, *args):
+        try:
+            return super().__exit__(*args)
+        finally:
+            self.close()
+
+
+def initialize(connection):
+    """Adopt legacy databases and upgrade atomically, once per schema version."""
+    connection.execute('BEGIN IMMEDIATE')
+    try:
+        version = connection.execute('PRAGMA user_version').fetchone()[0]
+        if version > SCHEMA_VERSION:
+            raise RuntimeError('数据库版本高于当前程序版本，请使用新版程序。')
+        if version < 1:
+            connection.execute('CREATE TABLE IF NOT EXISTS mails (id TEXT PRIMARY KEY, subject TEXT, sender TEXT, date TEXT, body TEXT, result TEXT, created REAL)')
+            columns = {row[1] for row in connection.execute('PRAGMA table_info(mails)')}
+            for name, kind in MAIL_COLUMNS.items():
+                if name not in columns:
+                    connection.execute(f'ALTER TABLE mails ADD COLUMN {name} {kind}')
+            for statement in TABLES:
+                connection.execute(statement)
+        if version < 2:
+            mail_titles.migrate(connection)
+        connection.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+
+
+class MailDatabase:
+    """Each account owns its initialization cache and opens independent connections."""
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._initialized = None
+
+    def connect(self, path):
+        path = Path(path).resolve()
+        with self._lock:
+            connection = sqlite3.connect(path, factory=Connection)
+            connection.row_factory = sqlite3.Row
+            try:
+                stat = path.stat()
+                identity = (path, stat.st_dev, stat.st_ino)
+                if identity != self._initialized:
+                    initialize(connection)
+                    self._initialized = identity
+                return connection
+            except Exception:
+                connection.close()
+                raise
