@@ -19,8 +19,6 @@ preferences.json
 __pycache__/
 *.py[cod]
 .DS_Store
-CredentialBridge
-AppleCalendarBridge.app/
 
 # Local historical notes; README.md is the maintained project guide
 使用说明.txt

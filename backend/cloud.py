@@ -1,7 +1,7 @@
 """Invite-only web gateway. Each authenticated user owns an isolated engine and DB.
 Run exactly one application process; its scheduler services all user engines.
 """
-import argparse, hashlib, importlib.util, io, json, os, re, secrets, sqlite3, threading, time
+import argparse, hashlib, importlib.util, json, os, re, secrets, sqlite3, threading, time
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit, urlencode
@@ -101,8 +101,9 @@ class Store:
                     if not c.execute('SELECT 1 FROM users WHERE id=?',(uid,)).fetchone(): raise ValueError('账号不存在')
                 runtime=Runtime(self,uid)
                 spec=importlib.util.spec_from_file_location('backend.mail_user_'+uid,ROOT/'backend/app.py')
-                engine=importlib.util.module_from_spec(spec); engine._runtime=runtime
+                engine=importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(engine)
+                engine.initialize(runtime)
                 engine.db().close()
                 # The shared AI adapter is wrapped per engine, never globally mutated.
                 class CloudAI:
@@ -272,7 +273,6 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
     @app.route('/api/<path:path>',methods=['GET','POST'])
     def api(path):
         engine=store.engine(g.auth['user_id'])
-        raw=request.get_data() if request.method=='POST' else b''
         if request.method=='POST' and not isinstance(request.get_json(silent=True),dict): return jsonify(error='请求格式不正确。'),400
         if path=='calendar/subscription' and request.method=='POST':
             if engine.CFG['calendar_method']!='subscribe': return jsonify(error='请先选择 Apple 或 Outlook 日历并点击连接。'),400
@@ -306,10 +306,9 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                     if cursor.rowcount!=1: return jsonify(error='没有找到已同步的这条日程。'),400
                     engine.event_join.unlink_removed(c,ident,index)
             return jsonify(ok=True)
-        class Adapter(engine.Handler):
+        class Adapter(engine.APIHandler):
             def __init__(self):
-                self.path='/api/'+path; self.headers={'X-Token':engine.TOKEN,'Content-Length':str(len(raw))}; self.rfile=io.BytesIO(raw)
-            def valid_host(self): return True
+                self.path='/api/'+path; self.data=request.get_json(silent=True)
             def reply(self,code,data,ctype='application/json; charset=utf-8'):
                 # The core handler already serializes intentional errors by type.
                 # Never decide visibility by matching translated message text.
@@ -319,8 +318,8 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                 self.result=make_response(jsonify(data),code)
         handler=Adapter()
         with engine.RUNTIME.request_lock:
-            if request.method=='GET': handler.do_GET()
-            else: handler.do_POST()
+            if request.method=='GET': handler.get()
+            else: handler.post()
         return handler.result
     app.dummy_hash=generate_password_hash(secrets.token_urlsafe(32),method='scrypt')
     return app

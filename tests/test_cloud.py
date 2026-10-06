@@ -55,6 +55,18 @@ class CloudTests(unittest.TestCase):
   self.assertNotEqual(self.ta,self.tb)
   directives={part.strip().split()[0]:part.strip().split()[1:] for part in page.headers['Content-Security-Policy'].split(';') if part.strip()}
   self.assertIn("'self'",directives['script-src'])
+ def test_web_engine_has_no_single_user_calendar_path(self):
+  engine=self.app.store.engine(self.ua)
+  self.assertEqual(engine.DB,self.app.store.directory/'users'/self.ua/'mail.db')
+  self.assertIs(engine.STATUS,engine.RUNTIME.status)
+  self.assertFalse(hasattr(engine,'CALENDAR_BRIDGE'))
+  self.assertFalse(hasattr(engine,'main'))
+  response=self.post(self.a,'/api/calendar/settings',{'calendar_method':'apple','calendar_provider':'apple'},self.ta)
+  self.assertEqual(response.status_code,400)
+  self.assertEqual(engine.CFG['calendar_method'],'unset')
+  self.assertEqual(self.post(self.a,'/api/calendar/add',{},self.ta).status_code,404)
+  self.assertEqual(self.post(self.a,'/api/calendar/settings',{'calendar_method':'subscribe','calendar_provider':'apple'},self.ta).status_code,200)
+  self.assertEqual(self.post(self.a,'/api/calendar/subscription',{},self.ta).status_code,200)
  def test_auth_csrf_invite_logout(self):
   self.assertEqual(self.anon.get('/').status_code,302);self.assertEqual(self.state(self.anon,'').status_code,401)
   self.assertEqual(self.post(self.b,'/api/pin',{},self.ta).status_code,403)

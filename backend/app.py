@@ -1,16 +1,11 @@
 from backend.core.user_errors import UserFacingError, payload as error_payload
-import hashlib, html, imaplib, json, os, re, secrets, ssl, subprocess, threading, time, webbrowser
+import hashlib, html, imaplib, json, re, ssl, threading, time
 from datetime import datetime, timezone
 from contextlib import nullcontext
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-from email.utils import parseaddr, parsedate_to_datetime
-from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from pathlib import Path
-from urllib.request import Request, build_opener, HTTPSHandler, HTTPRedirectHandler
-from urllib.parse import urlparse
+from email.utils import parseaddr
 import certifi
 from backend.core import ai_services
-from backend.core.ai_services import AIServiceError
 from backend.mail import original as mail_original
 from backend.mail import dates as mail_dates
 from backend.events import event_join
@@ -19,47 +14,46 @@ from backend.core import database as mail_database
 from backend.mail import ingest as mail_ingest
 from backend.mail import analysis as mail_analysis
 from backend.core import operation_status
-ROOT=Path(__file__).resolve().parents[1]
-os.umask(0o077)
-RUNTIME=globals().get('_runtime')
-DATA=RUNTIME.directory if RUNTIME else ROOT
-DB=DATA/'mail.db'
-PREFS=DATA/'preferences.json'
-CALENDAR_BRIDGE=ROOT/'AppleCalendarBridge.app/Contents/MacOS/CalendarBridge'
-TOKEN=secrets.token_urlsafe(32)
+# An engine is initialized only with an authenticated user's runtime.
+RUNTIME = None
+DB = None
+PREFS = None
 DEFAULTS={'account':'','base':'https://api.deepseek.com','model':'deepseek-flash','school_sender':'','calendar_method':'unset','calendar_provider':'','calendar_subscription_confirmed':'no','provider':'deepseek'}
-try:
-    stored=json.loads(PREFS.read_text())
-    if not isinstance(stored,dict): stored={}
-except (OSError,ValueError): stored={}
-CFG={**DEFAULTS,**{k:stored[k] for k in DEFAULTS if isinstance(stored.get(k),str)}}
-if 'provider' not in stored: CFG['provider']=ai_services.infer_provider(CFG['base'])
+CFG={**DEFAULTS,'password':'','key':''}
+LOCK=threading.Lock()
+STATUS={'busy':False,'auto':False}
+
 def credential_id(group,cfg):
     identity=cfg['account'] if group=='mail' else cfg['provider']+'|'+cfg['base'].rstrip('/')
     return group+':'+hashlib.sha256(identity.encode()).hexdigest()
 
 def credential_store(action,group,cfg,secret=''):
-    if RUNTIME: return RUNTIME.credential(action,credential_id(group,cfg),secret)
-    result=subprocess.run([str(ROOT/'CredentialBridge')],input=json.dumps({'action':action,'account':credential_id(group,cfg),'secret':secret}),text=True,capture_output=True,timeout=30)
-    if result.returncode: raise UserFacingError('无法保存或读取 macOS 钥匙串，请允许钥匙串访问后重试。')
-    return json.loads(result.stdout).get('secret','')
+    if RUNTIME is None: raise RuntimeError('用户运行环境尚未初始化。')
+    return RUNTIME.credential(action,credential_id(group,cfg),secret)
 
-CFG.update(password='',key='')
-for group,field in [('mail','password'),('ai','key')]:
-    try: CFG[field]=credential_store('load',group,CFG)
-    except (OSError,ValueError,subprocess.TimeoutExpired): pass
-LOCK=threading.Lock()
-STATUS=RUNTIME.status if RUNTIME else {'busy':False,'message':'填写邮箱后，点击检查邮件。','auto':False}
-if RUNTIME: CALENDAR_BRIDGE=DATA/'unavailable-calendar-bridge'
-PORT=18743
+def initialize(runtime):
+    global RUNTIME, DB, PREFS, CFG, STATUS
+    RUNTIME=runtime
+    DB=runtime.directory/'mail.db'
+    PREFS=runtime.directory/'preferences.json'
+    try:
+        stored=json.loads(PREFS.read_text())
+        if not isinstance(stored,dict): stored={}
+    except (OSError,ValueError): stored={}
+    CFG={**DEFAULTS,**{k:stored[k] for k in DEFAULTS if isinstance(stored.get(k),str)}}
+    if 'provider' not in stored: CFG['provider']=ai_services.infer_provider(CFG['base'])
+    for group,field in [('mail','password'),('ai','key')]:
+        CFG[field]=credential_store('load',group,CFG)
+    STATUS=runtime.status
 
 DATABASE = mail_database.MailDatabase()
 Connection = mail_database.Connection
 
 def db():
+    if DB is None: raise RuntimeError('用户数据库尚未初始化。')
     return DATABASE.connect(DB)
 
-# Keep the entry-point API stable for the local server and the cloud adapter.
+# Mail operations used by each authenticated user engine.
 mail_id = mail_ingest.mail_id
 connect_mail = mail_ingest.connect_mail
 close_mail = mail_ingest.close_mail
@@ -176,9 +170,6 @@ def translate_source(ident):
         elapsed_ms=round((time.monotonic()-started)*1000)
         with db() as c: c.execute('UPDATE mails SET translation=?,translation_subject=?,translation_format=? WHERE id=?',(translation,translated_subject,stamp,ident))
         return {'html':translation,'external':external,'subject':translated_subject,'cached':False,'truncated':False,'elapsedMs':elapsed_ms}
-
-class NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self,*args,**kwargs): raise UserFacingError('模型接口发生跳转，请填写最终 HTTPS 地址。')
 
 def model_reply(cfg,prompt,data):
     return ai_services.complete(cfg,prompt,data)
@@ -373,7 +364,7 @@ def manage_event(data,connection=None):
             if event['kind']=='截止': c.execute('UPDATE pins SET title=?,due=? WHERE mail_id=? AND event_index=?',(fields['title'],fields['start'],ident,index))
             else:
                 saved=c.execute('SELECT status,detail FROM calendar_events WHERE mail_id=? AND event_index=?',(ident,index)).fetchone()
-                if saved and saved['status'] in ('subscribed','saved'):
+                if saved and saved['status']=='subscribed':
                     try: detail=json.loads(saved['detail'] or '{}')
                     except ValueError: detail={}
                     detail.update({'title':fields['title'],'start':fields['start'],'end':fields['end'],'location':fields['location'],'allDay':fields['allDay']})
@@ -388,7 +379,7 @@ def manage_event(data,connection=None):
         else:
             if action=='complete': raise UserFacingError('日程安排不支持标记完成。')
             if action=='remove':
-                c.execute("UPDATE calendar_events SET status='removed' WHERE mail_id=? AND event_index=? AND status IN ('saved','subscribed')",(ident,index))
+                c.execute("UPDATE calendar_events SET status='removed' WHERE mail_id=? AND event_index=? AND status='subscribed'",(ident,index))
                 next_state='removed'
             else: next_state='active'
         c.execute("INSERT INTO event_overrides(mail_id,event_index,fields,state) VALUES (?,?,?,?) ON CONFLICT(mail_id,event_index) DO UPDATE SET state=excluded.state",
@@ -428,56 +419,6 @@ def join_guard(data):
     if check['candidates']:raise UserFacingError('发现可能重复或更新的事项，请先选择关联、更新或另建。')
     return False
 
-class CalendarNotSaved(Exception): pass
-
-def add_calendar_event(data):
-    if join_guard(data):return '已关联到已有日程，未重复添加。'
-    ident=data.get('id'); index=data.get('index')
-    if not isinstance(ident,str) or not isinstance(index,int) or isinstance(index,bool): raise UserFacingError('日程编号无效。')
-    with db() as c:
-        row=c.execute('SELECT subject,result FROM mails WHERE id=?',(ident,)).fetchone()
-        if not row or not row['result']: raise UserFacingError('找不到这封邮件的分析结果。')
-        result=json.loads(row['result'])
-        events=result.get('events',[])
-        if index<0 or index>=len(events): raise UserFacingError('日程编号无效。')
-        previous=c.execute('SELECT status FROM calendar_events WHERE mail_id=? AND event_index=?',(ident,index)).fetchone()
-        if previous and previous['status'] not in ('failed','removed'):
-            raise UserFacingError('这条日程已经处理过；请先检查 Apple 日历，避免重复添加。')
-        if previous: c.execute('DELETE FROM calendar_events WHERE mail_id=? AND event_index=?',(ident,index))
-        title=str(data.get('title','')).strip()[:120]
-        location=str(data.get('location','')).strip()[:200]
-        try:
-            start=datetime.fromisoformat(str(data.get('start','')).strip())
-            end=datetime.fromisoformat(str(data.get('end','')).strip())
-        except ValueError: raise UserFacingError('请填写完整的开始和结束时间。')
-        if not title or start.tzinfo or end.tzinfo or end<=start: raise UserFacingError('标题或时间无效。')
-        if not (2000<=start.year<=2100) or (end-start).days>31: raise UserFacingError('日期或持续时间超出范围。')
-        event=events[index]
-        notes=f'由邮件助手整理，已由用户审核。\n原邮件主题：{row["subject"]}\n原文依据：{event["evidence"]}'
-        request={'title':title,'start':start.isoformat(timespec='seconds'),'end':end.isoformat(timespec='seconds'),
-                 'location':location,'notes':notes,'allDay':data.get('allDay') is True}
-        c.execute('INSERT INTO calendar_events VALUES (?,?,?,?,?,?,?)',(ident,index,'saving',None,None,None,time.time()))
-    STATUS['message']='正在请求写入 Apple 日历；首次使用请在系统弹窗中允许…'
-    try:
-        if not CALENDAR_BRIDGE.is_file(): raise RuntimeError('Apple 日历连接组件未找到。')
-        proc=subprocess.run([str(CALENDAR_BRIDGE)],input=json.dumps(request,ensure_ascii=False)+'\n',
-                            text=True,capture_output=True,timeout=120)
-        if proc.returncode: raise RuntimeError('日历连接组件运行失败：'+proc.stderr.strip()[:160])
-        reply=json.loads(proc.stdout.strip().splitlines()[-1])
-        if reply.get('status')!='saved': raise CalendarNotSaved(reply.get('message','日历没有确认写入。'))
-        with db() as c:
-            c.execute('UPDATE calendar_events SET status=?,event_id=?,calendar_name=?,detail=? WHERE mail_id=? AND event_index=?',
-                      ('saved',reply.get('eventId',''),reply.get('calendar',''),json.dumps(request,ensure_ascii=False),ident,index))
-        manage_event({'id':ident,'index':index,'action':'edit','fields':{'title':title,'action':event.get('action',''),'start':request['start'],'end':request['end'],'location':location,'allDay':request['allDay']}})
-        with db() as c:c.execute("UPDATE event_overrides SET state='active' WHERE mail_id=? AND event_index=?",(ident,index))
-        return '已加入 Apple 日历：'+title
-    except CalendarNotSaved as e:
-        with db() as c:c.execute('UPDATE calendar_events SET status=?,detail=? WHERE mail_id=? AND event_index=?',('failed',str(e)[:240],ident,index))
-        raise ValueError(str(e)+'。未写入日历，可以检查权限后重试。')
-    except Exception as e:
-        with db() as c:c.execute('UPDATE calendar_events SET status=? WHERE mail_id=? AND event_index=?',('uncertain',ident,index))
-        raise RuntimeError(str(e)+'。为避免重复添加，请先检查 Apple 日历，再决定是否重试。')
-
 def job(fn):
     if not LOCK.acquire(False): raise UserFacingError('上一个操作尚未结束。')
     STATUS['busy']=True
@@ -495,26 +436,12 @@ def job(fn):
         finally: STATUS['busy']=False; LOCK.release()
     threading.Thread(target=run,daemon=True).start()
 
-def poll():
-    while True:
-        time.sleep(60)
-        if STATUS['auto'] and not STATUS['busy']:
-            try: job(process_new)
-            except ValueError: pass
-
-class Handler(BaseHTTPRequestHandler):
-    def log_message(self,*args): pass
-    def reply(self,code,data,ctype='application/json; charset=utf-8'):
-        raw=data.encode() if isinstance(data,str) else json.dumps(data,ensure_ascii=False).encode()
-        self.send_response(code); self.send_header('Content-Type',ctype); self.send_header('Cache-Control','no-store'); self.send_header('X-Content-Type-Options','nosniff'); self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; frame-src 'self' about:; frame-ancestors 'none'"); self.end_headers(); self.wfile.write(raw)
-    def valid_host(self): return self.headers.get('Host')==f'127.0.0.1:{PORT}'
-    def do_GET(self):
-        if not self.valid_host(): return self.reply(403,{})
-        if self.path=='/': return self.reply(200,(ROOT/'web/index.html').read_text().replace('__TOKEN__',TOKEN),'text/html; charset=utf-8')
-        if self.path=='/main.js': return self.reply(200,(ROOT/'web/main.js').read_text(),'text/javascript; charset=utf-8')
-        if self.path=='/styles.css': return self.reply(200,(ROOT/'web/styles.css').read_text(),'text/css; charset=utf-8')
+class APIHandler:
+    """Dispatch authenticated API operations; Flask owns the HTTP server."""
+    def reply(self,code,data):
+        raise NotImplementedError
+    def get(self):
         if self.path=='/api/state':
-            if self.headers.get('X-Token')!=TOKEN: return self.reply(403,{})
             with db() as c:
                 rows=[dict(r) for r in c.execute("SELECT * FROM mails WHERE is_deleted=0 AND source NOT IN ('simulation','test_archive') ORDER BY created DESC")]
                 written=[dict(r) for r in c.execute('SELECT mail_id,event_index,status,calendar_name,detail FROM calendar_events')]
@@ -533,14 +460,11 @@ class Handler(BaseHTTPRequestHandler):
                 row['course_codes']=mail_course_codes(row)
                 row['links']=json.loads(row['source_links']) if row.get('source_links') else extract_source_links(row['body'])
             visible_cfg={k:CFG[k] for k in ('account','base','model','school_sender','calendar_method','calendar_provider','calendar_subscription_confirmed','provider')}
-            return self.reply(200,{'status':STATUS,'courseCodes':courses,'mails':rows,'pins':pins,'calendarEvents':written,'eventOverrides':overrides,'eventLinks':event_links,'config':visible_cfg,'providers':ai_services.PROVIDERS,'calendarAvailable':CALENDAR_BRIDGE.is_file(),'ready':{'mail':bool(CFG['account'] and CFG['password'] and CFG['school_sender']),'ai':bool(CFG['base'] and CFG['model'] and CFG['key'])}})
+            return self.reply(200,{'status':STATUS,'courseCodes':courses,'mails':rows,'pins':pins,'calendarEvents':written,'eventOverrides':overrides,'eventLinks':event_links,'config':visible_cfg,'providers':ai_services.PROVIDERS,'ready':{'mail':bool(CFG['account'] and CFG['password'] and CFG['school_sender']),'ai':bool(CFG['base'] and CFG['model'] and CFG['key'])}})
         self.reply(404,{})
-    def do_POST(self):
-        if not self.valid_host() or self.headers.get('X-Token')!=TOKEN: return self.reply(403,{})
+    def post(self):
         try:
-            length=int(self.headers.get('Content-Length','0'))
-            if length>20000: raise UserFacingError('请求过大')
-            d=json.loads(self.rfile.read(length))
+            d=self.data
             if self.path in ('/api/settings/mail','/api/settings/ai'):
                 group=self.path.rsplit('/',1)[-1]
                 save_connection(group,d)
@@ -580,9 +504,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200,{'ics':export_calendar_event(d)})
             elif self.path=='/api/calendar/settings':
                 method=d.get('calendar_method')
-                allowed=('unset','ics','subscribe') if RUNTIME else ('unset','ics','apple')
+                allowed=('unset','ics','subscribe')
                 if method not in allowed: raise UserFacingError('请选择有效的日历添加方式。')
-                if method=='apple' and not CALENDAR_BRIDGE.is_file(): raise UserFacingError('本机没有 Apple 日历连接组件，请选择日历文件。')
                 provider=d.get('calendar_provider',CFG['calendar_provider'])
                 if provider not in ('','apple','outlook'): raise UserFacingError('请选择 Apple 或 Outlook 日历。')
                 confirmed=d.get('calendar_subscription_confirmed')
@@ -595,7 +518,6 @@ class Handler(BaseHTTPRequestHandler):
                 if confirmed is not None: CFG['calendar_subscription_confirmed']=confirmed
                 PREFS.write_text(json.dumps({k:CFG[k] for k in DEFAULTS},ensure_ascii=False))
                 STATUS['message']='日历偏好已保存。你在邮件处理中点击“加入日程安排”后，日程才会同步或导出。'
-            elif self.path=='/api/calendar/add': job(lambda:add_calendar_event(d))
             elif self.path=='/api/auto':
                 if d.get('enabled'):
                     if STATUS['auto']: raise UserFacingError('自动分析已经开启。')
@@ -606,18 +528,3 @@ class Handler(BaseHTTPRequestHandler):
             else: return self.reply(404,{})
             self.reply(200,{'ok':True})
         except Exception as e: self.reply(400,error_payload(e))
-
-def main():
-    db().close()
-    server=ThreadingHTTPServer(('127.0.0.1',PORT),Handler)
-    threading.Thread(target=poll,daemon=True).start()
-    url=f'http://127.0.0.1:{PORT}'
-    print('邮件助手已启动：'+url+'\n关闭此窗口将停止收信。授权码和 API Key 保存在本机钥匙串中。',flush=True)
-    webbrowser.open(url)
-    try: server.serve_forever()
-    except KeyboardInterrupt: pass
-    finally: server.server_close()
-
-
-if __name__ == '__main__':
-    main()

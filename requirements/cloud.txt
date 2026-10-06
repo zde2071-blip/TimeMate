@@ -1,4 +1,4 @@
--r local.txt
+-r base.txt
 Flask>=3.1,<4
 cryptography>=46
 waitress>=3,<4

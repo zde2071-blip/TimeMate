@@ -29,7 +29,7 @@ def raw_event(c,ident,index):
 
 def effective(c,ident,index):
     event=raw_event(c,ident,index)
-    saved=c.execute("SELECT detail FROM calendar_events WHERE mail_id=? AND event_index=? AND status IN ('saved','subscribed')",(ident,index)).fetchone()
+    saved=c.execute("SELECT detail FROM calendar_events WHERE mail_id=? AND event_index=? AND status='subscribed'",(ident,index)).fetchone()
     if saved:
         detail=json.loads(saved['detail'] or '{}')
         event.update({name:detail[name] for name in FIELDS if name in detail})
@@ -62,7 +62,7 @@ def similarity(a,b):
 def saved_keys(c,kind):
     if kind=='截止':
         return [(r['mail_id'],r['event_index']) for r in c.execute("SELECT mail_id,event_index FROM pins WHERE state IN ('active','completed')")]
-    return [(r['mail_id'],r['event_index']) for r in c.execute("SELECT mail_id,event_index FROM calendar_events WHERE status IN ('saved','subscribed')")]
+    return [(r['mail_id'],r['event_index']) for r in c.execute("SELECT mail_id,event_index FROM calendar_events WHERE status='subscribed'")]
 
 def check(c,data):
     ident,index=key(data)

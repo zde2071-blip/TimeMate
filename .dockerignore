@@ -16,5 +16,3 @@ preferences.json
 *.key
 *.p12
 *.log
-CredentialBridge
-AppleCalendarBridge.app
