@@ -305,7 +305,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                 if code>=400:
                     error=data.get('error','') if isinstance(data,dict) else ''
                     safe_translation_errors=(
-                        '邮件不存在。','请先在账户设置中配置 AI 服务。','AI 没有返回完整译文，请重试。',
+                        '邮件不存在。','请先在账户设置中配置 AI 服务。','AI 没有返回完整译文，请重试。','AI 返回的译文段落不完整，请重试。',
                         '多人版请使用所选服务商的预设接口地址。','请选择模型服务商。','请填写不含查询参数的 HTTPS 接口基础地址。',
                         '请填写当前服务商的 API Key。','请先选择模型，或手动填写模型 ID。',
                         '请求或模型参数不受支持','API Key 无效','账户余额不足','没有调用权限','接口或模型不存在',

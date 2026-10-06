@@ -124,10 +124,10 @@ class CloudTests(unittest.TestCase):
   with engine.db() as c:
    c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
              ('translate-cloud','School notice','school@xjtlu.edu.cn','2026-10-05','Please register by Friday.',time.time(),'manual'))
-  expected={'subject':'学校通知','translation':'请在周五前注册。'}
+  expected={'items':[{'id':0,'text':'学校通知'},{'id':1,'text':'请在周五前注册。'}]}
   with patch('cloud.ai_services.complete',return_value=expected) as complete:
    result=engine.translate_source('translate-cloud')
-  self.assertEqual(result['translation'],expected['translation'])
+  self.assertEqual(result['html'],'<pre>请在周五前注册。</pre>')
   self.assertIn('max_tokens',complete.call_args.kwargs)
  def test_cloud_translation_returns_sanitized_provider_error(self):
   engine=self.app.store.engine(self.ua)
