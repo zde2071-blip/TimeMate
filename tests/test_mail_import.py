@@ -139,8 +139,7 @@ class MailImportTests(unittest.TestCase):
         with app.db() as c:
             row=c.execute('SELECT subject,result FROM mails WHERE id=?',('title-limit',)).fetchone()
         saved=json.loads(row['result'])
-        self.assertLessEqual(len(saved['short_title']),32)
-        self.assertNotIn('宣传补充',saved['short_title'])
+        self.assertNotIn('short_title',saved, 'An overlong model title must not be cut into a fragment with ellipses')
         self.assertEqual(saved['summary'],'保留完整摘要。')
         self.assertEqual(row['subject'],'原始完整标题')
 

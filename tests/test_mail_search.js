@@ -25,7 +25,7 @@ assert.equal(context.mailListTitle({subject:'Full English Subject',result:JSON.s
 assert.equal(context.mailListTitle({subject:'Long title',result:JSON.stringify({events:[{title:'志愿者招募'},{title:'迎新杯长跑'},{title:'瑜伽体验'}]})}),'Long title');
 assert.equal(context.mailListTitle({subject:'Original',result:null}),'Original');
 context.setMailSearch('isa104');assert.equal($('mails').children[0].title,'ISA104 Project');
-assert.match(html,/webkit-line-clamp:2/);
+assert.doesNotMatch(html,/webkit-line-clamp/,'topic titles must not be visually cut into ellipses');
 const sports='【Volunteer Recruitment & Student Activity】Special Care Education义工学院特殊教育志愿者招募& 5000 Competition “迎新杯”5000米长跑 &Yoga Experience Event “迎新杯” 瑜伽体验活动';
 const sportsTitle=context.mailListTitle({subject:sports,result:JSON.stringify({summary:'集中发布志愿者招募和体育活动',events:[]})});
 assert.ok(sportsTitle.length<=32,sportsTitle);for(const topic of ['志愿者招募','5000米长跑','瑜伽'])assert.ok(sportsTitle.includes(topic),sportsTitle);
@@ -52,3 +52,9 @@ assert.equal(context.mailListTitle({subject:'Notice on the National Student Phys
 assert.equal(context.mailListTitle({subject:'Full English subject',result:{short_title:'Academic Literacies Centre: IELTS for students'}}),'雅思','English cached model titles are also cleaned');
 
 assert.equal(context.mailListTitle({subject:'Notice on Physical Health Standard Test 关于开展国家学生体质健康标准测试工作的通知',result:null}),'国家学生体质健康标准测试','English-first bilingual subjects retain the Chinese topic');
+
+assert.equal(context.mailListTitle({subject:sports,result:{events:[]}}),'特殊教育志愿者招募、5000米长跑、瑜伽体验');
+assert.equal(context.mailListTitle({subject:sports,result:{short_title:'…特殊教育志愿者招募、迎新杯5000米长跑、迎新杯 瑜伽体验活动'}}),'特殊教育志愿者招募、5000米长跑、瑜伽体验','stale clipped titles are rebuilt from the intact subject');
+assert.equal(context.mailListTitle({subject:physical,result:{short_title:'国家学生体质健康标准测…'}}),'国家学生体质健康标准测试','never show a cached broken word');
+assert.equal(context.compactMailTitle('...第4周实验课报名通知',false),'第4周实验课报名','dots are noise; the teaching week remains meaningful');
+assert.equal(context.limitMailTitle('这个很长但是不可随意截断的科研项目名称'.repeat(3)),'这个很长但是不可随意截断的科研项目名称'.repeat(3),'unknown topic names are not sliced into fragments');

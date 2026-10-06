@@ -5,4 +5,4 @@ const ctx=vm.createContext({window:{innerHeight:900,innerWidth:1200},$:()=>({hid
 vm.runInContext(html.slice(html.indexOf('function updateMailWorkspaceHeight('),html.indexOf('let mailStatusMessage=')),ctx);
 ctx.updateMailWorkspaceHeight();assert.equal(height,'583px');top=20;ctx.updateMailWorkspaceHeight();assert.equal(height,'803px','scrolling header away makes the reading pane taller');
 ctx.window.innerHeight=1000;ctx.updateMailWorkspaceHeight();assert.equal(height,'903px','resize fills available space');ctx.window.innerWidth=600;height='mobile';ctx.updateMailWorkspaceHeight();assert.equal(height,'mobile','mobile keeps the stacked layout');
-assert.ok(!html.includes('100vh - 345px'));assert.match(html,/\.mail-list-title\{[^}]*webkit-line-clamp:2/);
+assert.ok(!html.includes('100vh - 345px'));assert.doesNotMatch(html,/\.mail-list-title\{[^}]*(?:line-clamp|overflow:hidden)/);

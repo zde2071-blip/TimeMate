@@ -500,7 +500,8 @@ def analyze_saved_mail(ident):
         if isinstance(short_title,str) and short_title.strip():
             title=' '.join(html.unescape(short_title).split())
             title=re.sub(r'[（(][^）)]*[）)]','',title).strip()
-            clean['short_title']=title if len(title)<=32 else title[:31]+'…'
+            # Never save a title fragment with manufactured ellipses. The UI can use the original topic if the model returns an overlong title.
+            if len(title)<=32 and not re.search(r'\.{2,}|…|�',title): clean['short_title']=title
         source_text=row['subject']+'\n'+row['body']
         clean['events']=normalize_events(result.get('events'),source_text)
         # Mail IDs are stable across QQ re-imports. If the mail table was reset
