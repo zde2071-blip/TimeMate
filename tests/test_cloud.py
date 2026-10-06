@@ -175,6 +175,33 @@ class CloudTests(unittest.TestCase):
   self.assertEqual(self.state(self.b,self.tb).json['mails'],[])
   with e.db() as c:self.assertEqual(c.execute('SELECT is_deleted FROM mails WHERE id=?',('mail-1',)).fetchone()[0],1)
 
+ def test_remove_saved_schedule_after_source_event_disappears(self):
+  engine=self.app.store.engine(self.ua)
+  with engine.db() as c:
+   c.execute('INSERT INTO mails(id,subject,body,result,created) VALUES (?,?,?,?,?)',('old-schedule','旧日程','body',json.dumps({'events':[]}),1))
+   c.execute('INSERT INTO calendar_events(mail_id,event_index,status,detail,created) VALUES (?,?,?,?,?)',('old-schedule',0,'subscribed',json.dumps({'title':'芯片学院沙龙','start':'2026-10-15T13:30','end':'2026-10-15T16:15'}),1))
+  self.assertEqual(self.post(self.b,'/api/event/manage',{'id':'old-schedule','index':0,'action':'remove'},self.tb).status_code,400)
+  response=self.post(self.a,'/api/event/manage',{'id':'old-schedule','index':0,'action':'remove'},self.ta)
+  self.assertEqual(response.status_code,200,response.json)
+  with engine.db() as c:
+   self.assertEqual(c.execute('SELECT status FROM calendar_events').fetchone()[0],'removed')
+   self.assertEqual(c.execute('SELECT state FROM event_overrides').fetchone()[0],'removed')
+  self.assertEqual(self.post(self.a,'/api/event/manage',{'id':'old-schedule','index':0,'action':'remove'},self.ta).status_code,200)
+
+ def test_remove_deadline_without_source_and_clear_associated_links(self):
+  engine=self.app.store.engine(self.ua)
+  with engine.db() as c:
+   c.execute('INSERT INTO pins VALUES (?,?,?,?,?)',('missing-mail',0,'截止事项','2026-10-10','active'))
+   c.execute('INSERT INTO event_links VALUES (?,?,?,?)',('reminder',0,'missing-mail',0))
+  response=self.post(self.a,'/api/event/manage',{'id':'reminder','index':0,'action':'remove'},self.ta)
+  self.assertEqual(response.status_code,200,response.json)
+  with engine.db() as c:
+   self.assertEqual(c.execute('SELECT state FROM pins').fetchone()[0],'removed')
+   self.assertEqual(c.execute('SELECT COUNT(*) FROM event_links').fetchone()[0],0)
+  response=self.post(self.a,'/api/event/manage',{'id':'unknown','index':0,'action':'remove'},self.ta)
+  self.assertEqual(response.status_code,400)
+  self.assertIn('当前未加入重要事项',response.json['error'])
+
  def test_deadline_pin_can_be_removed_and_added_again(self):
   e=self.app.store.engine(self.ua)
   result={'events':[{'title':'提交材料','start':'2026-10-10T00:00:00','kind':'截止'}]}

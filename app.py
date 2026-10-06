@@ -567,6 +567,16 @@ def manage_event(data,connection=None):
     if not isinstance(ident,str) or not ident or not isinstance(index,int) or isinstance(index,bool): raise ValueError('事项编号无效。')
     with (nullcontext(connection) if connection is not None else db()) as c:
         ident,index=event_join.resolve(c,ident,index)
+        if action=='remove':
+            # Saved records outlive extraction results; removal must not depend on them.
+            pin=c.execute('SELECT 1 FROM pins WHERE mail_id=? AND event_index=?',(ident,index)).fetchone()
+            saved=c.execute('SELECT 1 FROM calendar_events WHERE mail_id=? AND event_index=?',(ident,index)).fetchone()
+            if not pin and not saved: raise ValueError('这条事项当前未加入重要事项，请刷新后重试。')
+            c.execute("UPDATE pins SET state='removed' WHERE mail_id=? AND event_index=?",(ident,index))
+            c.execute("UPDATE calendar_events SET status='removed' WHERE mail_id=? AND event_index=?",(ident,index))
+            c.execute("INSERT INTO event_overrides(mail_id,event_index,fields,state) VALUES (?,?,'{}','removed') ON CONFLICT(mail_id,event_index) DO UPDATE SET state='removed'",(ident,index))
+            event_join.unlink_removed(c,ident,index)
+            return
         row=c.execute('SELECT result FROM mails WHERE id=? AND is_deleted=0',(ident,)).fetchone()
         if not row or not row['result']: raise ValueError('找不到这条事项对应的邮件。')
         result=json.loads(row['result']);events=result.get('events',[])

@@ -317,8 +317,10 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                     safe_event_errors=('已有事项发生变化','发现可能重复或更新','找不到这条事项','目标事项未加入或类型不同',
                         '这条事项已单独加入','不能把事项关联到自身','请关联到原始事项','更新字段无效','关联操作无效',
                         '标题不能为空','待办内容不能超过','地点不能超过','全天设置无效','请填写有效的日期和时间',
-                        '日期或时区无效','日程安排需要有效的开始和结束时间','截止事项只需要设置截止时间')
-                    expose_event_error=(self.path in ('/api/event/check','/api/event/link') and isinstance(error,str) and error.startswith(safe_event_errors))
+                        '日期或时区无效','日程安排需要有效的开始和结束时间','截止事项只需要设置截止时间',
+                        '事项编号无效','事项已不存在','找不到这条事项对应的邮件','这条事项当前未加入重要事项',
+                        '这条截止事项当前未加入重要事项','这条邮件内容不是可编辑事项','事项操作无效','日程安排不支持标记完成','事项修改内容无效')
+                    expose_event_error=(self.path in ('/api/event/check','/api/event/link','/api/event/manage') and isinstance(error,str) and error.startswith(safe_event_errors))
                     data={'error':error if expose_translation_error or expose_event_error else '操作未完成，请检查设置和所选邮件。'}
                 if code==200 and self.path=='/api/state':
                     data['calendarSubscriptionSupported']=True
