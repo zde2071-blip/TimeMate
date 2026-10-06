@@ -1,6 +1,6 @@
 import json,os,re,tempfile,time,unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock,patch
 from cryptography.fernet import Fernet
 from cloud import create_app,settings,invitation_link
 from urllib.parse import urlsplit,parse_qs
@@ -59,6 +59,21 @@ class CloudTests(unittest.TestCase):
    self.assertNotIn(b'private-mail-secret',blob)
    stored=c.execute('SELECT password FROM users WHERE id=?',(self.ua,)).fetchone()[0]
    self.assertNotEqual(stored,'test-password-123')
+ def test_cloud_immediate_check_calls_llm_and_saves_analysis(self):
+  engine=self.app.store.engine(self.ua)
+  engine.CFG.update(account='user@qq.com',password='secret',school_sender='school@xjtlu.edu.cn',provider='deepseek',base='https://api.deepseek.com',model='deepseek-flash',key='test-key')
+  def imported(*args):
+   with engine.db() as c:
+    c.execute('INSERT INTO mails(id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',('imported','通知','school@xjtlu.edu.cn','2026-10-06','body',1,'manual'))
+   return 'imported',True
+  result={'category':'其他','summary':'分析结果。','time':'','location':'','action':'','uncertainties':'','events':[]}
+  with patch.object(engine,'connect_mail',return_value=(Mock(),'1',[42])),patch.object(engine,'import_uid',side_effect=imported),patch.object(engine,'job',side_effect=lambda fn:fn()),patch('cloud.ai_services.complete',return_value=result) as complete:
+   response=self.post(self.a,'/api/fetch',{},self.ta)
+  self.assertEqual(response.status_code,200)
+  complete.assert_called_once()
+  with engine.db() as c:
+   saved=c.execute("SELECT result FROM mails WHERE id='imported'").fetchone()[0]
+  self.assertEqual(json.loads(saved)['summary'],'分析结果。')
  def test_cloud_translation_forwards_max_tokens_keyword(self):
   engine=self.app.store.engine(self.ua)
   engine.CFG.update(provider='deepseek',base='https://api.deepseek.com',model='deepseek-flash',key='test-key')

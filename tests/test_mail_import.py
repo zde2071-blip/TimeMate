@@ -12,8 +12,14 @@ class MailImportTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.db_patch = patch.object(app, 'DB', Path(self.temp.name) / 'mail.db')
         self.db_patch.start()
+        self.cfg_patch = patch.dict(app.CFG, account='user@qq.com', password='secret', school_sender='school@xjtlu.edu.cn')
+        self.status_patch = patch.dict(app.STATUS, auto=False)
+        self.cfg_patch.start()
+        self.status_patch.start()
 
     def tearDown(self):
+        self.status_patch.stop()
+        self.cfg_patch.stop()
         self.db_patch.stop()
         self.temp.cleanup()
 
@@ -97,6 +103,76 @@ class MailImportTests(unittest.TestCase):
             message = app.fetch_mail()
         analyze.assert_called_once_with('mail-1')
         self.assertIn('自动分析 1 封', message)
+
+    def test_both_check_modes_import_and_call_llm_without_adding_items(self):
+        result={'category':'课程与教学','summary':'课程通知。','time':'','location':'',
+                'action':'','uncertainties':'','events':[{'title':'提交作业','start':'2026-10-10','kind':'截止'}]}
+        for mode in ('manual', 'auto'):
+            with self.subTest(mode=mode):
+                conn=self.fake_mail('school@xjtlu.edu.cn', mode+' notice')
+                uid=42 if mode=='manual' else 43
+                app.STATUS['auto']=True
+                with app.db() as c:
+                    c.execute('INSERT OR REPLACE INTO cursors VALUES (?,?,?)',
+                              (app.cursor_key(app.CFG['account']),'1',uid-1))
+                with patch.object(app,'connect_mail',return_value=(conn,'1',[uid])), \
+                     patch.object(app.ai_services,'complete',return_value=result) as complete:
+                    (app.fetch_mail if mode=='manual' else app.process_new)()
+                complete.assert_called_once()
+                with app.db() as c:
+                    row=c.execute('SELECT result FROM mails WHERE subject=?',(mode+' notice',)).fetchone()
+                    self.assertEqual(json.loads(row['result'])['summary'],'课程通知。')
+                    self.assertEqual(c.execute('SELECT COUNT(*) FROM pins').fetchone()[0],0)
+
+    def test_failed_manual_analysis_does_not_stop_batch_and_auto_check_retries(self):
+        result={'category':'其他','summary':'通知。','time':'','location':'','action':'','uncertainties':'','events':[]}
+        with app.db() as c:
+            for ident,created in [('failed',1),('next',2)]:
+                c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
+                          (ident,ident,'school@xjtlu.edu.cn','2026-10-05','body',created,'manual'))
+            c.execute('INSERT INTO cursors VALUES (?,?,?)',(app.cursor_key(app.CFG['account']),'1',42))
+        with patch.object(app,'connect_mail',return_value=(Mock(),'1',[])), \
+             patch.object(app.ai_services,'complete',side_effect=[TimeoutError('timeout'),result]) as complete:
+            message=app.fetch_mail()
+        self.assertEqual(complete.call_count,2)
+        self.assertIn('自动分析 1 封',message)
+        self.assertIn('1 封分析失败',message)
+        with app.db() as c:
+            self.assertIsNone(c.execute("SELECT result FROM mails WHERE id='failed'").fetchone()[0])
+            self.assertIsNotNone(c.execute("SELECT result FROM mails WHERE id='next'").fetchone()[0])
+        app.STATUS['auto']=True
+        with patch.object(app,'connect_mail',return_value=(Mock(),'1',[42])), \
+             patch.object(app.ai_services,'complete',return_value=result) as complete:
+            message=app.process_new()
+            app.process_new()
+        complete.assert_called_once()
+        self.assertTrue(app.STATUS['auto'])
+        self.assertIn('分析 1 封',message)
+        with app.db() as c:
+            self.assertIsNotNone(c.execute("SELECT result FROM mails WHERE id='failed'").fetchone()[0])
+
+    def test_pending_queue_excludes_deleted_demo_and_already_analyzed_mail(self):
+        with app.db() as c:
+            for ident,source,deleted,result in [('manual','manual',0,None),('auto','auto',0,None),
+                                              ('deleted','manual',1,None),('demo','simulation',0,None),
+                                              ('archive','test_archive',0,None),('done','manual',0,'{}')]:
+                c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source,is_deleted,result) VALUES (?,?,?,?,?,?,?,?,?)',
+                          (ident,ident,'school@xjtlu.edu.cn','2026-10-05','body',1,source,deleted,result))
+        with patch.object(app,'analyze',return_value='done') as analyze:
+            self.assertEqual(app.analyze_pending(),(2,0))
+        self.assertEqual({call.args[0] for call in analyze.call_args_list},{'manual','auto'})
+
+    def test_auto_analysis_failure_keeps_auto_check_running(self):
+        app.STATUS['auto']=True
+        with app.db() as c:
+            c.execute('INSERT INTO cursors VALUES (?,?,?)',(app.cursor_key(app.CFG['account']),'1',42))
+            c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
+                      ('pending','Notice','school@xjtlu.edu.cn','2026-10-05','body',1,'auto'))
+        with patch.object(app,'connect_mail',return_value=(Mock(),'1',[42])), \
+             patch.object(app.ai_services,'complete',side_effect=TimeoutError('timeout')):
+            message=app.process_new()
+        self.assertTrue(app.STATUS['auto'])
+        self.assertIn('1 封分析失败，后续检查会自动重试',message)
 
     def test_first_analysis_does_not_restore_orphaned_deadline_pin(self):
         with app.db() as c:

@@ -203,7 +203,7 @@ def translate_source(ident):
 def fetch_mail():
     cfg=CFG.copy()
     if not cfg['account'] or not cfg['password']: raise ValueError('请先填写并应用 QQ 邮箱与授权码。')
-    conn=None; added=0; matched=0; candidates=[]
+    conn=None; added=0; matched=0
     try:
         STATUS['message']='正在登录 QQ 邮箱…'
         conn,validity,ids=connect_mail(cfg)
@@ -212,25 +212,30 @@ def fetch_mail():
             ident,was_added=import_uid(conn,cfg,validity,uid,'manual')
             matched+=ident is not None
             added+=was_added
-            if ident: candidates.append(ident)
         checked_count=min(50,len(ids))
     finally:
         if conn: close_mail(conn)
-    analyzed=analyze_pending(candidates)
-    return f'检查完成：最近 {checked_count} 封中，{matched} 封发件人匹配学校邮箱，新增 {added} 封，自动分析 {analyzed} 封；其余邮件的发件人不匹配。'
+    analyzed,failed=analyze_pending()
+    return f'检查完成：最近 {checked_count} 封中，{matched} 封发件人匹配学校邮箱，新增 {added} 封，自动分析 {analyzed} 封；其余邮件的发件人不匹配。'+analysis_retry_message(failed)
 
-def analyze_pending(identifiers):
+def analyze_pending():
     with db() as c:
         pending=[r['id'] for r in c.execute(
-            'SELECT id FROM mails WHERE result IS NULL AND id IN ('+','.join('?' for _ in identifiers)+') ORDER BY created',
-            tuple(dict.fromkeys(identifiers))
-        )] if identifiers else []
-    analyzed=0
+            "SELECT id FROM mails WHERE result IS NULL AND is_deleted=0 AND source IN ('manual','auto') ORDER BY created"
+        )]
+    analyzed=0; failed=0
     for ident in pending:
         STATUS['message']='正在自动分析新邮件…'
-        analyze(ident)
-        analyzed+=1
-    return analyzed
+        try:
+            analyze(ident)
+            analyzed+=1
+        except Exception:
+            # 保留未分析状态，下一次检查重试；单封失败不能阻断整批。
+            failed+=1
+    return analyzed,failed
+
+def analysis_retry_message(failed):
+    return f' {failed} 封分析失败，后续检查会自动重试。' if failed else ''
 
 def cursor_key(account):
     return hashlib.sha256(account.casefold().encode()).hexdigest()
@@ -254,7 +259,7 @@ def start_auto():
 def process_new():
     cfg=CFG.copy()
     if not STATUS['auto']: return '自动分析已停止。'
-    conn=None; imported=0; analyzed=0; matched=0
+    conn=None; imported=0; matched=0
     try:
         STATUS['message']='自动检查新邮件…'
         conn,validity,ids=connect_mail(cfg)
@@ -272,10 +277,8 @@ def process_new():
             imported+=added
             with db() as c:
                 c.execute('UPDATE cursors SET uid=? WHERE account=?',(uid,key))
-        with db() as c:
-            pending=[r['id'] for r in c.execute("SELECT id FROM mails WHERE source='auto' AND result IS NULL ORDER BY created")]
-        analyzed=analyze_pending(pending)
-        return f'自动检查完成：发现 {matched} 封发件人匹配学校邮箱的新邮件，导入 {imported} 封，分析 {analyzed} 封；发件人不匹配的邮件已忽略。'
+        analyzed,failed=analyze_pending()
+        return f'自动检查完成：发现 {matched} 封发件人匹配学校邮箱的新邮件，导入 {imported} 封，分析 {analyzed} 封；发件人不匹配的邮件已忽略。'+analysis_retry_message(failed)
     except Exception:
         STATUS['auto']=False
         raise
