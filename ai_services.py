@@ -66,11 +66,26 @@ def complete(cfg,prompt,data,max_tokens=4096):
  user=json.dumps(data,ensure_ascii=False)
  if cfg['provider']=='claude':
   result=request_json(cfg,'/messages',{'model':cfg['model'],'max_tokens':max_tokens,'system':prompt,'messages':[{'role':'user','content':user}]})
+  if result.get('stop_reason')=='max_tokens':raise AIServiceError('模型回答达到输出额度上限，结果不完整。')
   content=''.join(x.get('text','') for x in result.get('content',[]) if x.get('type')=='text')
  else:
-  result=request_json(cfg,'/chat/completions',{'model':cfg['model'],'messages':[{'role':'system','content':prompt},{'role':'user','content':user}],'max_tokens':max_tokens,'stream':False})
-  try:content=result['choices'][0]['message']['content']
-  except (KeyError,IndexError,TypeError):raise AIServiceError('没有收到文本回答，请选择支持文本对话的模型。') from None
- if not isinstance(content,str) or not content.strip():raise AIServiceError('模型未返回文本，请选择文本对话模型。')
+  payload={'model':cfg['model'],'messages':[{'role':'system','content':prompt},{'role':'user','content':user}],'max_tokens':max_tokens,'stream':False}
+  # Email extraction/translation needs a final answer, not a reasoning trace.
+  # DeepSeek enables thinking by default, which shares the output token limit.
+  if cfg['provider']=='deepseek':payload['thinking']={'type':'disabled'}
+  result=request_json(cfg,'/chat/completions',payload)
+  try:
+   choice=result['choices'][0];message=choice['message'];content=message.get('content')
+  except (KeyError,IndexError,TypeError,AttributeError):raise AIServiceError('模型接口返回结构异常，没有收到回答。') from None
+  reason=choice.get('finish_reason')
+  if reason=='length':
+   if message.get('reasoning_content') and not content:
+    raise AIServiceError('模型在思考阶段耗尽输出额度，尚未生成最终回答。')
+   raise AIServiceError('模型回答达到输出额度上限，结果不完整。')
+  if reason=='content_filter':raise AIServiceError('模型服务商拦截了本次回答，未生成可用结果。')
+  if reason=='insufficient_system_resource':raise AIServiceError('模型服务商计算资源不足，请稍后重试。')
+  if not content and message.get('reasoning_content'):
+   raise AIServiceError('模型只返回了思考内容，没有最终回答；请检查思考模式兼容性。')
+ if not isinstance(content,str) or not content.strip():raise AIServiceError('模型接口返回了空回答，请稍后重试。')
  try:return json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',content.strip()))
  except ValueError:raise AIServiceError('模型没有返回所需格式，请重试或更换模型。') from None
