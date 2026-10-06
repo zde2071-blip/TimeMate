@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const html=fs.readFileSync(require('node:path').join(__dirname,'..','index.html'),'utf8');
+let now=1000;const nodes=new Map(),$=id=>{if(!nodes.has(id))nodes.set(id,{setAttribute(k,v){this[k]=v}});return nodes.get(id)};
+const ctx=vm.createContext({$,Date:{now:()=>now}});
+vm.runInContext(html.slice(html.indexOf("let mailStatusMessage="),html.indexOf('async function refresh(){')),ctx);
+let d={ready:{mail:true,ai:true},status:{auto:true,busy:false,message:'自动检查完成：发现 0 封发件人匹配学校邮箱的新邮件，导入 0 封，分析 0 封；已忽略。'}};
+ctx.renderMailControls(d);assert.equal($('auto')['aria-checked'],'true');assert.equal($('status').textContent,'没有新邮件');now+=6000;ctx.renderMailControls(d);assert.equal($('status').hidden,true);
+d.status={auto:false,busy:false,message:'检查完成：最近 50 封中，3 封匹配，新增 3 封，自动分析 2 封；其余忽略。 1 封分析失败，后续检查会自动重试。'};ctx.renderMailControls(d);now+=6000;ctx.renderMailControls(d);assert.equal($('auto')['aria-checked'],'false');assert.equal($('status').hidden,false);assert.match($('status').textContent,/1 封分析失败/);
+d.status={auto:true,busy:true,message:'并行分析进度：已完成 2/5 封，成功 2 封，失败 0 封。'};ctx.renderMailControls(d);assert.equal($('status').textContent,'正在分析 2/5');
+const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);assert.equal(new Set(ids).size,ids.length,'DOM IDs must remain unique');assert.ok(html.indexOf('id="mail-controls"')<html.indexOf('id="mail-page"'));assert.ok(!html.includes('id="auto-label"'));assert.match(html,/role="switch"/);
