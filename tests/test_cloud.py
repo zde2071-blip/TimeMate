@@ -12,6 +12,12 @@ class CloudTests(unittest.TestCase):
   self.a=self.app.test_client();self.b=self.app.test_client();self.anon=self.app.test_client()
   self.ta,self.ua=self.register(self.a,'a@example.com');self.tb,self.ub=self.register(self.b,'b@example.com')
  def tearDown(self):self.tmp.cleanup()
+ def test_privacy_notice_is_public_and_linked(self):
+  response=self.anon.get('/privacy')
+  self.assertEqual(response.status_code,200)
+  self.assertIn('没有应用层加密',response.text)
+  self.assertIn('href="/privacy"',self.anon.get('/login').text)
+  self.assertIn('href="/privacy"',self.a.get('/').text)
  def post(self,c,path,data,token=''):
   return c.post(path,json=data,headers={'Origin':'http://127.0.0.1:18744','X-Token':token})
  def register(self,c,address):

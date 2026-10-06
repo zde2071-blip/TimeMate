@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>隐私说明 · 邮件助手</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f7f5;color:#243b30;font:16px/1.8 -apple-system,BlinkMacSystemFont,sans-serif;padding:24px}main{max-width:760px;margin:32px auto;padding:32px;background:white;border:1px solid #e0e8e2;border-radius:16px}h1{font-size:28px}h2{font-size:20px;margin-top:28px}a{color:#235b4b}.meta{color:#687a70;font-size:14px}@media(max-width:480px){main{padding:20px;margin:8px auto}}
+</style>
+</head>
+<body><main>
+<h1>隐私说明</h1>
+<p class="meta">适用于当前邀请内测版本 · 更新日期：2026 年 10 月 6 日</p>
+<p>邮件助手是云端服务，不是仅在你的电脑本地处理邮件的软件。请在注册和连接邮箱前了解以下信息。</p>
+<h2>我们处理哪些信息</h2>
+<p>我们保存登录邮箱与密码哈希、邮箱和模型连接设置，以及导入的邮件内容、分析结果、日程和操作状态。QQ 邮箱授权码与 API Key 加密保存，网站登录密码不以原文保存。</p>
+<h2>邮件会发送到哪里</h2>
+<p>学校邮件先按你设置的规则转发到 QQ 邮箱。邮件助手通过加密连接读取邮箱，按学校发件人规则导入邮件，数据保存在当前 Railway 服务器的持久化存储中。分析时，邮件标题、发件人、日期与正文会发送给你选择的模型服务商；请求中文翻译时，相应邮件内容也会发送给该服务商。QQ 邮箱授权码不作为模型分析内容发送，API Key 用于向对应服务商认证。服务商如何保存和处理请求，以其政策为准。</p>
+<h2>保护措施与访问边界</h2>
+<p>网站使用 HTTPS，按登录账号隔离数据，保存的凭证不通过设置接口返回原值。邮件正文、摘要、邮箱地址和日程目前没有应用层加密。拥有服务器访问权限的管理员可以读取这些数据；拥有服务器权限及加密密钥的管理员也可以解密凭证。凭证加密不代表管理员无法访问。</p>
+<h2>日历与外部内容</h2>
+<p>日历订阅链接可以读取你已确认加入的日程，请勿公开或转发该链接。原邮件的外部图片默认不加载；主动加载图片或打开链接时，会连接外部网站，对方可能获取网络地址等访问记录。</p>
+<h2>保存、停用与删除</h2>
+<p>当前版本没有自动到期清除规则，保存的数据会持续保留，直到被清理。关闭自动检查可停止定时检查，但不会删除已保存的数据。你可以在 QQ 邮箱或模型服务商处撤销授权码、API Key，阻止后续使用。</p>
+<p>页面中的“删除邮件”是逻辑删除，不保证数据库及备份中的相关内容立即清除。当前还没有完整的自助账号注销、彻底删除和日历链接撤销入口。需要清除账号数据或撤销订阅链接时，请联系向你发送邀请的管理员；备份清除范围和时间需要一并确认。</p>
+<h2>内测反馈</h2>
+<p>请向邀请你的管理员反馈问题。不要在反馈截图、群聊或公开代码仓库中发送授权码、API Key、密码或日历订阅链接；邮件截图请遮住不必要的私人内容。</p>
+<p><a href="/login">返回登录</a></p>
+</main></body></html>
