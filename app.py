@@ -12,6 +12,7 @@ import certifi
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 import ai_services
+from ai_services import AIServiceError
 import mail_original
 
 ROOT=Path(__file__).resolve().parent
@@ -66,6 +67,7 @@ def db():
     if 'translation_subject' not in cols: c.execute('ALTER TABLE mails ADD COLUMN translation_subject TEXT')
     if 'source_body' not in cols: c.execute('ALTER TABLE mails ADD COLUMN source_body TEXT')
     if 'translation_body_length' not in cols: c.execute('ALTER TABLE mails ADD COLUMN translation_body_length INTEGER')
+    if 'analysis_error' not in cols: c.execute('ALTER TABLE mails ADD COLUMN analysis_error TEXT')
     c.execute('CREATE TABLE IF NOT EXISTS cursors (account TEXT PRIMARY KEY, validity TEXT NOT NULL, uid INTEGER NOT NULL)')
     c.execute("CREATE TABLE IF NOT EXISTS calendar_events (mail_id TEXT NOT NULL, event_index INTEGER NOT NULL, status TEXT NOT NULL, event_id TEXT, calendar_name TEXT, detail TEXT, created REAL NOT NULL, PRIMARY KEY(mail_id,event_index))")
     c.execute("CREATE TABLE IF NOT EXISTS pins (mail_id TEXT NOT NULL,event_index INTEGER NOT NULL,title TEXT NOT NULL,due TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'active',PRIMARY KEY(mail_id,event_index))")
@@ -415,6 +417,23 @@ def normalize_events(value,source_text=''):
     return events
 
 def analyze(ident):
+    try:
+        return analyze_saved_mail(ident)
+    except Exception as error:
+        if isinstance(error,AIServiceError):
+            detail=str(error)
+        elif isinstance(error,TimeoutError):
+            detail='模型请求超时，请稍后重试。'
+        else:
+            detail='程序处理分析结果时发生异常，需要检查程序。'
+        for key in ('password','key'):
+            if CFG.get(key): detail=detail.replace(CFG[key],'[隐藏]')
+        detail='分析失败：'+detail
+        with db() as c:
+            c.execute('UPDATE mails SET analysis_error=? WHERE id=? AND result IS NULL',(detail,ident))
+        raise ValueError(detail) from None
+
+def analyze_saved_mail(ident):
     cfg=CFG.copy()
     with db() as c:
         row=c.execute('SELECT * FROM mails WHERE id=?',(ident,)).fetchone()
@@ -430,7 +449,7 @@ def analyze(ident):
         result=model_reply(cfg,prompt,{**{k:row[k] for k in ('subject','sender','date','body')},
                                        'currentLocalTime':datetime.now().astimezone().isoformat(timespec='seconds')})
         keys=('category','summary','time','location','action','uncertainties')
-        if not isinstance(result,dict) or not all(isinstance(result.get(k),str) for k in keys): raise ValueError('模型没有返回完整结构，未保存结果，可以重试。')
+        if not isinstance(result,dict) or not all(isinstance(result.get(k),str) for k in keys): raise AIServiceError('模型没有返回完整结构，未保存结果，可以重试。')
         clean={k:result[k] for k in keys}
         source_text=row['subject']+'\n'+row['body']
         clean['events']=normalize_events(result.get('events'),source_text)
@@ -439,7 +458,7 @@ def analyze(ident):
         # analyzed event with the same index. A first analysis is an unreviewed
         # draft, so it must not inherit any saved pin state.
         c.execute('DELETE FROM pins WHERE mail_id=?',(ident,))
-        c.execute('UPDATE mails SET result=? WHERE id=?',(json.dumps(clean,ensure_ascii=False),ident))
+        c.execute('UPDATE mails SET result=?,analysis_error=NULL WHERE id=?',(json.dumps(clean,ensure_ascii=False),ident))
     return f'分析完成，提出 {len(clean["events"])} 条待审核日程；尚未写入 Apple 日历。'
 
 def extract_events(ident):

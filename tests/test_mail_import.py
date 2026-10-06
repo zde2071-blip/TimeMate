@@ -139,6 +139,7 @@ class MailImportTests(unittest.TestCase):
         self.assertIn('1 封分析失败',message)
         with app.db() as c:
             self.assertIsNone(c.execute("SELECT result FROM mails WHERE id='failed'").fetchone()[0])
+            self.assertIn('模型请求超时',c.execute("SELECT analysis_error FROM mails WHERE id='failed'").fetchone()[0])
             self.assertIsNotNone(c.execute("SELECT result FROM mails WHERE id='next'").fetchone()[0])
         app.STATUS['auto']=True
         with patch.object(app,'connect_mail',return_value=(Mock(),'1',[42])), \
@@ -150,6 +151,32 @@ class MailImportTests(unittest.TestCase):
         self.assertIn('分析 1 封',message)
         with app.db() as c:
             self.assertIsNotNone(c.execute("SELECT result FROM mails WHERE id='failed'").fetchone()[0])
+            self.assertIsNone(c.execute("SELECT analysis_error FROM mails WHERE id='failed'").fetchone()[0])
+
+    def test_analysis_diagnostics_keep_safe_provider_reason_and_hide_unknown_errors(self):
+        from ai_services import AIServiceError
+        for error,expected in [(AIServiceError('服务商限流或额度不足。（HTTP 429）'),'HTTP 429'),
+                               (RuntimeError('secret provider body and private email'),'程序处理分析结果时发生异常')]:
+            with self.subTest(error=type(error).__name__):
+                with app.db() as c:
+                    c.execute('INSERT OR REPLACE INTO mails (id,subject,sender,date,body,created) VALUES (?,?,?,?,?,?)',
+                              ('diagnostic','Notice','school@xjtlu.edu.cn','2026-10-05','body',1))
+                with patch.object(app.ai_services,'complete',side_effect=error):
+                    with self.assertRaises(ValueError): app.analyze('diagnostic')
+                with app.db() as c:
+                    detail=c.execute("SELECT analysis_error FROM mails WHERE id='diagnostic'").fetchone()[0]
+                self.assertIn(expected,detail)
+                self.assertNotIn('private email',detail)
+                self.assertNotIn('secret',detail)
+
+    def test_malformed_analysis_result_records_format_failure(self):
+        with app.db() as c:
+            c.execute('INSERT INTO mails (id,subject,sender,date,body,created) VALUES (?,?,?,?,?,?)',
+                      ('malformed','Notice','school@xjtlu.edu.cn','2026-10-05','body',1))
+        with patch.object(app.ai_services,'complete',return_value={'summary':'incomplete'}):
+            self.assertEqual(app.analyze_pending(),(0,1))
+        with app.db() as c:
+            self.assertIn('模型没有返回完整结构',c.execute("SELECT analysis_error FROM mails WHERE id='malformed'").fetchone()[0])
 
     def test_pending_queue_excludes_deleted_demo_and_already_analyzed_mail(self):
         with app.db() as c:

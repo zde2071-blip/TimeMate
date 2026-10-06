@@ -113,7 +113,7 @@ class Store:
                     def validate(cfg,model=True):
                         provider=CloudAI.PROVIDERS.get(cfg.get('provider'))
                         if not provider or cfg.get('base','').rstrip('/')!=provider['base'].rstrip('/'):
-                            raise ValueError('多人版请使用所选服务商的预设接口地址。')
+                            raise ai_services.AIServiceError('多人版请使用所选服务商的预设接口地址。')
                         ai_services.validate(cfg,model)
                     @staticmethod
                     def complete(cfg,*args,**kwargs):

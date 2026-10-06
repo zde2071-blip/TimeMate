@@ -16,19 +16,22 @@ PROVIDERS = {
  'claude': {'name':'Anthropic Claude','base':'https://api.anthropic.com/v1','protocol':'anthropic'},
  'custom': {'name':'其他兼容服务','base':'','hint':'填写支持 Chat Completions 的 HTTPS 基础地址和模型 ID。'},
 }
+class AIServiceError(ValueError):
+ """Only fixed, safe diagnostics; never provider response bodies or credentials."""
+
 class NoRedirect(HTTPRedirectHandler):
- def redirect_request(self,*args,**kwargs): raise ValueError('接口发生跳转，请核对高级设置中的地址。')
+ def redirect_request(self,*args,**kwargs): raise AIServiceError('接口发生跳转，请核对高级设置中的地址。')
 
 def infer_provider(base):
  return next((k for k,v in PROVIDERS.items() if v['base'] and v['base'].rstrip('/')==base.rstrip('/')),'custom')
 
 def validate(cfg,model=True):
- if cfg.get('provider') not in PROVIDERS: raise ValueError('请选择模型服务商。')
+ if cfg.get('provider') not in PROVIDERS: raise AIServiceError('请选择模型服务商。')
  p=urlparse(cfg.get('base',''))
  if p.scheme!='https' or not p.hostname or p.username or p.password or p.query or p.fragment:
-  raise ValueError('请填写不含查询参数的 HTTPS 接口基础地址。')
- if not cfg.get('key'): raise ValueError('请填写当前服务商的 API Key。')
- if model and not cfg.get('model'): raise ValueError('请先选择模型，或手动填写模型 ID。')
+  raise AIServiceError('请填写不含查询参数的 HTTPS 接口基础地址。')
+ if not cfg.get('key'): raise AIServiceError('请填写当前服务商的 API Key。')
+ if model and not cfg.get('model'): raise AIServiceError('请先选择模型，或手动填写模型 ID。')
 
 def request_json(cfg,path,payload=None):
  validate(cfg,model=False)
@@ -42,9 +45,9 @@ def request_json(cfg,path,payload=None):
  except HTTPError as e:
   # Never reflect a provider error body: it can contain credentials or request content.
   messages={400:'请求或模型参数不受支持，请核对模型和接口。',401:'API Key 无效，或与当前服务商、地区不匹配。',402:'账户余额不足或未开通付费服务。',403:'没有调用权限，请检查地区、模型开通状态和 Key 权限。',404:'接口或模型不存在；可尝试手动填写已开通的模型 ID。',429:'服务商限流或额度不足，请检查余额与限额后再试。'}
-  raise ValueError(messages.get(e.code,'服务商暂时无法完成请求，请稍后再试。')+f'（HTTP {e.code}）') from None
- except (URLError,TimeoutError): raise ValueError('连接超时或网络不可达，请检查网络和接口地址。') from None
- except (json.JSONDecodeError,UnicodeDecodeError): raise ValueError('服务商返回了无法识别的数据，请核对接口地址。') from None
+  raise AIServiceError(messages.get(e.code,'服务商暂时无法完成请求，请稍后再试。')+f'（HTTP {e.code}）') from None
+ except (URLError,TimeoutError): raise AIServiceError('连接超时或网络不可达，请检查网络和接口地址。') from None
+ except (json.JSONDecodeError,UnicodeDecodeError): raise AIServiceError('服务商返回了无法识别的数据，请核对接口地址。') from None
 
 def list_models(cfg):
  data=request_json(cfg,'/models')
@@ -55,7 +58,7 @@ def list_models(cfg):
    data=request_json(cfg,'/models?'+urlencode({'after_id':data['last_id']}));items.extend(data.get('data',[]))
  models=sorted({x['id'] for x in items if isinstance(x,dict) and isinstance(x.get('id'),str)})
  # Model listing is discovery, not a guarantee of chat permissions/capabilities.
- if not models:raise ValueError('没有获取到模型，请手动填写服务商控制台中的模型 ID。')
+ if not models:raise AIServiceError('没有获取到模型，请手动填写服务商控制台中的模型 ID。')
  return models
 
 def complete(cfg,prompt,data,max_tokens=4096):
@@ -67,7 +70,7 @@ def complete(cfg,prompt,data,max_tokens=4096):
  else:
   result=request_json(cfg,'/chat/completions',{'model':cfg['model'],'messages':[{'role':'system','content':prompt},{'role':'user','content':user}],'max_tokens':max_tokens,'stream':False})
   try:content=result['choices'][0]['message']['content']
-  except (KeyError,IndexError,TypeError):raise ValueError('没有收到文本回答，请选择支持文本对话的模型。') from None
- if not isinstance(content,str) or not content.strip():raise ValueError('模型未返回文本，请选择文本对话模型。')
+  except (KeyError,IndexError,TypeError):raise AIServiceError('没有收到文本回答，请选择支持文本对话的模型。') from None
+ if not isinstance(content,str) or not content.strip():raise AIServiceError('模型未返回文本，请选择文本对话模型。')
  try:return json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',content.strip()))
- except ValueError:raise ValueError('模型没有返回所需格式，请重试或更换模型。') from None
+ except ValueError:raise AIServiceError('模型没有返回所需格式，请重试或更换模型。') from None

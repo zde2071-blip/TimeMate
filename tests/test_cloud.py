@@ -74,6 +74,18 @@ class CloudTests(unittest.TestCase):
   with engine.db() as c:
    saved=c.execute("SELECT result FROM mails WHERE id='imported'").fetchone()[0]
   self.assertEqual(json.loads(saved)['summary'],'分析结果。')
+ def test_cloud_analysis_failure_is_visible_per_mail(self):
+  from ai_services import AIServiceError
+  engine=self.app.store.engine(self.ua)
+  engine.CFG.update(provider='deepseek',base='https://api.deepseek.com',model='deepseek-flash',key='test-key')
+  with engine.db() as c:
+   c.execute('INSERT INTO mails(id,subject,sender,date,body,created) VALUES (?,?,?,?,?,?)',('failed','通知','school@xjtlu.edu.cn','2026-10-06','body',1))
+  with patch('cloud.ai_services.complete',side_effect=AIServiceError('连接超时或网络不可达，请检查网络和接口地址。')):
+   engine.analyze_pending()
+  state=self.state(self.a,self.ta)
+  self.assertIn('连接超时',state.json['mails'][0]['analysis_error'])
+  self.assertIsNone(state.json['mails'][0]['result'])
+  self.assertEqual(self.state(self.b,self.tb).json['mails'],[])
  def test_cloud_translation_forwards_max_tokens_keyword(self):
   engine=self.app.store.engine(self.ua)
   engine.CFG.update(provider='deepseek',base='https://api.deepseek.com',model='deepseek-flash',key='test-key')
