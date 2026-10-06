@@ -12,7 +12,7 @@ class Element {
   close() { this.open = false; }
 }
 function setup(check) {
-  const calls = [], notices = [];
+  const calls = [], notices = [], targets = [];
   const dialog = new Element('dialog'), content = new Element('div');
   const context = vm.createContext({
     token: 'test', element: (tag, text, cls) => Object.assign(new Element(tag, text), { className: cls }),
@@ -20,10 +20,10 @@ function setup(check) {
     $: id => id === 'event-join-dialog' ? dialog : content,
     fetch: async () => ({ ok: true, json: async () => check }),
     call: async (url, data) => { calls.push({ url, data }); return true; },
-    notify: message => notices.push(message),
+    notify: message => notices.push(message), focusImportantEvent: (id,index) => targets.push({id,index}),
   });
-  vm.runInContext(html.slice(html.indexOf('async function joinEvent('), html.indexOf('\nfunction addSchedule(')), context);
-  return { join: vm.runInContext('joinEvent', context), calls, notices, dialog, content };
+  vm.runInContext(html.slice(html.indexOf('async function joinEvent('), html.indexOf('\nfunction focusImportantEvent(')), context);
+  return { join: vm.runInContext('joinEvent', context), calls, notices, targets, dialog, content };
 }
 const flatten = node => [node, ...node.children.flatMap(child => child instanceof Element ? flatten(child) : [])];
 async function run() {
@@ -35,6 +35,7 @@ async function run() {
   await test.join({ id: 'repeat', index: 0 }, async () => { throw Error('must not add duplicate'); });
   assert.equal(test.calls[0].url, '/api/event/link');
   assert.equal(test.calls[0].data.mode, 'link');
+  assert.deepEqual(test.targets[0], {id:'saved',index:0});
 
   candidate.exact = false;
   candidate.changes = [
@@ -53,6 +54,7 @@ async function run() {
   nodes.find(node => node.text === '更新并合并').onclick();
   assert.equal(await pending, true);
   assert.deepEqual(Array.from(test.calls[0].data.selectedFields), ['start']);
+  assert.deepEqual(test.targets[0], {id:'saved',index:0});
 
   test = setup({ candidates: [candidate] });
   pending = test.join({ id: 'preserve', index: 0 }, async () => { throw Error('must not add'); });

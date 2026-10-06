@@ -118,6 +118,21 @@ class CloudTests(unittest.TestCase):
   self.assertEqual(self.state(self.b,self.tb).json['eventLinks'],[])
   self.assertEqual(self.post(self.a,'/api/calendar/cancel',{'id':'repeat','index':0},self.ta).status_code,200)
   self.assertEqual(self.state(self.a,self.ta).json['eventLinks'],[])
+ def test_deadline_merge_state_includes_link_and_updated_canonical_pin(self):
+  engine=self.app.store.engine(self.ua)
+  event={'kind':'截止','title':'ISA104 小组项目主题提交截止','action':'提交300词说明','start':'2026-10-11T00:00','end':'','location':'','allDay':True}
+  with engine.db() as c:
+   for ident,changes in [('first',{}),('update',{'start':'2026-10-11T23:59','action':'提交150词说明','allDay':False})]:
+    c.execute('INSERT INTO mails(id,subject,body,result,created,source) VALUES (?,?,?,?,?,?)',(ident,'学校通知','body',json.dumps({'events':[{**event,**changes}]}),1,'manual'))
+  self.assertEqual(self.post(self.a,'/api/pin',{'id':'first','index':0,'action':'pin'},self.ta).status_code,200)
+  candidate=self.post(self.a,'/api/event/check',{'id':'update','index':0},self.ta).json['candidates'][0]
+  response=self.post(self.a,'/api/event/link',{'id':'update','index':0,'targetId':'first','targetIndex':0,'expected':candidate['event'],'mode':'update','selectedFields':['start','action','allDay']},self.ta)
+  self.assertEqual(response.status_code,200)
+  state=self.state(self.a,self.ta).json
+  self.assertEqual(len(state['pins']),1)
+  self.assertEqual(state['pins'][0]['due'],'2026-10-11T23:59')
+  self.assertEqual(state['eventLinks'],[{'mail_id':'update','event_index':0,'target_mail_id':'first','target_index':0}])
+
  def test_cloud_translation_forwards_max_tokens_keyword(self):
   engine=self.app.store.engine(self.ua)
   engine.CFG.update(provider='deepseek',base='https://api.deepseek.com',model='deepseek-flash',key='test-key')
