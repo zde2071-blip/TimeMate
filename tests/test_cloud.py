@@ -86,6 +86,15 @@ class CloudTests(unittest.TestCase):
   self.assertIn('连接超时',state.json['mails'][0]['analysis_error'])
   self.assertIsNone(state.json['mails'][0]['result'])
   self.assertEqual(self.state(self.b,self.tb).json['mails'],[])
+ def test_mail_state_shows_original_forwarded_dates_and_sort_order(self):
+  engine=self.app.store.engine(self.ua)
+  with engine.db() as c:
+   for ident,date,body in [('older','Mon, 05 Oct 2026 18:00:00 +0800','发件人: School\n发送时间: 2026年10月4日 16:32'),('newer','Mon, 05 Oct 2026 10:00:00 +0800','From: School\nSent: October 5, 2026 9:00 AM')]:
+    c.execute('INSERT INTO mails(id,subject,sender,date,body,created) VALUES (?,?,?,?,?,?)',(ident,ident,'school@xjtlu.edu.cn',date,body,1))
+  rows=self.state(self.a,self.ta).json['mails']
+  self.assertEqual([row['id'] for row in rows],['newer','older'])
+  self.assertEqual(rows[1]['sent_date'],'2026-10-04T16:32+08:00')
+  self.assertEqual(rows[1]['date'],'Mon, 05 Oct 2026 18:00:00 +0800')
  def test_cloud_translation_forwards_max_tokens_keyword(self):
   engine=self.app.store.engine(self.ua)
   engine.CFG.update(provider='deepseek',base='https://api.deepseek.com',model='deepseek-flash',key='test-key')

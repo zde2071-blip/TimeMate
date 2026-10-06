@@ -14,6 +14,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parent))
 import ai_services
 from ai_services import AIServiceError
 import mail_original
+import mail_dates
 
 ROOT=Path(__file__).resolve().parent
 os.umask(0o077)
@@ -136,13 +137,18 @@ def parse_mail(raw):
         body=html.unescape(re.sub('<[^>]+>',' ',re.sub(r'(?is)<(script|style).*?</\1>','','\n'.join(rich))))
     return {'subject':str(m.get('Subject','')),'sender':str(m.get('From','')),'date':str(m.get('Date','')),'body':body[:20000],'source_body':body,'links':extract_source_links(body,'\n'.join(rich)),'original':mail_original.extract(m,body)}
 
+def mail_effective_date(row):
+    value=mail_dates.forwarded_date(row.get('source_body') or row.get('body') or '')
+    if value is None and row.get('original'):
+        try:
+            original=json.loads(row['original'])
+            value=mail_dates.forwarded_date(mail_original.text_from_html(original.get('html','')))
+        except (ValueError,TypeError,AttributeError): pass
+    return value or mail_dates.parse_date(row.get('date') or '')
+
 def mail_sort_timestamp(row):
-    try:
-        value=parsedate_to_datetime(row.get('date') or '')
-        if value.tzinfo is None: value=value.replace(tzinfo=timezone.utc)
-        return value.timestamp()
-    except (TypeError,ValueError,OverflowError):
-        return float(row.get('created') or 0)
+    value=mail_dates.parse_date(row['sent_date']) if row.get('sent_date') else mail_effective_date(row)
+    return value.timestamp() if value else float(row.get('created') or 0)
 
 def original_mail(ident):
     with db() as c: row=c.execute('SELECT original,source_body FROM mails WHERE id=?',(ident,)).fetchone()
@@ -682,6 +688,9 @@ class Handler(BaseHTTPRequestHandler):
                 written=[dict(r) for r in c.execute('SELECT mail_id,event_index,status,calendar_name,detail FROM calendar_events')]
                 pins=[dict(r) for r in c.execute("SELECT pins.* FROM pins JOIN mails ON mails.id=pins.mail_id WHERE pins.state IN ('active','completed') AND mails.is_deleted=0 AND mails.source NOT IN ('simulation','test_archive') ORDER BY pins.due")]
                 overrides=[dict(r) for r in c.execute("SELECT event_overrides.* FROM event_overrides JOIN mails ON mails.id=event_overrides.mail_id WHERE mails.is_deleted=0 AND mails.source NOT IN ('simulation','test_archive')")]
+            for row in rows:
+                sent=mail_effective_date(row)
+                row['sent_date']=sent.isoformat(timespec='minutes') if sent else row['date']
             rows.sort(key=mail_sort_timestamp,reverse=True)
             for row in rows:
                 row.pop('original',None)
