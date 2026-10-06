@@ -1,0 +1,69 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+class Element {
+  constructor(tag, text = '') { this.tag = tag; this.text = text; this.children = []; this.style = {}; }
+  append(...children) { this.children.push(...children); }
+  replaceChildren() { this.children = []; }
+  showModal() { this.open = true; }
+  close() { this.open = false; }
+}
+function setup(check) {
+  const calls = [], notices = [];
+  const dialog = new Element('dialog'), content = new Element('div');
+  const context = vm.createContext({
+    token: 'test', element: (tag, text) => new Element(tag, text),
+    document: { createElement: tag => new Element(tag), createTextNode: text => text },
+    $: id => id === 'event-join-dialog' ? dialog : content,
+    fetch: async () => ({ ok: true, json: async () => check }),
+    call: async (url, data) => { calls.push({ url, data }); return true; },
+    notify: message => notices.push(message),
+  });
+  vm.runInContext(html.slice(html.indexOf('async function joinEvent('), html.indexOf('\nfunction addSchedule(')), context);
+  return { join: vm.runInContext('joinEvent', context), calls, notices, dialog, content };
+}
+const flatten = node => [node, ...node.children.flatMap(child => child instanceof Element ? flatten(child) : [])];
+async function run() {
+  let test = setup({ candidates: [] }), submitted = [];
+  await test.join({ id: 'new', index: 0 }, async data => { submitted.push(data); return true; });
+  assert.equal(submitted.length, 1);
+  const candidate = { id: 'saved', index: 0, exact: true, event: { title: '通知' }, changes: [], confidence: 'same' };
+  test = setup({ candidates: [candidate] });
+  await test.join({ id: 'repeat', index: 0 }, async () => { throw Error('must not add duplicate'); });
+  assert.equal(test.calls[0].url, '/api/event/link');
+  assert.equal(test.calls[0].data.mode, 'link');
+
+  candidate.exact = false;
+  candidate.changes = [
+    { field: 'start', label: '截止时间', before: '10-15', after: '10-18', edited: false },
+    { field: 'action', label: '待办', before: '人工内容', after: '新的内容', edited: true },
+  ];
+  test = setup({ candidates: [candidate] });
+  let pending = test.join({ id: 'update', index: 0 }, async () => { throw Error('must not add'); });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(test.calls.length, 0, 'checking does not update automatically');
+  const nodes = flatten(test.content), boxes = nodes.filter(node => node.type === 'checkbox');
+  assert.deepEqual(boxes.map(box => box.checked), [true, false], 'manual edits remain unchecked');
+  nodes.find(node => node.text === '应用勾选更新并合并').onclick();
+  assert.equal(await pending, true);
+  assert.deepEqual(Array.from(test.calls[0].data.selectedFields), ['start']);
+
+  test = setup({ candidates: [candidate] });
+  submitted = [];
+  pending = test.join({ id: 'separate', index: 0 }, async data => { submitted.push(data); return true; });
+  await new Promise(resolve => setImmediate(resolve));
+  flatten(test.content).find(node => node.text === '另建事项').onclick();
+  await pending;
+  assert.equal(submitted[0].joinDecision, 'new');
+  assert.equal(test.calls.length, 0);
+
+  test = setup({ candidates: [candidate] });
+  pending = test.join({ id: 'cancel', index: 0 }, async () => { throw Error('must not add'); });
+  await new Promise(resolve => setImmediate(resolve));
+  flatten(test.content).find(node => node.text === '取消').onclick();
+  assert.equal(await pending, false);
+  assert.equal(test.calls.length, 0);
+}
+run().catch(error => { console.error(error); process.exitCode = 1; });

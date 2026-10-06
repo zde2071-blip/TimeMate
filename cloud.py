@@ -274,6 +274,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
             with engine.RUNTIME.request_lock:
                 if not store.calendar_feed(g.auth['user_id'],origin): return jsonify(error='请先建立日历订阅链接。'),400
                 try:
+                    if engine.join_guard(d):return jsonify(ok=True)
                     engine.export_calendar_event(d)
                     with engine.db() as c:
                         result=json.loads(c.execute('SELECT result FROM mails WHERE id=?',(d['id'],)).fetchone()['result'])
@@ -291,8 +292,10 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                 return jsonify(error='日程编号无效。'),400
             with engine.RUNTIME.request_lock:
                 with engine.db() as c:
+                    ident,index=engine.event_join.resolve(c,ident,index)
                     cursor=c.execute("UPDATE calendar_events SET status='removed' WHERE mail_id=? AND event_index=? AND status='subscribed'",(ident,index))
                     if cursor.rowcount!=1: return jsonify(error='没有找到已同步的这条日程。'),400
+                    engine.event_join.unlink_removed(c,ident,index)
             return jsonify(ok=True)
         class Adapter(engine.Handler):
             def __init__(self):
@@ -311,7 +314,12 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                     )
                     expose_translation_error=(self.path=='/api/source/translate' and isinstance(error,str)
                                               and error.startswith(safe_translation_errors))
-                    data={'error':error if expose_translation_error else '操作未完成，请检查设置和所选邮件。'}
+                    safe_event_errors=('已有事项发生变化','发现可能重复或更新','找不到这条事项','目标事项未加入或类型不同',
+                        '这条事项已单独加入','不能把事项关联到自身','请关联到原始事项','更新字段无效','关联操作无效',
+                        '标题不能为空','待办内容不能超过','地点不能超过','全天设置无效','请填写有效的日期和时间',
+                        '日期或时区无效','日程安排需要有效的开始和结束时间','截止事项只需要设置截止时间')
+                    expose_event_error=(self.path in ('/api/event/check','/api/event/link') and isinstance(error,str) and error.startswith(safe_event_errors))
+                    data={'error':error if expose_translation_error or expose_event_error else '操作未完成，请检查设置和所选邮件。'}
                 if code==200 and self.path=='/api/state':
                     data['calendarSubscriptionSupported']=True
                     data['calendarSubscriptionUrl']=store.calendar_feed(g.auth['user_id'],origin)

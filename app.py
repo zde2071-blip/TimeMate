@@ -1,6 +1,7 @@
 import email, hashlib, html, imaplib, json, os, re, secrets, sqlite3, ssl, subprocess, threading, time, webbrowser
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import nullcontext
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from html.parser import HTMLParser
 from email import policy
@@ -16,6 +17,7 @@ import ai_services
 from ai_services import AIServiceError
 import mail_original
 import mail_dates
+import event_join
 
 ROOT=Path(__file__).resolve().parent
 os.umask(0o077)
@@ -74,6 +76,7 @@ def db():
     c.execute("CREATE TABLE IF NOT EXISTS calendar_events (mail_id TEXT NOT NULL, event_index INTEGER NOT NULL, status TEXT NOT NULL, event_id TEXT, calendar_name TEXT, detail TEXT, created REAL NOT NULL, PRIMARY KEY(mail_id,event_index))")
     c.execute("CREATE TABLE IF NOT EXISTS pins (mail_id TEXT NOT NULL,event_index INTEGER NOT NULL,title TEXT NOT NULL,due TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'active',PRIMARY KEY(mail_id,event_index))")
     c.execute("CREATE TABLE IF NOT EXISTS event_overrides (mail_id TEXT NOT NULL,event_index INTEGER NOT NULL,fields TEXT NOT NULL DEFAULT '{}',state TEXT NOT NULL DEFAULT 'active',PRIMARY KEY(mail_id,event_index))")
+    c.execute('CREATE TABLE IF NOT EXISTS event_links (mail_id TEXT NOT NULL,event_index INTEGER NOT NULL,target_mail_id TEXT NOT NULL,target_index INTEGER NOT NULL,PRIMARY KEY(mail_id,event_index))')
     return c
 
 def mail_id(account,validity,uid):
@@ -540,12 +543,16 @@ def update_pin(data):
     ident=data.get('id'); index=data.get('index'); action=data.get('action')
     if not isinstance(ident,str) or not isinstance(index,int) or isinstance(index,bool): raise ValueError('提醒编号无效。')
     with db() as c:
+        ident,index=event_join.resolve(c,ident,index)
         if action in ('remove','complete'):
             state='completed' if action=='complete' else 'removed'
             c.execute('UPDATE pins SET state=? WHERE mail_id=? AND event_index=?',(state,ident,index))
             c.execute("INSERT INTO event_overrides(mail_id,event_index,fields,state) VALUES (?,?, '{}',?) ON CONFLICT(mail_id,event_index) DO UPDATE SET state=excluded.state",(ident,index,state))
+            if action=='remove':event_join.unlink_removed(c,ident,index)
             return
         if action!='pin': raise ValueError('提醒操作无效。')
+    if join_guard({name:value for name,value in data.items() if name!='action'}):return
+    with db() as c:
         row=c.execute('SELECT result FROM mails WHERE id=?',(ident,)).fetchone()
         events=json.loads(row['result']).get('events',[]) if row and row['result'] else []
         if index<0 or index>=len(events) or events[index].get('kind') not in ('截止','活动'): raise ValueError('只能加入已识别的活动或截止事项。')
@@ -554,10 +561,11 @@ def update_pin(data):
         c.execute('INSERT OR REPLACE INTO pins VALUES (?,?,?,?,?)',(ident,index,event['title'],event['start'],'active'))
         c.execute("INSERT INTO event_overrides(mail_id,event_index,fields,state) VALUES (?,?, '{}','active') ON CONFLICT(mail_id,event_index) DO UPDATE SET state='active'",(ident,index))
 
-def manage_event(data):
+def manage_event(data,connection=None):
     ident=data.get('id');index=data.get('index');action=data.get('action')
     if not isinstance(ident,str) or not ident or not isinstance(index,int) or isinstance(index,bool): raise ValueError('事项编号无效。')
-    with db() as c:
+    with (nullcontext(connection) if connection is not None else db()) as c:
+        ident,index=event_join.resolve(c,ident,index)
         row=c.execute('SELECT result FROM mails WHERE id=? AND is_deleted=0',(ident,)).fetchone()
         if not row or not row['result']: raise ValueError('找不到这条事项对应的邮件。')
         result=json.loads(row['result']);events=result.get('events',[])
@@ -607,10 +615,44 @@ def manage_event(data):
             else: next_state='active'
         c.execute("INSERT INTO event_overrides(mail_id,event_index,fields,state) VALUES (?,?,?,?) ON CONFLICT(mail_id,event_index) DO UPDATE SET state=excluded.state",
                   (ident,index,json.dumps(fields,ensure_ascii=False),next_state))
+        if action=='remove':event_join.unlink_removed(c,ident,index)
+
+def check_event_join(data):
+    with db() as c:return event_join.check(c,data)
+
+def decide_event_join(data):
+    with db() as c:
+        c.execute('BEGIN IMMEDIATE')
+        target,target_index=event_join.key({'id':data.get('targetId'),'index':data.get('targetIndex')})
+        current=event_join.effective(c,target,target_index)
+        if data.get('expected')!=event_join.snapshot(current):raise ValueError('已有事项发生变化，请重新核对。')
+        # Validate the link before updating; both writes commit together.
+        event_join.link(c,data)
+        if data.get('mode')=='update':
+            source=event_join.effective(c,*event_join.key(data))
+            source.update({name:data[name] for name in event_join.FIELDS if name in data})
+            selected=data.get('selectedFields')
+            if not isinstance(selected,list) or any(name not in event_join.FIELDS for name in selected):raise ValueError('更新字段无效。')
+            fields=event_join.snapshot(current)
+            fields.update({name:source.get(name,False if name=='allDay' else '') for name in selected})
+            manage_event({'id':target,'index':target_index,'action':'edit','fields':fields},connection=c)
+        elif data.get('mode')!='link':raise ValueError('关联操作无效。')
+
+def join_guard(data):
+    if data.get('joinDecision')=='new':return False
+    check=check_event_join(data)
+    exact=[candidate for candidate in check['candidates'] if candidate['exact']]
+    if len(exact)==1:
+        candidate=exact[0]
+        decide_event_join({**data,'targetId':candidate['id'],'targetIndex':candidate['index'],'expected':candidate['event'],'mode':'link'})
+        return True
+    if check['candidates']:raise ValueError('发现可能重复或更新的事项，请先选择关联、更新或另建。')
+    return False
 
 class CalendarNotSaved(Exception): pass
 
 def add_calendar_event(data):
+    if join_guard(data):return '已关联到已有日程，未重复添加。'
     ident=data.get('id'); index=data.get('index')
     if not isinstance(ident,str) or not isinstance(index,int) or isinstance(index,bool): raise ValueError('日程编号无效。')
     with db() as c:
@@ -620,7 +662,7 @@ def add_calendar_event(data):
         events=result.get('events',[])
         if index<0 or index>=len(events): raise ValueError('日程编号无效。')
         previous=c.execute('SELECT status FROM calendar_events WHERE mail_id=? AND event_index=?',(ident,index)).fetchone()
-        if previous and previous['status']!='failed':
+        if previous and previous['status'] not in ('failed','removed'):
             raise ValueError('这条日程已经处理过；请先检查 Apple 日历，避免重复添加。')
         if previous: c.execute('DELETE FROM calendar_events WHERE mail_id=? AND event_index=?',(ident,index))
         title=str(data.get('title','')).strip()[:120]
@@ -693,6 +735,7 @@ class Handler(BaseHTTPRequestHandler):
                 written=[dict(r) for r in c.execute('SELECT mail_id,event_index,status,calendar_name,detail FROM calendar_events')]
                 pins=[dict(r) for r in c.execute("SELECT pins.* FROM pins JOIN mails ON mails.id=pins.mail_id WHERE pins.state IN ('active','completed') AND mails.is_deleted=0 AND mails.source NOT IN ('simulation','test_archive') ORDER BY pins.due")]
                 overrides=[dict(r) for r in c.execute("SELECT event_overrides.* FROM event_overrides JOIN mails ON mails.id=event_overrides.mail_id WHERE mails.is_deleted=0 AND mails.source NOT IN ('simulation','test_archive')")]
+                event_links=[dict(r) for r in c.execute('SELECT * FROM event_links')]
             for row in rows:
                 sent=mail_effective_date(row)
                 row['sent_date']=sent.isoformat(timespec='minutes') if sent else row['date']
@@ -703,7 +746,7 @@ class Handler(BaseHTTPRequestHandler):
                 row['category']=category_for(row,result)
                 row['links']=json.loads(row['source_links']) if row.get('source_links') else extract_source_links(row['body'])
             visible_cfg={k:CFG[k] for k in ('account','base','model','school_sender','calendar_method','calendar_provider','calendar_subscription_confirmed','provider')}
-            return self.reply(200,{'status':STATUS,'mails':rows,'pins':pins,'calendarEvents':written,'eventOverrides':overrides,'config':visible_cfg,'providers':ai_services.PROVIDERS,'calendarAvailable':CALENDAR_BRIDGE.is_file(),'ready':{'mail':bool(CFG['account'] and CFG['password'] and CFG['school_sender']),'ai':bool(CFG['base'] and CFG['model'] and CFG['key'])}})
+            return self.reply(200,{'status':STATUS,'mails':rows,'pins':pins,'calendarEvents':written,'eventOverrides':overrides,'eventLinks':event_links,'config':visible_cfg,'providers':ai_services.PROVIDERS,'calendarAvailable':CALENDAR_BRIDGE.is_file(),'ready':{'mail':bool(CFG['account'] and CFG['password'] and CFG['school_sender']),'ai':bool(CFG['base'] and CFG['model'] and CFG['key'])}})
         self.reply(404,{})
     def do_POST(self):
         if not self.valid_host() or self.headers.get('X-Token')!=TOKEN: return self.reply(403,{})
@@ -731,6 +774,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200,translate_source(d.get('id')))
             elif self.path=='/api/pin':
                 update_pin(d)
+            elif self.path=='/api/event/check':
+                return self.reply(200,check_event_join(d))
+            elif self.path=='/api/event/link':
+                decide_event_join(d)
             elif self.path=='/api/event/manage':
                 manage_event(d)
             elif self.path=='/api/mail':

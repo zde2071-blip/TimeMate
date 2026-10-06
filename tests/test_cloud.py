@@ -95,6 +95,29 @@ class CloudTests(unittest.TestCase):
   self.assertEqual([row['id'] for row in rows],['newer','older'])
   self.assertEqual(rows[1]['sent_date'],'2026-10-04T16:32+08:00')
   self.assertEqual(rows[1]['date'],'Mon, 05 Oct 2026 18:00:00 +0800')
+ def test_event_links_are_isolated_and_subscription_update_keeps_one_event(self):
+  engine=self.app.store.engine(self.ua);engine.CFG['calendar_method']='subscribe'
+  self.app.store.create_calendar_feed(self.ua,'http://127.0.0.1:18744')
+  event={'title':'芯片学院学术沙龙','action':'扫描二维码报名','kind':'活动','start':'2026-10-15T13:30','end':'2026-10-15T16:15','location':'G-1006','allDay':False}
+  with engine.db() as c:
+   for ident,changes in [('first',{}),('repeat',{}),('update',{'location':'G-1008'})]:
+    c.execute('INSERT INTO mails(id,subject,sender,date,body,result,created) VALUES (?,?,?,?,?,?,?)',(ident,ident,'school@xjtlu.edu.cn','2026-10-06','body',json.dumps({'events':[{**event,**changes}]}),1))
+  data={'id':'first','index':0,**{name:event[name] for name in engine.event_join.FIELDS},'timeZone':'Asia/Shanghai'}
+  self.assertEqual(self.post(self.a,'/api/calendar/approve',data,self.ta).status_code,200)
+  repeat={**data,'id':'repeat'}
+  self.assertEqual(self.post(self.a,'/api/calendar/approve',repeat,self.ta).status_code,200)
+  check=self.post(self.a,'/api/event/check',{'id':'update','index':0},self.ta).json
+  candidate=check['candidates'][0]
+  decision={'id':'update','index':0,'targetId':'first','targetIndex':0,'expected':candidate['event'],'mode':'update','selectedFields':['location']}
+  self.assertEqual(self.post(self.b,'/api/event/link',decision,self.tb).status_code,400)
+  self.assertEqual(self.post(self.a,'/api/event/link',decision,self.ta).status_code,200)
+  current=self.state(self.a,self.ta).json
+  self.assertEqual(len(current['calendarEvents']),1)
+  self.assertEqual(json.loads(current['calendarEvents'][0]['detail'])['location'],'G-1008')
+  self.assertEqual(len(current['eventLinks']),2)
+  self.assertEqual(self.state(self.b,self.tb).json['eventLinks'],[])
+  self.assertEqual(self.post(self.a,'/api/calendar/cancel',{'id':'repeat','index':0},self.ta).status_code,200)
+  self.assertEqual(self.state(self.a,self.ta).json['eventLinks'],[])
  def test_cloud_translation_forwards_max_tokens_keyword(self):
   engine=self.app.store.engine(self.ua)
   engine.CFG.update(provider='deepseek',base='https://api.deepseek.com',model='deepseek-flash',key='test-key')
