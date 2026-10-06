@@ -1,5 +1,5 @@
 """Provider metadata and small adapters; no credentials are persisted here."""
-import json, re, ssl, threading
+import json, re, ssl
 from urllib.request import Request, build_opener, HTTPSHandler, HTTPRedirectHandler
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse, urlencode
@@ -63,14 +63,7 @@ def list_models(cfg):
  if not models:raise AIServiceError('没有获取到模型，请手动填写服务商控制台中的模型 ID。')
  return models
 
-# Shared by every user's engine, including translations and connection checks.
-REQUEST_SLOTS=threading.BoundedSemaphore(4)
-
 def complete(cfg,prompt,data,max_tokens=4096):
- with REQUEST_SLOTS:
-  return _complete(cfg,prompt,data,max_tokens)
-
-def _complete(cfg,prompt,data,max_tokens=4096):
  validate(cfg)
  user=json.dumps(data,ensure_ascii=False)
  if cfg['provider']=='claude':

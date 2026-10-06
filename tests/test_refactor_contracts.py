@@ -1,7 +1,6 @@
 import json
 import sqlite3
 import threading
-import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
@@ -66,19 +65,12 @@ class RefactorContracts(unittest.TestCase):
         operation_status.begin(state, 'checking', '再次检查')
         self.assertEqual(state['failed'], 0)
 
-    def test_global_model_requests_never_exceed_four(self):
-        lock = threading.Lock()
-        active = peak = 0
+    def test_users_model_requests_are_not_globally_serialized(self):
+        started = threading.Barrier(6)
         def request(*args, **kwargs):
-            nonlocal active, peak
-            with lock:
-                active += 1
-                peak = max(peak, active)
-            time.sleep(.03)
-            with lock:
-                active -= 1
-            return {'ok': True}
-        with patch.object(ai_services, '_complete', side_effect=request), ThreadPoolExecutor(max_workers=12) as pool:
-            results = list(pool.map(lambda _: ai_services.complete({}, '', {}), range(12)))
-        self.assertEqual(peak, 4)
-        self.assertEqual(len(results), 12)
+            started.wait(timeout=3)
+            return {'choices': [{'message': {'content': '{"ok":true}'}}]}
+        cfg={'provider':'custom','base':'https://example.com','model':'test','key':'test'}
+        with patch.object(ai_services, 'request_json', side_effect=request), ThreadPoolExecutor(max_workers=6) as pool:
+            results = list(pool.map(lambda _: ai_services.complete(cfg, '', {}), range(6)))
+        self.assertEqual(results, [{'ok': True}] * 6)

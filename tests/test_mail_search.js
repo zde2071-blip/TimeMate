@@ -8,7 +8,7 @@ const state={mails:[
 {id:'3',category:'课程与教学',subject:'Other',sender:'Office',body:'different',result:null,is_read:true}],calendarEvents:[]};
 let calls=0;
 const context=vm.createContext({state,$,mailSearchQuery:'',categories:['课程与教学','活动与机会'],selected:'全部',selectedCourse:'全部课程',activeMailId:null,renderImportant(){},renderCourses(){},matchesCourse:()=>true,element:(tag,text)=>new Element(tag,text),displaySubject:x=>x,mailDateLabel:()=>'',call:()=>{calls++},showPage(){},document:{getElementById:id=>$('mails').children.find(x=>x.id===id)},renderMailDetail:m=>$('mail-detail-pane').replaceChildren(new Element('h2',m?.id||'empty'))});
-vm.runInContext(html.slice(html.indexOf('function mailListTitle('),html.indexOf('\nasync function refresh(')),context);
+vm.runInContext(html.slice(html.indexOf('function countBadge('),html.indexOf('\nasync function refresh(')),context);
 vm.runInContext(html.slice(html.indexOf('function jumpMail('),html.indexOf('\nfunction ',html.indexOf('function jumpMail(')+1)),context);
 for(const q of ['isa104','ＩＳＡ１０４','haoran','尾部关键词','课程摘要','小组提交主题','isa104 提交']){context.setMailSearch(q);assert.equal($('mails').children.length,1,q);assert.equal($('mail-detail-pane').children[0].textContent,'1',q)}
 context.setMailSearch('shuttle');assert.equal($('mail-detail-pane').children[0].textContent,'2');
