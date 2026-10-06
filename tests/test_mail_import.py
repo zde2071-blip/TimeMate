@@ -107,7 +107,7 @@ class MailImportTests(unittest.TestCase):
         self.assertIn('自动分析 1 封', message)
 
     def test_both_check_modes_import_and_call_llm_without_adding_items(self):
-        result={'category':'课程与教学','summary':'课程通知。','time':'','location':'',
+        result={'category':'课程与教学','short_title':'ISA104 小组项目主题提交提醒','summary':'课程通知。','time':'','location':'',
                 'action':'','uncertainties':'','events':[{'title':'提交作业','start':'2026-10-10','kind':'截止'}]}
         for mode in ('manual', 'auto'):
             with self.subTest(mode=mode):
@@ -124,6 +124,7 @@ class MailImportTests(unittest.TestCase):
                 with app.db() as c:
                     row=c.execute('SELECT result FROM mails WHERE subject=?',(mode+' notice',)).fetchone()
                     self.assertEqual(json.loads(row['result'])['summary'],'课程通知。')
+                    self.assertEqual(json.loads(row['result'])['short_title'],'ISA104 小组项目主题提交提醒')
                     self.assertEqual(c.execute('SELECT COUNT(*) FROM pins').fetchone()[0],0)
 
     def test_failed_manual_analysis_does_not_stop_batch_and_auto_check_retries(self):

@@ -14,7 +14,7 @@ function run(links){
  const state={mails,calendarEvents:[{mail_id:mails[0].id,event_index:0,status:'subscribed',detail:JSON.stringify(event)}],pins:[],eventLinks:links?[{mail_id:mails[1].id,event_index:0,target_mail_id:mails[0].id,target_index:0}]:[]};
  const context=vm.createContext({state,$,categories:['课程与教学','活动与机会'],mailSearchQuery:'',selected:'全部',selectedCourse:'全部课程',activeMailId:null,importantView:'all',calendarMonth:new Date('2026-10-01'),calendarSelected:'',selectedDeadlineKey:'',element:(tag,text)=>new Element(tag,text),document:{createElement:tag=>new Element(tag)},localDateKey:d=>d.toISOString().slice(0,10),calendarDayDifference:()=>1,eventContent:e=>new Element('div',e.title),eventOverrideData:()=>({}),applyEventOverride:(d,id,i,e)=>e,eventAction:e=>e.action,editEventMenu:()=>new Element('button','编辑'),renderCourses:()=>{},mailDateLabel:m=>m.date,jumpMail:()=>{},renderMailDetail:m=>$('mail-detail-pane').replaceChildren(new Element('h2',m?.subject||'暂无邮件'))});
  vm.runInContext(html.slice(html.indexOf('function renderMonthCalendar('),html.indexOf('\nfunction courseCodes(')),context);
- vm.runInContext(html.slice(html.indexOf('function matchesMailSearch('),html.indexOf('\nasync function refresh(')),context);
+ vm.runInContext(html.slice(html.indexOf('function mailListTitle('),html.indexOf('\nasync function refresh(')),context);
  context.render();
  assert.equal($('mails').children.length,23,'a saved event must not prevent rendering mails');
  assert.equal($('mail-detail-pane').children[0].textContent,'邮件 0');
