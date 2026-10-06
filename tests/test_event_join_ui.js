@@ -57,7 +57,7 @@ async function run() {
   test = setup({ candidates: [candidate] });
   pending = test.join({ id: 'preserve', index: 0 }, async () => { throw Error('must not add'); });
   await new Promise(resolve => setImmediate(resolve));
-  flatten(test.content).find(node => node.text === '保留并合并').onclick();
+  flatten(test.content).find(node => node.text === '保留原来').onclick();
   assert.equal(await pending, true);
   assert.equal(test.calls[0].data.mode, 'link');
   assert.equal(test.calls[0].data.selectedFields.length, 0);
