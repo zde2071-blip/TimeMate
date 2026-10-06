@@ -5,6 +5,7 @@ const path = require('node:path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 class Element {
   constructor(tag, text = '') { this.tag = tag; this.text = text; this.children = []; this.style = {}; }
+  setAttribute(k,v) { this[k]=v; }
   append(...children) { this.children.push(...children); }
   replaceChildren() { this.children = []; }
   showModal() { this.open = true; }
@@ -14,7 +15,7 @@ function setup(check) {
   const calls = [], notices = [];
   const dialog = new Element('dialog'), content = new Element('div');
   const context = vm.createContext({
-    token: 'test', element: (tag, text) => new Element(tag, text),
+    token: 'test', element: (tag, text, cls) => Object.assign(new Element(tag, text), { className: cls }),
     document: { createElement: tag => new Element(tag), createTextNode: text => text },
     $: id => id === 'event-join-dialog' ? dialog : content,
     fetch: async () => ({ ok: true, json: async () => check }),
@@ -46,9 +47,20 @@ async function run() {
   assert.equal(test.calls.length, 0, 'checking does not update automatically');
   const nodes = flatten(test.content), boxes = nodes.filter(node => node.type === 'checkbox');
   assert.deepEqual(boxes.map(box => box.checked), [true, false], 'manual edits remain unchecked');
-  nodes.find(node => node.text === '应用勾选更新并合并').onclick();
+  assert.equal(nodes.filter(node => node.className === 'event-join-values').length, 2);
+  assert.equal(nodes.filter(node => node.text === '当前内容').length, 2);
+  assert.equal(nodes.filter(node => node.text === '新邮件内容').length, 2);
+  nodes.find(node => node.text === '更新并合并').onclick();
   assert.equal(await pending, true);
   assert.deepEqual(Array.from(test.calls[0].data.selectedFields), ['start']);
+
+  test = setup({ candidates: [candidate] });
+  pending = test.join({ id: 'preserve', index: 0 }, async () => { throw Error('must not add'); });
+  await new Promise(resolve => setImmediate(resolve));
+  flatten(test.content).find(node => node.text === '保留并合并').onclick();
+  assert.equal(await pending, true);
+  assert.equal(test.calls[0].data.mode, 'link');
+  assert.equal(test.calls[0].data.selectedFields.length, 0);
 
   test = setup({ candidates: [candidate] });
   submitted = [];
