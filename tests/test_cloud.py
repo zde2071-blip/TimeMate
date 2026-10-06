@@ -39,6 +39,9 @@ class CloudTests(unittest.TestCase):
   self.assertIn('text/css',response.content_type)
   self.assertIn('.calendar',response.text)
   self.assertIn('href="/styles.css"',self.a.get('/').text)
+  policy=self.a.get('/').headers['Content-Security-Policy']
+  directives={part.strip().split()[0]:part.strip().split()[1:] for part in policy.split(';') if part.strip()}
+  self.assertIn("'self'",directives['style-src'], 'The actual page policy must allow its external stylesheet')
  def test_auth_csrf_invite_logout(self):
   self.assertEqual(self.anon.get('/').status_code,302);self.assertEqual(self.state(self.anon,'').status_code,401)
   self.assertEqual(self.post(self.b,'/api/pin',{},self.ta).status_code,403)
