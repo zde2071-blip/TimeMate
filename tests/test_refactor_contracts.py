@@ -5,10 +5,10 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
-import ai_services
-import mail_titles
-import operation_status
-from user_errors import UserFacingError, payload
+from backend.core import ai_services
+from backend.mail import titles as mail_titles
+from backend.core import operation_status
+from backend.core.user_errors import UserFacingError, payload
 
 
 class RefactorContracts(unittest.TestCase):
@@ -34,7 +34,7 @@ class RefactorContracts(unittest.TestCase):
         self.assertEqual(c.execute('SELECT display_title FROM mails').fetchone()[0], '已经保存的标题')
 
     def test_legacy_subject_regressions(self):
-        from legacy_title_migration import display_title, compact
+        from backend.migrations.legacy_titles import display_title, compact
         physical='<Local Students Only> 关于开展2026-2027学年《国家学生体质健康标准》测试工作的通知 Notice on the 2026�C2027 Academic Year National Student Physical Health Standard Test'
         career='2026-27S1 WEEK4｜生涯护航一周活动速递（10.5-10.11） Career Support and Upcoming Events'
         cases=[(physical,None,'国家学生体质健康标准测试'),

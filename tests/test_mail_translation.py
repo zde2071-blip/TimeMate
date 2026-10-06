@@ -1,6 +1,5 @@
 import unittest
-import mail_translation
-
+from backend.mail import translation as mail_translation
 class TranslationLayoutTests(unittest.TestCase):
     def test_preserves_lists_links_images_tables_and_escapes_model_text(self):
         markup='<p>Hello &amp; welcome</p><ol start="2"><li><a href="https://box.example/a%20%E6%9C%88.pdf">Register here</a><img data-external="0" alt="Poster"></li></ol><table><tr><td>Date</td></tr></table>'

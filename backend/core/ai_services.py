@@ -4,7 +4,7 @@ from urllib.request import Request, build_opener, HTTPSHandler, HTTPRedirectHand
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse, urlencode
 import certifi
-from user_errors import UserFacingError
+from backend.core.user_errors import UserFacingError
 
 PROVIDERS = {
  'openai': {'name':'OpenAI','base':'https://api.openai.com/v1'},

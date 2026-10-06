@@ -1,49 +1,91 @@
 # 邮件助手
 
-一款目前在 macOS 本机运行的学校邮件整理工具。它从用户自己的 QQ 邮箱读取学校邮箱转发来的新邮件，按类别整理，用用户配置的模型生成摘要和待办。日程和重要事项由用户确认后添加。
+把学校 Outlook 邮件自动转发到自己的 QQ 邮箱后，邮件助手读取邮件，并通过用户配置的模型 API 分析分类、简略标题、摘要和待办。用户核对后，可以把事项加入日程或截止事项。
 
-## 当前阶段
+当前 `feature/multiuser` 分支是支持多人登录的网站版本，每位用户连接自己的邮箱和模型服务，邮件、设置和事项按账号隔离。`main` 保留较早的单人版本。
 
-这是单人本地版本，尚未制作给其他同学直接安装的发行包。程序需要保持运行，电脑休眠时不会持续收信。每位使用者需要配置自己的 QQ 邮箱授权码、学校邮箱和模型 API Key。Apple 日历连接仅适用于 macOS；也可以导出日历文件。
+## 仓库怎么读
 
-## 开发运行
+目录按职责划分，而不是把所有同一种后缀的文件放在一起：
 
-需要 macOS、Python 3 和 Swift 编译器。安装 Python 依赖：
-
-```sh
-python3 -m pip install -r requirements.txt
+```text
+backend/                 后端程序
+  cloud.py               登录、账号隔离、网页接口和多人运行入口
+  app.py                 协调收信、分析和事项操作，兼容本机模式
+  mail/                  邮件相关功能
+    ingest.py            连接邮箱、读取和导入邮件
+    analysis.py          分析提示词、结果校验和事项提取
+    titles.py            简略标题的读取与校验
+    dates.py             邮件日期处理
+    original.py          原邮件解析和安全展示
+    translation.py       原邮件翻译
+  events/                日程与截止事项
+    event_join.py        事项加入、重复合并和更新核对
+  core/                  多个功能共用的基础能力
+    ai_services.py       模型服务调用
+    database.py          邮件数据库与版本升级
+    operation_status.py  操作进度和结果状态
+    user_errors.py       错误类型和用户提示
+  migrations/            旧数据转换
+    legacy_titles.py     旧版标题的兼容转换
+web/                     浏览器页面
+  index.html             主界面、交互和前端脚本
+  login.html             登录与注册页面
+  styles.css             主界面样式
+native/                  单人 Mac 模式使用的 Swift 桥接源码
+tools/                   本机开发辅助工具
+tests/                   自动验证功能的测试
+docs/                    使用与部署说明
 ```
 
-编译本机钥匙串连接程序：
+根目录的 `cloud.py`、`app.py` 和 `preview.py` 是简短的启动入口，实际代码在上面的目录里。保留这些入口，是为了继续使用原来的启动命令。`Dockerfile`、依赖清单和 Git 配置也保留在根目录，方便部署工具找到它们。
+
+如果想逐步理解这个项目，建议按一次操作走过的路径阅读：
+
+1. `web/index.html`：用户点击什么，页面向后端请求什么。
+2. `backend/cloud.py`：请求如何检查登录状态、找到当前用户，并调用功能。
+3. `backend/app.py`：收信、分析与事项操作如何串起来。
+4. `backend/mail/ingest.py` 和 `backend/mail/analysis.py`：邮件如何进入系统，再变成分析结果。
+5. `backend/core/ai_services.py` 和 `backend/core/database.py`：模型如何调用，结果如何保存。
+6. `backend/events/event_join.py`：用户确认事项后，如何加入和合并。
+
+文件夹用来归类，文件用来拆分职责。一个功能可以调用其他目录的公共能力，不必把所有代码复制进同一个文件。
+
+## 本机预览多人版
 
 ```sh
-swiftc credential_bridge.swift -o CredentialBridge
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-cloud.txt
+.venv/bin/python preview.py
 ```
 
-日历连接程序的应用包需单独构建；缺少它时仍可选择导出日历文件。启动：
+预览工具只监听本机，并在被 Git 忽略的 `cloud-data/development.secret` 中保存开发密钥。账号邀请、正式运行、日历订阅和 Railway 部署步骤见 [多人版说明](docs/多人版说明.md)。
+
+生产环境仍通过 `python cloud.py serve` 启动，本次目录整理不改变该命令。
+
+## 单人 Mac 模式
+
+此分支仍保留单人本机入口：
 
 ```sh
-python3 app.py
+.venv/bin/pip install -r requirements.txt
+swiftc native/credential_bridge.swift -o CredentialBridge
+.venv/bin/python app.py
 ```
 
-打开 `http://127.0.0.1:18743/`。首次使用时在“连接设置”里填写自己的信息。
+打开 `http://127.0.0.1:18743/`。本机日历桥接源码在 `native/calendar_bridge.swift`，需要单独构建应用包；缺少桥接程序时仍可导出日历文件。
 
-## 数据与隐私
+## 数据存在哪里
 
-- 授权码和 API Key 通过 macOS 钥匙串保存。
-- 邮箱地址与偏好保存在本机 `preferences.json`；邮件和分析结果保存在本机 `mail.db`。这两个文件已被 Git 忽略，不会进入代码仓库。
-- 程序只监听本机地址。当前版本没有多人账号和用户数据隔离，请勿直接开放到公网。
-- 分析邮件会把相应内容发送到用户选择的模型服务，可能产生费用。
+GitHub 保存程序和说明，不保存用户邮件、密码、QQ 授权码或 API Key。
 
-## 版本与使用许可
+多人版运行数据默认在 `cloud-data/`，部署时使用配置的持久化数据目录。单人模式的 `mail.db` 和 `preferences.json` 保持原位置。目录整理不移动这些数据。多人版凭证使用服务器密钥加密；密钥与运行数据需要另外备份，不能依靠 GitHub 恢复。
 
-当前仓库用于私人开发和版本记录。暂未授予代码的公开使用、修改或再分发许可；面向同学的发行方式会在内测包准备好后确定。
+## 验证修改
 
-## 后续更新
+```sh
+.venv/bin/python -m unittest discover -s tests
+for test in tests/test_*.js; do node "$test"; done
+```
 
-在 GitHub Desktop 中选择本仓库，检查 Changes 中的文件，填写本次修改说明并点击 Commit to main，最后点击 Push origin。提交会先保存在本机；推送后才会出现在 GitHub。修改程序后请先在本机验证，再提交版本。
-
-
-## 多人版开发分支
-
-本分支新增邮箱密码登录与账号隔离，详见 [多人版说明](多人版说明.md)。原单人版仍由 `app.py` 启动，多人版使用独立数据目录和 `cloud.py`。
+修改代码后先验证，再提交和推送 GitHub。线上网站在部署完成后才更新。

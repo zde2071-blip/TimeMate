@@ -1,6 +1,6 @@
 """Explicit, user-reviewed linking of mail candidates to saved items."""
 import json
-from user_errors import UserFacingError
+from backend.core.user_errors import UserFacingError
 import re
 import unicodedata
 from difflib import SequenceMatcher

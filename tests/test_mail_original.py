@@ -1,9 +1,7 @@
 import unittest
 from email.message import EmailMessage
 
-import mail_original
-
-
+from backend.mail import original as mail_original
 class OriginalMailTests(unittest.TestCase):
     def test_keeps_email_table_layout_and_inline_cid_image(self):
         message = EmailMessage()

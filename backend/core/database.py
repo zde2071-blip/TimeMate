@@ -2,8 +2,7 @@
 from pathlib import Path
 import sqlite3
 import threading
-import mail_titles
-
+from backend.mail import titles as mail_titles
 SCHEMA_VERSION = 2
 MAIL_COLUMNS = {
     'original': 'TEXT', 'source_links': 'TEXT',

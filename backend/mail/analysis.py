@@ -2,11 +2,10 @@
 import json, re, time
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from ai_services import AIServiceError
-from user_errors import UserFacingError
-import mail_titles
-import operation_status
-
+from backend.core.ai_services import AIServiceError
+from backend.core.user_errors import UserFacingError
+from backend.mail import titles as mail_titles
+from backend.core import operation_status
 EVENT_RULES=('只提出原始正文中明确的活动或截止日期；邮件发送时间、转发头时间不是日程。'
  '不能猜测日期、年份、时区或结束时间；不确定的信息写在 uncertainties，不能生成猜测的日程。'
  '课程或实验邮件只说“本周开始”、标注教学周日期范围、并让学生查个人课表时，不代表一条覆盖整周的日程；没有明确到个人课次的日期和时间就不要生成该课程日程。'

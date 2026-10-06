@@ -2,8 +2,8 @@ import json,os,re,tempfile,time,unittest
 from pathlib import Path
 from unittest.mock import Mock,patch
 from cryptography.fernet import Fernet
-from ai_services import AIServiceError
-from cloud import create_app,settings,invitation_link
+from backend.core.ai_services import AIServiceError
+from backend.cloud import create_app,settings,invitation_link
 from urllib.parse import urlsplit,parse_qs
 
 class CloudTests(unittest.TestCase):
@@ -94,7 +94,7 @@ class CloudTests(unittest.TestCase):
     c.execute('INSERT INTO mails(id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',('imported','通知','school@xjtlu.edu.cn','2026-10-06','body',1,'manual'))
    return 'imported',True
   result={'category':'其他','summary':'分析结果。','time':'','location':'','action':'','uncertainties':'','events':[]}
-  with patch.object(engine,'connect_mail',return_value=(Mock(),'1',[42])),patch.object(engine,'import_uid',side_effect=imported),patch.object(engine,'job',side_effect=lambda fn:fn()),patch('cloud.ai_services.complete',return_value=result) as complete:
+  with patch.object(engine,'connect_mail',return_value=(Mock(),'1',[42])),patch.object(engine,'import_uid',side_effect=imported),patch.object(engine,'job',side_effect=lambda fn:fn()),patch('backend.cloud.ai_services.complete',return_value=result) as complete:
    response=self.post(self.a,'/api/fetch',{},self.ta)
   self.assertEqual(response.status_code,200)
   complete.assert_called_once()
@@ -102,12 +102,12 @@ class CloudTests(unittest.TestCase):
    saved=c.execute("SELECT result FROM mails WHERE id='imported'").fetchone()[0]
   self.assertEqual(json.loads(saved)['summary'],'分析结果。')
  def test_cloud_analysis_failure_is_visible_per_mail(self):
-  from ai_services import AIServiceError
+  from backend.core.ai_services import AIServiceError
   engine=self.app.store.engine(self.ua)
   engine.CFG.update(provider='deepseek',base='https://api.deepseek.com',model='deepseek-flash',key='test-key')
   with engine.db() as c:
    c.execute('INSERT INTO mails(id,subject,sender,date,body,created) VALUES (?,?,?,?,?,?)',('failed','通知','school@xjtlu.edu.cn','2026-10-06','body',1))
-  with patch('cloud.ai_services.complete',side_effect=AIServiceError('连接超时或网络不可达，请检查网络和接口地址。')):
+  with patch('backend.cloud.ai_services.complete',side_effect=AIServiceError('连接超时或网络不可达，请检查网络和接口地址。')):
    engine.analyze_pending()
   state=self.state(self.a,self.ta)
   self.assertIn('连接超时',state.json['mails'][0]['analysis_error'])
@@ -167,7 +167,7 @@ class CloudTests(unittest.TestCase):
    c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
              ('translate-cloud','School notice','school@xjtlu.edu.cn','2026-10-05','Please register by Friday.',time.time(),'manual'))
   expected={'items':[{'id':0,'text':'学校通知'},{'id':1,'text':'请在周五前注册。'}]}
-  with patch('cloud.ai_services.complete',return_value=expected) as complete:
+  with patch('backend.cloud.ai_services.complete',return_value=expected) as complete:
    result=engine.translate_source('translate-cloud')
   self.assertEqual(result['html'],'<pre>请在周五前注册。</pre>')
   self.assertIn('max_tokens',complete.call_args.kwargs)
@@ -177,7 +177,7 @@ class CloudTests(unittest.TestCase):
   with engine.db() as c:
    c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
              ('translation-error','School notice','school@xjtlu.edu.cn','2026-10-05','Please register.',time.time(),'manual'))
-  with patch('cloud.ai_services.complete',side_effect=AIServiceError('连接超时或网络不可达，请检查网络和接口地址。')):
+  with patch('backend.cloud.ai_services.complete',side_effect=AIServiceError('连接超时或网络不可达，请检查网络和接口地址。')):
    response=self.post(self.a,'/api/source/translate',{'id':'translation-error'},self.ta)
   self.assertEqual(response.status_code,400)
   self.assertEqual(response.json['error'],'连接超时或网络不可达，请检查网络和接口地址。')

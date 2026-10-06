@@ -4,10 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import app
-import event_join
-
-
+from backend import app
+from backend.events import event_join
 class EventJoinTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory()

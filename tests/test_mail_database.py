@@ -7,9 +7,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
-import mail_database
-
-
+from backend.core import database as mail_database
 class DatabaseUpgradeTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

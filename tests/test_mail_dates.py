@@ -1,10 +1,8 @@
 import json
 import unittest
 
-import app
-import mail_dates
-
-
+from backend import app
+from backend.mail import dates as mail_dates
 class MailDateTests(unittest.TestCase):
     def test_chinese_forwarded_time_overrides_outer_time(self):
         row={'date':'Mon, 05 Oct 2026 02:17:00 +0000',

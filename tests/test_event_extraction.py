@@ -1,8 +1,6 @@
 import unittest
 
-import app
-
-
+from backend import app
 class EventExtractionTests(unittest.TestCase):
     def test_weekly_timetable_notice_is_not_an_all_day_event(self):
         event = {

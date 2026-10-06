@@ -5,9 +5,9 @@ from email.utils import parseaddr
 from html.parser import HTMLParser
 from urllib.parse import urlparse
 import certifi
-import mail_original
-import operation_status
-from user_errors import UserFacingError
+from backend.mail import original as mail_original
+from backend.core import operation_status
+from backend.core.user_errors import UserFacingError
 
 def mail_id(account,validity,uid):
     return hashlib.sha256((account.lower()+validity+str(uid)).encode()).hexdigest()

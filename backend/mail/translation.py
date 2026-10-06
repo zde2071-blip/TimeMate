@@ -1,6 +1,6 @@
 """Translate text nodes while preserving the inert original email markup."""
 import hashlib
-from user_errors import UserFacingError
+from backend.core.user_errors import UserFacingError
 import html
 import re
 from html.parser import HTMLParser

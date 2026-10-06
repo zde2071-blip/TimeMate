@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from mail_analysis import MailAnalyzer
-from mail_database import MailDatabase
+from backend.mail.analysis import MailAnalyzer
+from backend.core.database import MailDatabase
 
 
 class MailServiceTests(unittest.TestCase):

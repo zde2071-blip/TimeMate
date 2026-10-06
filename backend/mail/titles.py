@@ -31,7 +31,7 @@ def from_analysis(subject, result):
 
 def migrate(connection):
     """Upgrade each old row once, without paid model calls or editing its analysis."""
-    from legacy_title_migration import display_title
+    from backend.migrations.legacy_titles import display_title
     rows = connection.execute(
         'SELECT id,subject,result FROM mails WHERE title_version IS NULL'
     ).fetchall()

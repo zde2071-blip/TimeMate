@@ -1,9 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-import ai_services
-
-
+from backend.core import ai_services
 class AIServiceTests(unittest.TestCase):
     def config(self, provider='deepseek'):
         return {'provider':provider,'base':ai_services.PROVIDERS[provider]['base'],

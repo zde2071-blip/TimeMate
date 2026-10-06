@@ -6,9 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import app
-
-
+from backend import app
 class MailImportTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -210,7 +208,7 @@ class MailImportTests(unittest.TestCase):
             self.assertEqual(batch.result(timeout=5),(2,0))
 
     def test_analysis_diagnostics_keep_safe_provider_reason_and_hide_unknown_errors(self):
-        from ai_services import AIServiceError
+        from backend.core.ai_services import AIServiceError
         for error,expected in [(AIServiceError('服务商限流或额度不足。（HTTP 429）'),'HTTP 429'),
                                (RuntimeError('secret provider body and private email'),'程序处理分析结果时发生异常')]:
             with self.subTest(error=type(error).__name__):

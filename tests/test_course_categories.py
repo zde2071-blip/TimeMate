@@ -1,8 +1,7 @@
 import json,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
-import app
-
+from backend import app
 class CourseCategoriesTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.db=patch.object(app,'DB',Path(self.tmp.name)/'mail.db');self.db.start()
