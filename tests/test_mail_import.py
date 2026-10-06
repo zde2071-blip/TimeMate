@@ -127,6 +127,23 @@ class MailImportTests(unittest.TestCase):
                     self.assertEqual(json.loads(row['result'])['short_title'],'ISA104 小组项目主题提交提醒')
                     self.assertEqual(c.execute('SELECT COUNT(*) FROM pins').fetchone()[0],0)
 
+    def test_generated_sidebar_title_is_bounded_without_changing_summary(self):
+        result={'category':'其他','summary':'保留完整摘要。','time':'','location':'','action':'','uncertainties':'','events':[],
+                'short_title':'中文主题（宣传补充）'+ '中文主题'*20}
+        with app.db() as c:
+            c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
+                      ('title-limit','原始完整标题','school@xjtlu.edu.cn','2026-10-05','body',1,'manual'))
+        with patch.object(app.ai_services,'complete',return_value=result) as complete:
+            app.analyze_saved_mail('title-limit')
+        complete.assert_called_once()
+        with app.db() as c:
+            row=c.execute('SELECT subject,result FROM mails WHERE id=?',('title-limit',)).fetchone()
+        saved=json.loads(row['result'])
+        self.assertLessEqual(len(saved['short_title']),32)
+        self.assertNotIn('宣传补充',saved['short_title'])
+        self.assertEqual(saved['summary'],'保留完整摘要。')
+        self.assertEqual(row['subject'],'原始完整标题')
+
     def test_failed_manual_analysis_does_not_stop_batch_and_auto_check_retries(self):
         result={'category':'其他','summary':'通知。','time':'','location':'','action':'','uncertainties':'','events':[]}
         with app.db() as c:

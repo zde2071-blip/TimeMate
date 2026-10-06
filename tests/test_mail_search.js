@@ -22,7 +22,19 @@ assert.equal(calls,0,'search and selection of read mail do not request AI/API');
 console.log('邮件搜索测试通过');
 
 assert.equal(context.mailListTitle({subject:'Full English Subject',result:JSON.stringify({short_title:'ISA104 项目主题提交提醒'})}),'ISA104 项目主题提交提醒');
-assert.equal(context.mailListTitle({subject:'Long title',result:JSON.stringify({events:[{title:'志愿者招募'},{title:'迎新杯长跑'},{title:'瑜伽体验'}]})}),'志愿者招募、迎新杯长跑、瑜伽体验');
+assert.equal(context.mailListTitle({subject:'Long title',result:JSON.stringify({events:[{title:'志愿者招募'},{title:'迎新杯长跑'},{title:'瑜伽体验'}]})}),'Long title');
 assert.equal(context.mailListTitle({subject:'Original',result:null}),'Original');
 context.setMailSearch('isa104');assert.equal($('mails').children[0].title,'ISA104 Project');
 assert.match(html,/webkit-line-clamp:2/);
+const sports='【Volunteer Recruitment & Student Activity】Special Care Education义工学院特殊教育志愿者招募& 5000 Competition “迎新杯”5000米长跑 &Yoga Experience Event “迎新杯” 瑜伽体验活动';
+const sportsTitle=context.mailListTitle({subject:sports,result:JSON.stringify({summary:'集中发布志愿者招募和体育活动',events:[]})});
+assert.ok(sportsTitle.length<=32,sportsTitle);for(const topic of ['志愿者招募','5000米长跑','瑜伽'])assert.ok(sportsTitle.includes(topic),sportsTitle);
+assert.ok(!sportsTitle.includes('Volunteer'));assert.ok(!sportsTitle.includes('【'));
+const psychology='Love, Subjectivity, Attachment, Collage... A New Batch of Psychology Groups Is Here! 预报从速！爱情、主体性、依恋、拼贴画......SCC第三批心理团体报名来袭......';
+const legacy={subject:psychology,result:JSON.stringify({events:[{title:'爱的团体：收回关系里的投射（第1次）'},{title:'拼贴画自我叙事大学生心理成长团体（第1次）'}]})};
+const before=JSON.stringify(legacy);assert.equal(context.mailListTitle(legacy),'心理团体报名');assert.equal(JSON.stringify(legacy),before,'display cleanup does not change analysis or events');
+assert.equal(context.mailListTitle({subject:'Full subject',result:{short_title:'ISA104 小组项目主题提交提醒（第1次）'}}),'ISA104 小组项目主题提交提醒');
+assert.ok(context.mailListTitle({subject:'Full subject',result:{short_title:'这是一个非常长的中文标题'.repeat(6)}}).length<=32);
+assert.equal(context.mailListTitle({subject:'',result:null}),'');
+
+assert.equal(context.mailListTitle({subject:'Original',result:{short_title:'AI 智能体设计与 RAG 知识库'}}),'AI 智能体设计与 RAG 知识库');
