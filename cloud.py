@@ -185,6 +185,11 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
     def index():
         if not g.auth: return redirect('/login')
         return (ROOT/'index.html').read_text().replace('__TOKEN__',g.auth['csrf'])
+    @app.get('/styles.css')
+    def stylesheet():
+        response=make_response((ROOT/'styles.css').read_text())
+        response.headers['Content-Type']='text/css; charset=utf-8'
+        return response
     @app.get('/account')
     def account():
         if not g.auth: return redirect('/login')
@@ -302,27 +307,8 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                 self.path='/api/'+path; self.headers={'X-Token':engine.TOKEN,'Content-Length':str(len(raw))}; self.rfile=io.BytesIO(raw)
             def valid_host(self): return True
             def reply(self,code,data,ctype='application/json; charset=utf-8'):
-                if code>=400:
-                    error=data.get('error','') if isinstance(data,dict) else ''
-                    safe_translation_errors=(
-                        '邮件不存在。','请先在账户设置中配置 AI 服务。','AI 没有返回完整译文，请重试。','AI 返回的译文段落不完整，请重试。',
-                        '多人版请使用所选服务商的预设接口地址。','请选择模型服务商。','请填写不含查询参数的 HTTPS 接口基础地址。',
-                        '请填写当前服务商的 API Key。','请先选择模型，或手动填写模型 ID。',
-                        '请求或模型参数不受支持','API Key 无效','账户余额不足','没有调用权限','接口或模型不存在',
-                        '服务商限流或额度不足','服务商暂时无法完成请求','连接超时或网络不可达',
-                        '服务商返回了无法识别的数据','没有收到文本回答','模型未返回文本','模型没有返回所需格式',
-                    )
-                    expose_translation_error=(self.path=='/api/source/translate' and isinstance(error,str)
-                                              and error.startswith(safe_translation_errors))
-                    safe_event_errors=('已有事项发生变化','发现可能重复或更新','找不到这条事项','目标事项未加入或类型不同',
-                        '这条事项已单独加入','不能把事项关联到自身','请关联到原始事项','更新字段无效','关联操作无效',
-                        '标题不能为空','待办内容不能超过','地点不能超过','全天设置无效','请填写有效的日期和时间',
-                        '日期或时区无效','日程安排需要有效的开始和结束时间','截止事项只需要设置截止时间',
-                        '事项编号无效','事项已不存在','找不到这条事项对应的邮件','这条事项当前未加入重要事项',
-                        '这条截止事项当前未加入重要事项','这条邮件内容不是可编辑事项','事项操作无效','日程安排不支持标记完成','事项修改内容无效')
-                    expose_event_error=(self.path in ('/api/event/check','/api/event/link','/api/event/manage') and isinstance(error,str) and error.startswith(safe_event_errors))
-                    expose_course_error=(self.path in ('/api/courses/add','/api/mail/category') and isinstance(error,str) and error.startswith(('课程代码无效','邮件分类无效','找不到这封邮件。')))
-                    data={'error':error if expose_translation_error or expose_event_error or expose_course_error else '操作未完成，请检查设置和所选邮件。'}
+                # The core handler already serializes intentional errors by type.
+                # Never decide visibility by matching translated message text.
                 if code==200 and self.path=='/api/state':
                     data['calendarSubscriptionSupported']=True
                     data['calendarSubscriptionUrl']=store.calendar_feed(g.auth['user_id'],origin)

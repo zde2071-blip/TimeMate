@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+const html=require('./ui_source').readUI();
 class Element{constructor(tag,text=''){this.tag=tag;this.textContent=text;this.children=[];}append(...n){this.children.push(...n)}replaceChildren(...n){this.children=[...n]}}
 const flatten=node=>[node,...node.children.flatMap(flatten)];
 async function run(){

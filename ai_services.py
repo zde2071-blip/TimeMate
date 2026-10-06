@@ -1,9 +1,10 @@
 """Provider metadata and small adapters; no credentials are persisted here."""
-import json, re, ssl
+import json, re, ssl, threading
 from urllib.request import Request, build_opener, HTTPSHandler, HTTPRedirectHandler
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse, urlencode
 import certifi
+from user_errors import UserFacingError
 
 PROVIDERS = {
  'openai': {'name':'OpenAI','base':'https://api.openai.com/v1'},
@@ -16,8 +17,9 @@ PROVIDERS = {
  'claude': {'name':'Anthropic Claude','base':'https://api.anthropic.com/v1','protocol':'anthropic'},
  'custom': {'name':'其他兼容服务','base':'','hint':'填写支持 Chat Completions 的 HTTPS 基础地址和模型 ID。'},
 }
-class AIServiceError(ValueError):
+class AIServiceError(UserFacingError):
  """Only fixed, safe diagnostics; never provider response bodies or credentials."""
+ code="ai_service_error"
 
 class NoRedirect(HTTPRedirectHandler):
  def redirect_request(self,*args,**kwargs): raise AIServiceError('接口发生跳转，请核对高级设置中的地址。')
@@ -61,7 +63,14 @@ def list_models(cfg):
  if not models:raise AIServiceError('没有获取到模型，请手动填写服务商控制台中的模型 ID。')
  return models
 
+# Shared by every user's engine, including translations and connection checks.
+REQUEST_SLOTS=threading.BoundedSemaphore(4)
+
 def complete(cfg,prompt,data,max_tokens=4096):
+ with REQUEST_SLOTS:
+  return _complete(cfg,prompt,data,max_tokens)
+
+def _complete(cfg,prompt,data,max_tokens=4096):
  validate(cfg)
  user=json.dumps(data,ensure_ascii=False)
  if cfg['provider']=='claude':

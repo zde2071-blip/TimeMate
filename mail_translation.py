@@ -1,5 +1,6 @@
 """Translate text nodes while preserving the inert original email markup."""
 import hashlib
+from user_errors import UserFacingError
 import html
 import re
 from html.parser import HTMLParser
@@ -27,7 +28,7 @@ class Template(HTMLParser):
             self.parts.append(html.escape(trailing))
     def render(self,values):
         if len(values)!=len(self.texts) or any(not isinstance(v,str) or not v.strip() for v in values):
-            raise ValueError('AI 返回的译文段落不完整，请重试。')
+            raise UserFacingError('AI 返回的译文段落不完整，请重试。')
         return ''.join(html.escape(values[p]) if isinstance(p,int) else p for p in self.parts)
 
 def source(row):

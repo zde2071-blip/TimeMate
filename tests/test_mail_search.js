@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+const html=require('./ui_source').readUI();
 class Element{constructor(tag,text=''){this.tag=tag;this.textContent=text;this.children=[];this.value='';}append(...nodes){this.children.push(...nodes)}replaceChildren(...nodes){this.children=[...nodes]}setAttribute(k,v){this[k]=v}focus(){this.focused=true}scrollIntoView(){}classList={add(){}}}
 const nodes=new Map(),$=id=>{if(!nodes.has(id))nodes.set(id,new Element('div'));return nodes.get(id)};
 const state={mails:[
@@ -21,47 +21,8 @@ context.setMailSearch('不存在');context.jumpMail('1');assert.equal($('mails')
 assert.equal(calls,0,'search and selection of read mail do not request AI/API');
 console.log('邮件搜索测试通过');
 
-assert.equal(context.mailListTitle({subject:'Full English Subject',result:JSON.stringify({short_title:'ISA104 项目主题提交提醒'})}),'ISA104 项目主题提交');
-assert.equal(context.mailListTitle({subject:'Long title',result:JSON.stringify({events:[{title:'志愿者招募'},{title:'迎新杯长跑'},{title:'瑜伽体验'}]})}),'Long title');
-assert.equal(context.mailListTitle({subject:'Original',result:null}),'Original');
-context.setMailSearch('isa104');assert.equal($('mails').children[0].title,'ISA104 Project');
-assert.doesNotMatch(html,/webkit-line-clamp/,'topic titles must not be visually cut into ellipses');
-const sports='【Volunteer Recruitment & Student Activity】Special Care Education义工学院特殊教育志愿者招募& 5000 Competition “迎新杯”5000米长跑 &Yoga Experience Event “迎新杯” 瑜伽体验活动';
-const sportsTitle=context.mailListTitle({subject:sports,result:JSON.stringify({summary:'集中发布志愿者招募和体育活动',events:[]})});
-assert.ok(sportsTitle.length<=32,sportsTitle);for(const topic of ['志愿者招募','5000米长跑','瑜伽'])assert.ok(sportsTitle.includes(topic),sportsTitle);
-assert.ok(!sportsTitle.includes('Volunteer'));assert.ok(!sportsTitle.includes('【'));
-const psychology='Love, Subjectivity, Attachment, Collage... A New Batch of Psychology Groups Is Here! 预报从速！爱情、主体性、依恋、拼贴画......SCC第三批心理团体报名来袭......';
-const legacy={subject:psychology,result:JSON.stringify({events:[{title:'爱的团体：收回关系里的投射（第1次）'},{title:'拼贴画自我叙事大学生心理成长团体（第1次）'}]})};
-const before=JSON.stringify(legacy);assert.equal(context.mailListTitle(legacy),'心理团体报名');assert.equal(JSON.stringify(legacy),before,'display cleanup does not change analysis or events');
-assert.equal(context.mailListTitle({subject:'Full subject',result:{short_title:'ISA104 小组项目主题提交提醒（第1次）'}}),'ISA104 小组项目主题提交');
-assert.ok(context.mailListTitle({subject:'Full subject',result:{short_title:'这是一个非常长的中文标题'.repeat(6)}}).length<=32);
-assert.equal(context.mailListTitle({subject:'',result:null}),'');
-
-assert.equal(context.mailListTitle({subject:'Original',result:{short_title:'AI 智能体设计与 RAG 知识库'}}),'AI 智能体设计与 RAG 知识库');
-
-const physical='<Local Students Only> 关于开展2026-2027学年《国家学生体质健康标准》测试工作的通知 Notice on the 2026�C2027 Academic Year National Student Physical Health Standard Test';
-assert.equal(context.mailListTitle({subject:physical,result:{events:[{title:'体质健康测试预约截止'},{title:'体质健康测试免测申请截止'}]}}),'国家学生体质健康标准测试');
-assert.equal(context.mailListTitle({subject:physical,result:{short_title:'关于开展2026-2027学年《国家学生体质健康标准》测试工作的通知'}}),'国家学生体质健康标准测试','cached AI titles use the same topic cleanup');
-assert.equal(context.mailListTitle({subject:'【Notice】关于学生证注册的重要提醒',result:{events:[{title:'学生证注册截止'}]}}),'学生证注册','the topic of the whole mail is not replaced by its deadline task');
-assert.equal(context.mailListTitle({subject:'Academic Literacies Centre (ALC) - Academy of Artificial Intelligence and Advanced Technology: IELTS for students on Taicang Campus',result:null}),'雅思');
-assert.equal(context.mailListTitle({subject:'Original',result:{short_title:'关于开展心理团体报名的通知'}}),'心理团体报名');
-for(const topic of ['志愿者招募','学生代表投票','项目主题提交','免测申请','体质健康测试'])assert.equal(context.compactMailTitle('关于开展'+topic+'工作的通知',false),topic);
-assert.equal(context.mailListTitle({subject:'&lt;Local Students Only&gt; 关于开展2026-2027学年《国家学生体质健康标准》测试工作的通知',result:null}),'国家学生体质健康标准测试');
-
-assert.equal(context.mailListTitle({subject:'Notice on the National Student Physical Health Standard Test',result:null}),'体质健康测试');
-assert.equal(context.mailListTitle({subject:'Full English subject',result:{short_title:'Academic Literacies Centre: IELTS for students'}}),'雅思','English cached model titles are also cleaned');
-
-assert.equal(context.mailListTitle({subject:'Notice on Physical Health Standard Test 关于开展国家学生体质健康标准测试工作的通知',result:null}),'国家学生体质健康标准测试','English-first bilingual subjects retain the Chinese topic');
-
-assert.equal(context.mailListTitle({subject:sports,result:{events:[]}}),'特殊教育志愿者招募、5000米长跑、瑜伽体验');
-assert.equal(context.mailListTitle({subject:sports,result:{short_title:'…特殊教育志愿者招募、迎新杯5000米长跑、迎新杯 瑜伽体验活动'}}),'特殊教育志愿者招募、5000米长跑、瑜伽体验','stale clipped titles are rebuilt from the intact subject');
-assert.equal(context.mailListTitle({subject:physical,result:{short_title:'国家学生体质健康标准测…'}}),'国家学生体质健康标准测试','never show a cached broken word');
-assert.equal(context.compactMailTitle('...第4周实验课报名通知',false),'第4周实验课报名','dots are noise; the teaching week remains meaningful');
-assert.equal(context.limitMailTitle('这个很长但是不可随意截断的科研项目名称'.repeat(3)),'这个很长但是不可随意截断的科研项目名称'.repeat(3),'unknown topic names are not sliced into fragments');
-
-const careerDigest='2026-27S1 WEEK4｜生涯护航一周活动速递（10.5-10.11） Career Support and Upcoming Events';
-assert.equal(context.mailListTitle({subject:careerDigest,result:null}),'生涯护航一周活动速递');
-assert.equal(context.mailListTitle({subject:careerDigest,result:{short_title:'4、生涯护航一周活动速递'}}),'生涯护航一周活动速递','old numeric remnants do not survive cached titles');
-for(const metadata of ['2026-27S1 WEEK4','2026-2027-S1 Week 4','2026–27S1 WEEK12'])assert.equal(context.compactMailTitle(metadata+'｜生涯护航一周活动速递'),'生涯护航一周活动速递');
-assert.equal(context.compactMailTitle('CSI101 实验课开始 Week4'),'CSI101 实验课开始');
-assert.equal(context.compactMailTitle('5000米长跑、4、瑜伽体验',false),'5000米长跑、瑜伽体验','only isolated numbering is removed; event quantities remain');
+assert.equal(context.mailListTitle({subject:'原始完整标题',display_title:'项目主题提交'}),'项目主题提交');
+assert.equal(context.mailListTitle({subject:'Original'}),'Original');
+context.state.mails[0].display_title='独有侧栏关键词';context.setMailSearch('独有侧栏关键词');assert.equal($('mails').children.length,1,'stored sidebar titles are searchable');
+assert.doesNotMatch(html,/function (?:compactMailTitle|mailTopicTitle|englishMailTopic|limitMailTitle)/,'the UI must not infer or rewrite mail titles');
+assert.doesNotMatch(html,/webkit-line-clamp/,'topic titles remain readable');

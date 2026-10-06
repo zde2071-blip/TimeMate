@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+const html=require('./ui_source').readUI();
 class Element{constructor(tag,text){this.tag=tag;this.textContent=text;this.children=[]}append(...n){this.children.push(...n)}replaceChildren(){this.children=[]}setAttribute(k,v){this[k]=v}}
 let calls=[],renderCount=0,box=new Element('nav');
 const context=vm.createContext({categories:['课程与教学','活动与机会','其他'],selected:'课程与教学',selectedCourse:'全部课程',activeMailId:'old',$:()=>box,element:(t,x)=>new Element(t,x),matchesMailSearch:()=>true,render:()=>renderCount++,notify:()=>{},call:async(path,data)=>{calls.push({path,data});context.activeMailId='changed-by-refresh';return true}});

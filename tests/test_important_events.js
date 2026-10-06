@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const html = require('./ui_source').readUI();
 const start = html.indexOf('function genericHelpSuggestion(');
 const end = html.indexOf('\nfunction matchesMailSearch(', start);
 assert.notEqual(start, -1, 'event helpers exist in index.html');

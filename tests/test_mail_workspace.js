@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+const html=require('./ui_source').readUI();
 let top=240,height='',hidden=false;const workspace={getBoundingClientRect:()=>({top}),style:{setProperty:(key,value)=>height=value}},nav={getBoundingClientRect:()=>({height:65})};
 const ctx=vm.createContext({window:{innerHeight:900,innerWidth:1200},$:()=>({hidden}),document:{querySelector:selector=>selector==='.tabs'?nav:workspace}});
 vm.runInContext(html.slice(html.indexOf('function updateMailWorkspaceHeight('),html.indexOf('let mailStatusMessage=')),ctx);

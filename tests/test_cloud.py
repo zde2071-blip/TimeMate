@@ -2,6 +2,7 @@ import json,os,re,tempfile,time,unittest
 from pathlib import Path
 from unittest.mock import Mock,patch
 from cryptography.fernet import Fernet
+from ai_services import AIServiceError
 from cloud import create_app,settings,invitation_link
 from urllib.parse import urlsplit,parse_qs
 
@@ -32,6 +33,12 @@ class CloudTests(unittest.TestCase):
   expired=self.app.store.invite('expired@example.com')
   with self.app.store.db() as c:c.execute("UPDATE invites SET expires=0 WHERE email=?",('expired@example.com',))
   self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'expired@example.com','invite':expired,'password':'12345678'}).status_code,400)
+ def test_extracted_stylesheet_is_available(self):
+  response=self.anon.get('/styles.css')
+  self.assertEqual(response.status_code,200)
+  self.assertIn('text/css',response.content_type)
+  self.assertIn('.calendar',response.text)
+  self.assertIn('href="/styles.css"',self.a.get('/').text)
  def test_auth_csrf_invite_logout(self):
   self.assertEqual(self.anon.get('/').status_code,302);self.assertEqual(self.state(self.anon,'').status_code,401)
   self.assertEqual(self.post(self.b,'/api/pin',{},self.ta).status_code,403)
@@ -167,7 +174,7 @@ class CloudTests(unittest.TestCase):
   with engine.db() as c:
    c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
              ('translation-error','School notice','school@xjtlu.edu.cn','2026-10-05','Please register.',time.time(),'manual'))
-  with patch('cloud.ai_services.complete',side_effect=ValueError('连接超时或网络不可达，请检查网络和接口地址。')):
+  with patch('cloud.ai_services.complete',side_effect=AIServiceError('连接超时或网络不可达，请检查网络和接口地址。')):
    response=self.post(self.a,'/api/source/translate',{'id':'translation-error'},self.ta)
   self.assertEqual(response.status_code,400)
   self.assertEqual(response.json['error'],'连接超时或网络不可达，请检查网络和接口地址。')

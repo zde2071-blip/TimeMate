@@ -124,7 +124,7 @@ class MailImportTests(unittest.TestCase):
                 with app.db() as c:
                     row=c.execute('SELECT result FROM mails WHERE subject=?',(mode+' notice',)).fetchone()
                     self.assertEqual(json.loads(row['result'])['summary'],'课程通知。')
-                    self.assertEqual(json.loads(row['result'])['short_title'],'ISA104 小组项目主题提交提醒')
+                    self.assertEqual(json.loads(row['result'])['short_title'],'ISA104 小组项目主题提交')
                     self.assertEqual(c.execute('SELECT COUNT(*) FROM pins').fetchone()[0],0)
 
     def test_generated_sidebar_title_is_bounded_without_changing_summary(self):
@@ -166,6 +166,9 @@ class MailImportTests(unittest.TestCase):
         app.STATUS['auto']=True
         with patch.object(app,'connect_mail',return_value=(Mock(),'1',[42])), \
              patch.object(app.ai_services,'complete',return_value=result) as complete:
+            app.process_new()
+            complete.assert_not_called()
+            with app.db() as c:c.execute("UPDATE mails SET analysis_retry_at=0 WHERE id='failed'")
             message=app.process_new()
             app.process_new()
         complete.assert_called_once()
@@ -378,6 +381,41 @@ class MailImportTests(unittest.TestCase):
             pin=c.execute('SELECT title,due,state FROM pins WHERE mail_id=?',('deadline-edit',)).fetchone()
         self.assertEqual(tuple(pin),('新截止事项','2026-10-12T23:59','completed'))
 
+
+
+    def test_failed_analysis_backoff_is_persisted_and_success_clears_it(self):
+        with app.db() as c:
+            c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
+                      ('retry-delay','Notice','school@xjtlu.edu.cn','2026-10-05','body',1,'manual'))
+        for attempts,delay in [(1,60),(2,120)]:
+            with patch.object(app.ai_services,'complete',side_effect=TimeoutError()), patch.object(app.time,'time',return_value=1000):
+                with self.assertRaises(ValueError):app.analyze('retry-delay')
+            with app.db() as c:
+                row=c.execute("SELECT analysis_attempts,analysis_retry_at FROM mails WHERE id='retry-delay'").fetchone()
+            self.assertEqual(tuple(row),(attempts,1000+delay))
+            with patch.object(app.time,'time',return_value=1001),patch.object(app,'analyze') as analyze:
+                self.assertEqual(app.analyze_pending(),(0,0))
+                analyze.assert_not_called()
+        result={'category':'其他','summary':'通知。','events':[],'time':'','location':'','action':'','uncertainties':''}
+        with patch.object(app.ai_services,'complete',return_value=result):app.analyze('retry-delay')
+        with app.db() as c:
+            row=c.execute("SELECT analysis_attempts,analysis_retry_at,analysis_error FROM mails WHERE id='retry-delay'").fetchone()
+        self.assertEqual(tuple(row),(0,0,None))
+
+    def test_account_analysis_queue_has_at_most_two_workers(self):
+        import time
+        lock=threading.Lock();active=0;peak=0
+        with app.db() as c:
+            for n in range(6):
+                c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
+                          (str(n),'Notice','school@xjtlu.edu.cn','2026-10-05','body',n,'manual'))
+        def analyze(ident):
+            nonlocal active,peak
+            with lock:active+=1;peak=max(peak,active)
+            time.sleep(.03)
+            with lock:active-=1
+        with patch.object(app,'analyze',side_effect=analyze):self.assertEqual(app.analyze_pending(),(6,0))
+        self.assertEqual(peak,2)
 
 if __name__ == '__main__':
     unittest.main()

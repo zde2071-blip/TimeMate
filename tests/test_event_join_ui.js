@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const html = require('./ui_source').readUI();
 class Element {
   constructor(tag, text = '') { this.tag = tag; this.text = text; this.children = []; this.style = {}; }
   setAttribute(k,v) { this[k]=v; }

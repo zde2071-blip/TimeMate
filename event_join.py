@@ -1,5 +1,6 @@
 """Explicit, user-reviewed linking of mail candidates to saved items."""
 import json
+from user_errors import UserFacingError
 import re
 import unicodedata
 from difflib import SequenceMatcher
@@ -10,7 +11,7 @@ LABELS={'title':'事项主题','action':'待办','start':'开始／截止时间'
 def key(data):
     ident,index=data.get('id'),data.get('index')
     if not isinstance(ident,str) or not ident or not isinstance(index,int) or isinstance(index,bool):
-        raise ValueError('事项编号无效。')
+        raise UserFacingError('事项编号无效。')
     return ident,index
 
 def resolve(c,ident,index):
@@ -21,7 +22,7 @@ def raw_event(c,ident,index):
     row=c.execute("SELECT result FROM mails WHERE id=? AND is_deleted=0 AND source NOT IN ('simulation','test_archive')",(ident,)).fetchone()
     events=json.loads(row['result']).get('events',[]) if row and row['result'] else []
     if index<0 or index>=len(events) or events[index].get('kind') not in ('活动','截止'):
-        raise ValueError('找不到这条事项。')
+        raise UserFacingError('找不到这条事项。')
     event=dict(events[index])
     if len(events)==1 and not event.get('action'):event['action']=json.loads(row['result']).get('action','')
     return event
@@ -93,13 +94,13 @@ def check(c,data):
 def link(c,data):
     ident,index=key(data)
     target,target_index=key({'id':data.get('targetId'),'index':data.get('targetIndex')})
-    if (ident,index)==(target,target_index):raise ValueError('不能把事项关联到自身。')
+    if (ident,index)==(target,target_index):raise UserFacingError('不能把事项关联到自身。')
     incoming=raw_event(c,ident,index)
     target_event=effective(c,target,target_index)
     if incoming['kind']!=target_event['kind'] or (target,target_index) not in saved_keys(c,incoming['kind']):
-        raise ValueError('目标事项未加入或类型不同。')
-    if (ident,index) in saved_keys(c,incoming['kind']):raise ValueError('这条事项已单独加入，请先移除后再关联。')
-    if resolve(c,target,target_index)!=(target,target_index):raise ValueError('请关联到原始事项。')
+        raise UserFacingError('目标事项未加入或类型不同。')
+    if (ident,index) in saved_keys(c,incoming['kind']):raise UserFacingError('这条事项已单独加入，请先移除后再关联。')
+    if resolve(c,target,target_index)!=(target,target_index):raise UserFacingError('请关联到原始事项。')
     c.execute('INSERT INTO event_links VALUES (?,?,?,?) ON CONFLICT(mail_id,event_index) DO UPDATE SET target_mail_id=excluded.target_mail_id,target_index=excluded.target_index',
               (ident,index,target,target_index))
 
