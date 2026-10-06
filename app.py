@@ -1,5 +1,6 @@
 import email, hashlib, html, imaplib, json, os, re, secrets, sqlite3, ssl, subprocess, threading, time, webbrowser
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from html.parser import HTMLParser
 from email import policy
@@ -232,14 +233,18 @@ def analyze_pending():
             "SELECT id FROM mails WHERE result IS NULL AND is_deleted=0 AND source IN ('manual','auto') ORDER BY created"
         )]
     analyzed=0; failed=0
-    for ident in pending:
-        STATUS['message']='正在自动分析新邮件…'
-        try:
-            analyze(ident)
-            analyzed+=1
-        except Exception:
-            # 保留未分析状态，下一次检查重试；单封失败不能阻断整批。
-            failed+=1
+    if not pending: return analyzed,failed
+    STATUS['message']=f'正在并行分析 {len(pending)} 封邮件…'
+    with ThreadPoolExecutor(max_workers=len(pending)) as pool:
+        futures=[pool.submit(analyze,ident) for ident in pending]
+        for future in as_completed(futures):
+            try:
+                future.result()
+                analyzed+=1
+            except Exception:
+                # 保留未分析状态，下次检查重试；其他请求独立完成。
+                failed+=1
+            STATUS['message']=f'并行分析进度：已完成 {analyzed+failed}/{len(pending)} 封，成功 {analyzed} 封，失败 {failed} 封。'
     return analyzed,failed
 
 def analysis_retry_message(failed):

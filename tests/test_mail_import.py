@@ -1,5 +1,7 @@
 import json
 import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -131,8 +133,11 @@ class MailImportTests(unittest.TestCase):
                 c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
                           (ident,ident,'school@xjtlu.edu.cn','2026-10-05','body',created,'manual'))
             c.execute('INSERT INTO cursors VALUES (?,?,?)',(app.cursor_key(app.CFG['account']),'1',42))
+        def provider(cfg,prompt,data):
+            if data['subject']=='failed': raise TimeoutError('timeout')
+            return result
         with patch.object(app,'connect_mail',return_value=(Mock(),'1',[])), \
-             patch.object(app.ai_services,'complete',side_effect=[TimeoutError('timeout'),result]) as complete:
+             patch.object(app.ai_services,'complete',side_effect=provider) as complete:
             message=app.fetch_mail()
         self.assertEqual(complete.call_count,2)
         self.assertIn('自动分析 1 封',message)
@@ -152,6 +157,37 @@ class MailImportTests(unittest.TestCase):
         with app.db() as c:
             self.assertIsNotNone(c.execute("SELECT result FROM mails WHERE id='failed'").fetchone()[0])
             self.assertIsNone(c.execute("SELECT analysis_error FROM mails WHERE id='failed'").fetchone()[0])
+
+    def test_analysis_requests_overlap_and_each_result_is_saved_independently(self):
+        started=threading.Barrier(3)
+        release_slow=threading.Event()
+        fast_saved=threading.Event()
+        result={'category':'其他','summary':'通知。','time':'','location':'','action':'','uncertainties':'','events':[]}
+        with app.db() as c:
+            for ident in ('fast','slow'):
+                c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
+                          (ident,ident,'school@xjtlu.edu.cn','2026-10-05','body',1,'manual'))
+        def provider(cfg,prompt,data):
+            started.wait(timeout=5)
+            if data['subject']=='slow':
+                if not release_slow.wait(timeout=5): raise TimeoutError('test timeout')
+            return result
+        original_analyze=app.analyze
+        def tracked(ident):
+            output=original_analyze(ident)
+            if ident=='fast':fast_saved.set()
+            return output
+        with patch.object(app.ai_services,'complete',side_effect=provider),patch.object(app,'analyze',side_effect=tracked),ThreadPoolExecutor(max_workers=1) as pool:
+            batch=pool.submit(app.analyze_pending)
+            try:
+                started.wait(timeout=5)
+                self.assertTrue(fast_saved.wait(timeout=5))
+                self.assertFalse(batch.done())
+                with app.db() as c:
+                    self.assertIsNotNone(c.execute("SELECT result FROM mails WHERE id='fast'").fetchone()[0])
+                    self.assertIsNone(c.execute("SELECT result FROM mails WHERE id='slow'").fetchone()[0])
+            finally:release_slow.set()
+            self.assertEqual(batch.result(timeout=5),(2,0))
 
     def test_analysis_diagnostics_keep_safe_provider_reason_and_hide_unknown_errors(self):
         from ai_services import AIServiceError
