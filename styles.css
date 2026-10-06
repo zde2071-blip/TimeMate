@@ -185,22 +185,11 @@ body {
   gap: 8px;
 }
 
-.count-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.6em;
-  padding: 1px 5px;
-  border-radius: 999px;
-  background: rgba(35, 91, 75, .09);
-  font-size: .8em;
-  line-height: 1.4;
-  font-weight: 600;
+.filter-count {
+  font-size: .85em;
+  font-weight: 400;
+  opacity: .8;
   font-variant-numeric: tabular-nums;
-}
-
-.filters button.active .count-badge {
-  background: rgba(255, 255, 255, .18);
 }
 
 .filters button {
