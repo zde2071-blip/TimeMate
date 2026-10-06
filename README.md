@@ -29,9 +29,10 @@ backend/                 后端程序
   migrations/            旧数据转换
     legacy_titles.py     旧版标题的兼容转换
 web/                     浏览器页面
-  index.html             主界面、交互和前端脚本
+  index.html             主界面内容和结构
   login.html             登录与注册页面
   styles.css             主界面样式
+  main.js                主界面交互行为
 native/                  单人 Mac 模式使用的 Swift 桥接源码
 tools/                   本机开发辅助工具
 requirements/            单人版与多人版的依赖清单
@@ -43,7 +44,7 @@ docs/                    使用与部署说明
 
 如果想逐步理解这个项目，建议按一次操作走过的路径阅读：
 
-1. `web/index.html`：用户点击什么，页面向后端请求什么。
+1. `web/index.html` 和 `web/main.js`：页面提供什么操作，点击后向后端请求什么。
 2. `backend/cloud.py`：请求如何检查登录状态、找到当前用户，并调用功能。
 3. `backend/app.py`：收信、分析与事项操作如何串起来。
 4. `backend/mail/ingest.py` 和 `backend/mail/analysis.py`：邮件如何进入系统，再变成分析结果。

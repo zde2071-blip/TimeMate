@@ -167,7 +167,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
             if not g.auth or not secrets.compare_digest(request.headers.get('X-Token',''),g.auth['csrf']): return jsonify(error='请刷新后重试。'),403
     @app.after_request
     def headers(response):
-        response.headers.update({'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; frame-src 'self' about:; frame-ancestors 'none'; form-action 'self'"})
+        response.headers.update({'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; frame-src 'self' about:; frame-ancestors 'none'; form-action 'self'"})
         if secure: response.headers['Strict-Transport-Security']='max-age=31536000'
         return response
     def new_session(uid):
@@ -184,6 +184,11 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
     def index():
         if not g.auth: return redirect('/login')
         return (ROOT/'web/index.html').read_text().replace('__TOKEN__',g.auth['csrf'])
+    @app.get('/main.js')
+    def javascript():
+        response=make_response((ROOT/'web/main.js').read_text())
+        response.headers['Content-Type']='text/javascript; charset=utf-8'
+        return response
     @app.get('/styles.css')
     def stylesheet():
         response=make_response((ROOT/'web/styles.css').read_text())

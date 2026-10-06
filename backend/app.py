@@ -506,11 +506,12 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self,*args): pass
     def reply(self,code,data,ctype='application/json; charset=utf-8'):
         raw=data.encode() if isinstance(data,str) else json.dumps(data,ensure_ascii=False).encode()
-        self.send_response(code); self.send_header('Content-Type',ctype); self.send_header('Cache-Control','no-store'); self.send_header('X-Content-Type-Options','nosniff'); self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; frame-src 'self' about:; frame-ancestors 'none'"); self.end_headers(); self.wfile.write(raw)
+        self.send_response(code); self.send_header('Content-Type',ctype); self.send_header('Cache-Control','no-store'); self.send_header('X-Content-Type-Options','nosniff'); self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; frame-src 'self' about:; frame-ancestors 'none'"); self.end_headers(); self.wfile.write(raw)
     def valid_host(self): return self.headers.get('Host')==f'127.0.0.1:{PORT}'
     def do_GET(self):
         if not self.valid_host(): return self.reply(403,{})
         if self.path=='/': return self.reply(200,(ROOT/'web/index.html').read_text().replace('__TOKEN__',TOKEN),'text/html; charset=utf-8')
+        if self.path=='/main.js': return self.reply(200,(ROOT/'web/main.js').read_text(),'text/javascript; charset=utf-8')
         if self.path=='/styles.css': return self.reply(200,(ROOT/'web/styles.css').read_text(),'text/css; charset=utf-8')
         if self.path=='/api/state':
             if self.headers.get('X-Token')!=TOKEN: return self.reply(403,{})

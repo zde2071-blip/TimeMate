@@ -17,7 +17,7 @@ class CloudTests(unittest.TestCase):
  def register(self,c,address):
   code=self.app.store.invite(address)
   r=self.post(c,'/api/auth/register',{'email':address,'password':'test-password-123','invite':code});self.assertEqual(r.status_code,200)
-  page=c.get('/').text; token=re.search("const token='([^']+)'",page)[1]
+  page=c.get('/').text; token=re.search('name="csrf-token" content="([^"]+)"',page)[1]
   with self.app.store.db() as db:uid=db.execute('SELECT id FROM users WHERE email=?',(address,)).fetchone()[0]
   return token,uid
  def state(self,c,t):return c.get('/api/state',headers={'X-Token':t})
@@ -42,6 +42,19 @@ class CloudTests(unittest.TestCase):
   policy=self.a.get('/').headers['Content-Security-Policy']
   directives={part.strip().split()[0]:part.strip().split()[1:] for part in policy.split(';') if part.strip()}
   self.assertIn("'self'",directives['style-src'], 'The actual page policy must allow its external stylesheet')
+ def test_external_javascript_and_page_token(self):
+  response=self.anon.get('/main.js')
+  self.assertEqual(response.status_code,200)
+  self.assertIn('text/javascript',response.content_type)
+  self.assertIn('function render(',response.text)
+  self.assertNotIn('__TOKEN__',response.text)
+  page=self.a.get('/')
+  self.assertIn('<script src="/main.js"></script>',page.text)
+  self.assertNotIn('function render(',page.text)
+  self.assertIn('name="csrf-token" content="'+self.ta+'"',page.text)
+  self.assertNotEqual(self.ta,self.tb)
+  directives={part.strip().split()[0]:part.strip().split()[1:] for part in page.headers['Content-Security-Policy'].split(';') if part.strip()}
+  self.assertIn("'self'",directives['script-src'])
  def test_auth_csrf_invite_logout(self):
   self.assertEqual(self.anon.get('/').status_code,302);self.assertEqual(self.state(self.anon,'').status_code,401)
   self.assertEqual(self.post(self.b,'/api/pin',{},self.ta).status_code,403)
