@@ -58,3 +58,10 @@ assert.equal(context.mailListTitle({subject:sports,result:{short_title:'…特�
 assert.equal(context.mailListTitle({subject:physical,result:{short_title:'国家学生体质健康标准测…'}}),'国家学生体质健康标准测试','never show a cached broken word');
 assert.equal(context.compactMailTitle('...第4周实验课报名通知',false),'第4周实验课报名','dots are noise; the teaching week remains meaningful');
 assert.equal(context.limitMailTitle('这个很长但是不可随意截断的科研项目名称'.repeat(3)),'这个很长但是不可随意截断的科研项目名称'.repeat(3),'unknown topic names are not sliced into fragments');
+
+const careerDigest='2026-27S1 WEEK4｜生涯护航一周活动速递（10.5-10.11） Career Support and Upcoming Events';
+assert.equal(context.mailListTitle({subject:careerDigest,result:null}),'生涯护航一周活动速递');
+assert.equal(context.mailListTitle({subject:careerDigest,result:{short_title:'4、生涯护航一周活动速递'}}),'生涯护航一周活动速递','old numeric remnants do not survive cached titles');
+for(const metadata of ['2026-27S1 WEEK4','2026-2027-S1 Week 4','2026–27S1 WEEK12'])assert.equal(context.compactMailTitle(metadata+'｜生涯护航一周活动速递'),'生涯护航一周活动速递');
+assert.equal(context.compactMailTitle('CSI101 实验课开始 Week4'),'CSI101 实验课开始');
+assert.equal(context.compactMailTitle('5000米长跑、4、瑜伽体验',false),'5000米长跑、瑜伽体验','only isolated numbering is removed; event quantities remain');

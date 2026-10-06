@@ -233,12 +233,13 @@ function limitMailTitle(title){
 function compactMailTitle(raw,legacy=true){
  if(typeof raw!=='string'||!raw.trim())return '';let codes=[];let title=raw.normalize('NFKC').replace(/&amp;/gi,'&').replace(/^(?:(?:转发|轉發|fw|fwd)\s*[:：]\s*)+/i,'');
  title=title.replace(/\b(?:Notice|Reminder|Announcement|Invitation)\s+(?:on|of|for|about|to)\b[^]*$/i,(tail,offset,full)=>/[\u3400-\u9fff]/.test(full.slice(0,offset))?'':tail);
+ title=title.replace(/\b\d{4}[-–—]\d{2,4}[- ]?S\d+\b/gi,'').replace(/\bWEEK\s*\d+\b/gi,'');
  title=title.replace(/<[^>]*>|&lt;[^]*?&gt;/gi,'').replace(/\[[^\]]*\]|【[^】]*】/g,'').replace(/\([^)]*\)/g,'').replace(/\b\d{4}-?\d{2}S\d\b/gi,'').replace(/第[一二三四五六七八九十\d]+(?:次|期|批|届)/g,'').replace(/(?:预报从速|报名从速|重要通知|温馨提醒|活动邀请)[!！:：|\s]*/g,'').trim();
  if(legacy&&/[\u3400-\u9fff]/.test(title)){
   title=title.replace(/\b[A-Z]{3}\d{3}\b/g,code=>{codes.push(code);return String.fromCharCode(0xE000+codes.length-1)});
   // For legacy bilingual subjects, keep Chinese wording and course identifiers.
   title=title.replace(/\b[A-Za-z][A-Za-z0-9 .,'’:“”"!?\-]*(?=[\u3400-\u9fff])/g,part=>{let codes=part.match(/\b[A-Z]{3}\d{3}\b/g);return codes?codes.join(' ')+' ':''});
-  title=title.replace(/[A-Za-z][A-Za-z .,'’:“”"!?\-]*/g,part=>/^[A-Z]{3}\d{3}/.test(part)?part:'').replace(/(?:\.{2,}|…+)[\s，,、]*/g,'、').replace(/来袭|开启|开始报名|开放报名/g,'报名').replace(/报名报名/g,'报名').replace(/[“”"']/g,'');
+  title=title.replace(/[A-Za-z][A-Za-z0-9 .,'’:“”"!?\-]*/g,part=>/^[A-Z]{3}\d{3}/.test(part)?part:'').replace(/(?:\.{2,}|…+)[\s，,、]*/g,'、').replace(/来袭|开启|开始报名|开放报名/g,'报名').replace(/报名报名/g,'报名').replace(/[“”"']/g,'');
   let parts=title.split(/[&|｜;；、]+/).map(x=>x.trim().replace(/^[\s,:：!！\d]+(?=[\u3400-\u9fff])/,'').replace(/[\s,:：!！]+$/,'')).filter(Boolean);
   // A final concise topic clause can describe a long list of promotional examples.
   if(parts.length>3&&parts.at(-1).length<=16&&/(?:报名|招募|通知|提醒|申请)$/.test(parts.at(-1)))parts=[parts.at(-1)];
@@ -259,7 +260,7 @@ function mailTopicTitle(title){
  // Apply the same topic rule to cached AI titles and original-subject fallbacks.
  title=title.replace(/\b\d{4}\s*[-–—~至]\s*\d{4}\s*(?:学年|年度|届)?/g,'').replace(/\b\d{4}\s*(?:学年|年度|年|届)/g,'').replace(/\d{4}-\d{2}-S\d/gi,'');
  title=title.replace(/(?:仅限|面向|针对)(?:本地|国际|全体|本科|研究生|太仓|园区)*(?:学生|同学|生)\s*[:：]?/g,'').replace(/[<>]/g,'').replace(/[《》]/g,'');
- title=title.split('、').map(part=>part.trim().replace(/^(?:(?:关于|有关|开展|举行|举办|组织开展|组织|发布|启动|提醒|通知|公告|重要|最新|诚邀|邀请|诚邀参加|请参加|请|报名开启|报名开放)\s*[:：]?)+/,'').replace(/(?:工作)?(?:的|的重要)?(?:通知|公告|提醒|安排|来袭|开启)[!！。:：\s]*$/,'').replace(/报名报名/g,'报名').trim()).filter(Boolean).join('、');
+ title=title.split('、').map(part=>part.trim().replace(/^(?:(?:关于|有关|开展|举行|举办|组织开展|组织|发布|启动|提醒|通知|公告|重要|最新|诚邀|邀请|诚邀参加|请参加|请|报名开启|报名开放)\s*[:：]?)+/,'').replace(/(?:工作)?(?:的|的重要)?(?:通知|公告|提醒|安排|来袭|开启)[!！。:：\s]*$/,'').replace(/报名报名/g,'报名').trim()).filter(part=>part&&!/^[\d\s:：\-—–]+$/.test(part)).join('、');
  return title.replace(/(?:\.{2,}|…+|�+)/g,'').replace(/\s+/g,' ').replace(/^[\s:：、]+|[\s:：、]+$/g,'').trim();
 }
 function matchesMailSearch(m){let words=mailSearchQuery.normalize('NFKC').toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);if(!words.length)return true;let text=[m.subject,m.sender,m.body,m.source_body];try{let result=typeof m.result==='string'?JSON.parse(m.result):m.result;let collect=value=>{if(typeof value==='string')text.push(value);else if(Array.isArray(value))value.forEach(collect);else if(value&&typeof value==='object')Object.values(value).forEach(collect)};collect(result)}catch{}let haystack=text.filter(Boolean).join('\n').normalize('NFKC').toLocaleLowerCase();return words.every(word=>haystack.includes(word))}
