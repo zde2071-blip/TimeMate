@@ -223,11 +223,12 @@ function renderMailDetail(m,d,written){let pane=$('mail-detail-pane');pane.repla
   for(let [visibleIndex,item] of events.entries()){let i=item.index,event=mailEventForDisplay(d,m,i,item.event,written),row=element('div','','event-row'),isDeadline=event.kind==='截止';let itemAction=eventAction(event,v);let copy=eventContent(event,itemAction,event.location||(events.length===1&&v.location&&v.location!=='未说明'?v.location:'待确认'));row.append(copy);let target=eventTarget(d,m.id,i),saved=written.get(target.id+':'+target.index);if(target.id!==m.id||target.index!==i)row.append(element('small','已关联到已有事项'));if(isDeadline){let pin=d.pins.find(p=>p.mail_id===target.id&&p.event_index===target.index&&['active','completed'].includes(p.state));let b=element('button',pin?'取消加入截止事项':'加入截止事项','secondary');b.onclick=()=>pin?call('/api/pin',{id:target.id,index:target.index,action:'remove'}):joinEvent({id:m.id,index:i},data=>call('/api/pin',{...data,action:'pin'}));row.append(b)}else if(saved&&['saved','subscribed'].includes(saved.status)){if(saved.status==='subscribed'&&d.calendarSubscriptionSupported){let cancel=element('button','取消同步日历','secondary');cancel.onclick=()=>call('/api/calendar/cancel',{id:target.id,index:target.index});row.append(cancel)}else row.append(element('small','已同步到日历'))}else if(saved&&saved.status!=='failed'&&saved.status!=='removed')row.append(element('small','请核对日历写入结果'));else{let b=element('button','加入日程安排','secondary task');b.disabled=d.status.busy;b.onclick=()=>addSchedule(m,event,i);row.append(b)}(visibleIndex<3?a:overflow).append(row)}if(overflow)a.append(overflow);
   if(!Object.hasOwn(v,'events')){let b=element('button','提取日程与截止日期','secondary task');b.disabled=d.status.busy;b.onclick=()=>call('/api/events/extract',{id:m.id});a.append(b)}
  }else{if(m.analysis_error){a.append(element('p',m.analysis_error,'meta'));a.append(element('p',d.status.auto?'后续检查会自动重试；也可以立即重试。':'下次点击“立即检查”会重试；也可以单独重试。','meta'))}let b=element('button',m.analysis_error?'重试分析':'分析邮件','task');b.disabled=d.status.busy;b.onclick=()=>call('/api/analyze',{id:m.id});a.append(b)}let original=element('button','查看原邮件','secondary');original.onclick=()=>openSource(m);a.append(original);card.append(a);pane.append(card)}
-function mailListTitle(m){let result;try{result=typeof m.result==='string'?JSON.parse(m.result):m.result}catch{}let generated=compactMailTitle(result?.short_title,false);if(generated)return limitMailTitle(generated);let original=compactMailTitle(displaySubject(m.subject));let titles=[...new Set((result?.events||[]).map(e=>compactMailTitle(e.title)).filter(Boolean))];if(titles.length===1&&titles[0].length<=32)return titles[0];return limitMailTitle(original||displaySubject(m.subject))}
+function mailListTitle(m){let result;try{result=typeof m.result==='string'?JSON.parse(m.result):m.result}catch{}let original=compactMailTitle(displaySubject(m.subject));let generated=compactMailTitle(result?.short_title,false);if(generated&&generated.length<=32)return generated;if(generated&&!/[\u3400-\u9fff]/.test(original))return limitMailTitle(generated);let titles=[...new Set((result?.events||[]).map(e=>compactMailTitle(e.title)).filter(Boolean))];if(!/[\u3400-\u9fff]/.test(original)&&titles.length===1&&titles[0].length<=32)return titles[0];return limitMailTitle(original||generated||displaySubject(m.subject))}
 function limitMailTitle(title){let chars=Array.from(title);if(chars.length<=32)return title;let parts=title.split('、');if(parts.length>1&&parts.length<=4){while(parts.join('、').length>32){let longest=parts.reduce((best,part,i)=>part.length>parts[best].length?i:best,0);let part=parts[longest];parts[longest]='…'+part.replace(/^…/,'').slice(1)}return parts.join('、')}return chars.slice(0,31).join('')+'…'}
 function compactMailTitle(raw,legacy=true){
  if(typeof raw!=='string'||!raw.trim())return '';let codes=[];let title=raw.normalize('NFKC').replace(/&amp;/gi,'&').replace(/^(?:(?:转发|轉發|fw|fwd)\s*[:：]\s*)+/i,'');
- title=title.replace(/\[[^\]]*\]|【[^】]*】/g,'').replace(/\([^)]*\)/g,'').replace(/\b\d{4}-?\d{2}S\d\b/gi,'').replace(/第[一二三四五六七八九十\d]+(?:次|期|批|届)/g,'').replace(/(?:预报从速|报名从速|重要通知|温馨提醒|活动邀请)[!！:：|\s]*/g,'').trim();
+ title=title.replace(/\b(?:Notice|Reminder|Announcement|Invitation)\s+(?:on|of|for|about|to)\b[^]*$/i,(tail,offset,full)=>/[\u3400-\u9fff]/.test(full.slice(0,offset))?'':tail);
+ title=title.replace(/<[^>]*>|&lt;[^]*?&gt;/gi,'').replace(/\[[^\]]*\]|【[^】]*】/g,'').replace(/\([^)]*\)/g,'').replace(/\b\d{4}-?\d{2}S\d\b/gi,'').replace(/第[一二三四五六七八九十\d]+(?:次|期|批|届)/g,'').replace(/(?:预报从速|报名从速|重要通知|温馨提醒|活动邀请)[!！:：|\s]*/g,'').trim();
  if(legacy&&/[\u3400-\u9fff]/.test(title)){
   title=title.replace(/\b[A-Z]{3}\d{3}\b/g,code=>{codes.push(code);return String.fromCharCode(0xE000+codes.length-1)});
   // For legacy bilingual subjects, keep Chinese wording and course identifiers.
@@ -239,6 +240,21 @@ function compactMailTitle(raw,legacy=true){
   title=[...new Set(parts)].join('、');
  }
  title=title.replace(/[\uE000-\uEFFF]/g,char=>codes[char.charCodeAt(0)-0xE000]||char);
+ if(!/[\u3400-\u9fff]/.test(title)){let topic=englishMailTopic(title);if(topic)title=topic}
+ return mailTopicTitle(title);
+}
+function englishMailTopic(title){
+ title=title.replace(/^(?:Notice|Reminder|Announcement|Invitation)\s+(?:on|of|for|about|to)\s+/i,'');
+ let code=title.match(/\b[A-Z]{3}\s*\d{3}\b/i)?.[0]?.replace(/\s+/g,'').toUpperCase();
+ let patterns=[[/\bIELTS\b/i,'雅思'],[/\bphysical (?:fitness|health)\b.*\btest\b/i,'体质健康测试'],[/\bgroup project\b.*\btopic\b/i,'小组项目主题提交'],[/\blab\b.*\bbegins?\b/i,'实验课开始'],[/\bpsychology groups?\b/i,'心理团体报名']];
+ for(let [pattern,topic] of patterns)if(pattern.test(title))return (code?code+' ':'')+topic;
+ return '';
+}
+function mailTopicTitle(title){
+ // Apply the same topic rule to cached AI titles and original-subject fallbacks.
+ title=title.replace(/\b\d{4}\s*[-–—~至]\s*\d{4}\s*(?:学年|年度|届)?/g,'').replace(/\b\d{4}\s*(?:学年|年度|年|届)/g,'').replace(/\d{4}-\d{2}-S\d/gi,'');
+ title=title.replace(/(?:仅限|面向|针对)(?:本地|国际|全体|本科|研究生|太仓|园区)*(?:学生|同学|生)\s*[:：]?/g,'').replace(/[<>]/g,'').replace(/[《》]/g,'');
+ title=title.split('、').map(part=>part.trim().replace(/^(?:(?:关于|有关|开展|举行|举办|组织开展|组织|发布|启动|提醒|通知|公告|重要|最新|诚邀|邀请|诚邀参加|请参加|请|报名开启|报名开放)\s*[:：]?)+/,'').replace(/(?:工作)?(?:的|的重要)?(?:通知|公告|提醒|安排|来袭|开启)[!！。:：\s]*$/,'').replace(/报名报名/g,'报名').trim()).filter(Boolean).join('、');
  return title.replace(/\s+/g,' ').replace(/^[\s:：、]+|[\s:：、]+$/g,'').trim();
 }
 function matchesMailSearch(m){let words=mailSearchQuery.normalize('NFKC').toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);if(!words.length)return true;let text=[m.subject,m.sender,m.body,m.source_body];try{let result=typeof m.result==='string'?JSON.parse(m.result):m.result;let collect=value=>{if(typeof value==='string')text.push(value);else if(Array.isArray(value))value.forEach(collect);else if(value&&typeof value==='object')Object.values(value).forEach(collect)};collect(result)}catch{}let haystack=text.filter(Boolean).join('\n').normalize('NFKC').toLocaleLowerCase();return words.every(word=>haystack.includes(word))}

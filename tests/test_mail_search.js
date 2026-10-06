@@ -21,7 +21,7 @@ context.setMailSearch('不存在');context.jumpMail('1');assert.equal($('mails')
 assert.equal(calls,0,'search and selection of read mail do not request AI/API');
 console.log('邮件搜索测试通过');
 
-assert.equal(context.mailListTitle({subject:'Full English Subject',result:JSON.stringify({short_title:'ISA104 项目主题提交提醒'})}),'ISA104 项目主题提交提醒');
+assert.equal(context.mailListTitle({subject:'Full English Subject',result:JSON.stringify({short_title:'ISA104 项目主题提交提醒'})}),'ISA104 项目主题提交');
 assert.equal(context.mailListTitle({subject:'Long title',result:JSON.stringify({events:[{title:'志愿者招募'},{title:'迎新杯长跑'},{title:'瑜伽体验'}]})}),'Long title');
 assert.equal(context.mailListTitle({subject:'Original',result:null}),'Original');
 context.setMailSearch('isa104');assert.equal($('mails').children[0].title,'ISA104 Project');
@@ -33,8 +33,22 @@ assert.ok(!sportsTitle.includes('Volunteer'));assert.ok(!sportsTitle.includes('�
 const psychology='Love, Subjectivity, Attachment, Collage... A New Batch of Psychology Groups Is Here! 预报从速！爱情、主体性、依恋、拼贴画......SCC第三批心理团体报名来袭......';
 const legacy={subject:psychology,result:JSON.stringify({events:[{title:'爱的团体：收回关系里的投射（第1次）'},{title:'拼贴画自我叙事大学生心理成长团体（第1次）'}]})};
 const before=JSON.stringify(legacy);assert.equal(context.mailListTitle(legacy),'心理团体报名');assert.equal(JSON.stringify(legacy),before,'display cleanup does not change analysis or events');
-assert.equal(context.mailListTitle({subject:'Full subject',result:{short_title:'ISA104 小组项目主题提交提醒（第1次）'}}),'ISA104 小组项目主题提交提醒');
+assert.equal(context.mailListTitle({subject:'Full subject',result:{short_title:'ISA104 小组项目主题提交提醒（第1次）'}}),'ISA104 小组项目主题提交');
 assert.ok(context.mailListTitle({subject:'Full subject',result:{short_title:'这是一个非常长的中文标题'.repeat(6)}}).length<=32);
 assert.equal(context.mailListTitle({subject:'',result:null}),'');
 
 assert.equal(context.mailListTitle({subject:'Original',result:{short_title:'AI 智能体设计与 RAG 知识库'}}),'AI 智能体设计与 RAG 知识库');
+
+const physical='<Local Students Only> 关于开展2026-2027学年《国家学生体质健康标准》测试工作的通知 Notice on the 2026�C2027 Academic Year National Student Physical Health Standard Test';
+assert.equal(context.mailListTitle({subject:physical,result:{events:[{title:'体质健康测试预约截止'},{title:'体质健康测试免测申请截止'}]}}),'国家学生体质健康标准测试');
+assert.equal(context.mailListTitle({subject:physical,result:{short_title:'关于开展2026-2027学年《国家学生体质健康标准》测试工作的通知'}}),'国家学生体质健康标准测试','cached AI titles use the same topic cleanup');
+assert.equal(context.mailListTitle({subject:'【Notice】关于学生证注册的重要提醒',result:{events:[{title:'学生证注册截止'}]}}),'学生证注册','the topic of the whole mail is not replaced by its deadline task');
+assert.equal(context.mailListTitle({subject:'Academic Literacies Centre (ALC) - Academy of Artificial Intelligence and Advanced Technology: IELTS for students on Taicang Campus',result:null}),'雅思');
+assert.equal(context.mailListTitle({subject:'Original',result:{short_title:'关于开展心理团体报名的通知'}}),'心理团体报名');
+for(const topic of ['志愿者招募','学生代表投票','项目主题提交','免测申请','体质健康测试'])assert.equal(context.compactMailTitle('关于开展'+topic+'工作的通知',false),topic);
+assert.equal(context.mailListTitle({subject:'&lt;Local Students Only&gt; 关于开展2026-2027学年《国家学生体质健康标准》测试工作的通知',result:null}),'国家学生体质健康标准测试');
+
+assert.equal(context.mailListTitle({subject:'Notice on the National Student Physical Health Standard Test',result:null}),'体质健康测试');
+assert.equal(context.mailListTitle({subject:'Full English subject',result:{short_title:'Academic Literacies Centre: IELTS for students'}}),'雅思','English cached model titles are also cleaned');
+
+assert.equal(context.mailListTitle({subject:'Notice on Physical Health Standard Test 关于开展国家学生体质健康标准测试工作的通知',result:null}),'国家学生体质健康标准测试','English-first bilingual subjects retain the Chinese topic');
