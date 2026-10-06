@@ -66,6 +66,29 @@ class EventJoinTests(unittest.TestCase):
             self.assertEqual(saved['action'],edited['action'])
             self.assertEqual(c.execute('SELECT COUNT(*) FROM pins').fetchone()[0],1)
 
+    def test_legacy_all_day_deadline_end_does_not_block_partial_update(self):
+        self.mail('first',start='2026-10-11T00:00',end='2026-10-12T00:00',allDay=True)
+        self.join('first')
+        self.mail('update',start='2026-10-11T23:59',end='',allDay=False,action='提交150词说明')
+        check=app.check_event_join({'id':'update','index':0})
+        self.assertEqual(check['candidates'][0]['event']['end'],'')
+        self.assertNotIn('end',[change['field'] for change in check['candidates'][0]['changes']])
+        self.decision('update',mode='update',selectedFields=['action'])
+        with app.db() as c:
+            saved=event_join.effective(c,'first',0)
+            self.assertEqual(saved['end'],'')
+            self.assertEqual(saved['start'],'2026-10-11T00:00')
+            self.assertTrue(saved['allDay'])
+            self.assertEqual(saved['action'],'提交150词说明')
+            self.assertEqual(c.execute('SELECT COUNT(*) FROM event_links').fetchone()[0],1)
+
+    def test_deadline_normalization_drops_end_but_schedule_preserves_it(self):
+        deadline={**self.event,'start':'2026-10-11T00:00','end':'2026-10-12T00:00','allDay':True}
+        schedule={**deadline,'kind':'活动'}
+        values=app.normalize_events([deadline,schedule])
+        self.assertEqual(values[0]['end'],'')
+        self.assertEqual(values[1]['end'],'2026-10-12T00:00:00')
+
     def test_new_missing_location_does_not_propose_erasing_current_location(self):
         self.mail('first');self.join('first');self.mail('update',start='2026-10-18T23:59',location='')
         changes=app.check_event_join({'id':'update','index':0})['candidates'][0]['changes']

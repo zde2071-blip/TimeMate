@@ -41,7 +41,10 @@ def normalized(value):
     return ''.join(char for char in text if char.isalnum())
 
 def snapshot(event):
-    return {name:(bool(event.get(name)) if name=='allDay' else str(event.get(name) or '')[:16] if name in ('start','end') else str(event.get(name) or '').strip()) for name in FIELDS}
+    values={name:(bool(event.get(name)) if name=='allDay' else str(event.get(name) or '')[:16] if name in ('start','end') else str(event.get(name) or '').strip()) for name in FIELDS}
+    # Old all-day deadlines carry a calendar-style next-day end; deadlines have only one time.
+    if event.get('kind')=='截止':values['end']=''
+    return values
 
 def same(a,b):
     a,b=snapshot(a),snapshot(b)

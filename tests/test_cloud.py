@@ -120,9 +120,9 @@ class CloudTests(unittest.TestCase):
   self.assertEqual(self.state(self.a,self.ta).json['eventLinks'],[])
  def test_deadline_merge_state_includes_link_and_updated_canonical_pin(self):
   engine=self.app.store.engine(self.ua)
-  event={'kind':'截止','title':'ISA104 小组项目主题提交截止','action':'提交300词说明','start':'2026-10-11T00:00','end':'','location':'','allDay':True}
+  event={'kind':'截止','title':'ISA104 小组项目主题提交截止','action':'提交300词说明','start':'2026-10-11T00:00','end':'2026-10-12T00:00','location':'','allDay':True}
   with engine.db() as c:
-   for ident,changes in [('first',{}),('update',{'start':'2026-10-11T23:59','action':'提交150词说明','allDay':False})]:
+   for ident,changes in [('first',{}),('update',{'start':'2026-10-11T23:59','action':'提交150词说明','allDay':False,'end':''})]:
     c.execute('INSERT INTO mails(id,subject,body,result,created,source) VALUES (?,?,?,?,?,?)',(ident,'学校通知','body',json.dumps({'events':[{**event,**changes}]}),1,'manual'))
   self.assertEqual(self.post(self.a,'/api/pin',{'id':'first','index':0,'action':'pin'},self.ta).status_code,200)
   candidate=self.post(self.a,'/api/event/check',{'id':'update','index':0},self.ta).json['candidates'][0]

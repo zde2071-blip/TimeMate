@@ -11,7 +11,7 @@ class Element {
   showModal() { this.open = true; }
   close() { this.open = false; }
 }
-function setup(check) {
+function setup(check, succeeds = true) {
   const calls = [], notices = [], targets = [];
   const dialog = new Element('dialog'), content = new Element('div');
   const context = vm.createContext({
@@ -19,7 +19,7 @@ function setup(check) {
     document: { createElement: tag => new Element(tag), createTextNode: text => text },
     $: id => id === 'event-join-dialog' ? dialog : content,
     fetch: async () => ({ ok: true, json: async () => check }),
-    call: async (url, data) => { calls.push({ url, data }); return true; },
+    call: async (url, data) => { calls.push({ url, data }); return succeeds; },
     notify: message => notices.push(message), focusImportantEvent: (id,index) => targets.push({id,index}),
   });
   vm.runInContext(html.slice(html.indexOf('async function joinEvent('), html.indexOf('\nfunction focusImportantEvent(')), context);
@@ -63,6 +63,16 @@ async function run() {
   assert.equal(await pending, true);
   assert.equal(test.calls[0].data.mode, 'link');
   assert.equal(test.calls[0].data.selectedFields.length, 0);
+
+  test = setup({ candidates: [candidate] }, false);
+  pending = test.join({ id: 'failure', index: 0 }, async () => false);
+  await new Promise(resolve => setImmediate(resolve));
+  await flatten(test.content).find(node => node.text === '更新并合并').onclick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(test.dialog.open, true);
+  assert.equal(flatten(test.content).find(node => node.className === 'event-join-error').hidden, false);
+  flatten(test.content).find(node => node.text === '取消').onclick();
+  assert.equal(await pending, false);
 
   test = setup({ candidates: [candidate] });
   submitted = [];

@@ -395,7 +395,7 @@ EVENT_RULES=('只提出原始正文中明确的活动或截止日期；邮件发
  '课程或实验邮件只说“本周开始”、标注教学周日期范围、并让学生查个人课表时，不代表一条覆盖整周的日程；没有明确到个人课次的日期和时间就不要生成该课程日程。'
  '每条 events 包含 title、action、start、end、location、kind、evidence、allDay。action只写与这条日程/截止事项直接相关、原文明示且收件人需要完成的具体动作；没有则空字符串。title写活动或事项名称。kind 仅活动或截止。'
  'start/end 用本机当地时间 YYYY-MM-DDTHH:MM:SS；只有开始时间时 end 为空字符串，用户补充。'
- '截止只写日期时 allDay=true，start 为当天00:00，end 为次日00:00；明确截止时刻时 start 为该时刻，end 为空供用户填写。最多5条。')
+ '截止只写日期时 allDay=true，start 为当天00:00；明确截止时刻时 start 为该时刻、allDay=false。截止事项的 end 始终为空，不需要结束时间。最多5条。')
 
 def is_course_week_window(item,source_text):
     if item.get('allDay') is not True or not source_text: return False
@@ -419,7 +419,7 @@ def normalize_events(value,source_text=''):
             if is_course_week_window(item,source_text): continue
             title=str(item['title']).strip()[:120]
             start=datetime.fromisoformat(str(item['start']).strip())
-            end=datetime.fromisoformat(str(item['end']).strip()) if item.get('end') else None
+            end=datetime.fromisoformat(str(item['end']).strip()) if item.get('end') and item.get('kind')!='截止' else None
             if start.tzinfo or (end and (end.tzinfo or end<=start)) or not (2000<=start.year<=2100) or not title: continue
             if end and (end-start).days>31: continue
             events.append({'title':title,'start':start.isoformat(timespec='seconds'),
@@ -636,6 +636,7 @@ def decide_event_join(data):
             if not isinstance(selected,list) or any(name not in event_join.FIELDS for name in selected):raise ValueError('更新字段无效。')
             fields=event_join.snapshot(current)
             fields.update({name:source.get(name,False if name=='allDay' else '') for name in selected})
+            if current['kind']=='截止':fields['end']=''
             manage_event({'id':target,'index':target_index,'action':'edit','fields':fields},connection=c)
         elif data.get('mode')!='link':raise ValueError('关联操作无效。')
 
