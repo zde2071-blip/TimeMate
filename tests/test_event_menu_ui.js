@@ -28,7 +28,7 @@ async function run(){
  completed.open=true;completed.children[1].children[0].onclick();assert.equal(completed.open,false);assert.equal(editOpened,true);
  // Execute the actual completed-card rendering and verify the same action wrapper.
  const calendar=new Element('div');Object.assign(context,{$:()=>calendar,calendarMonth:new Date('2026-10-01'),calendarSelected:'',localDateKey:d=>d.toISOString().slice(0,10),importantView:'all',eventContent:()=>new Element('div')});document.createElement=tag=>new Element(tag);
- vm.runInContext(html.slice(html.indexOf('function renderMonthCalendar('),html.indexOf('\nfunction setImportantView(')),context);
+ vm.runInContext(html.slice(html.indexOf('function moveCalendarMonth('),html.indexOf('\nfunction setImportantView(')),context);
  context.renderMonthCalendar([], [{...item,event:{title:'已完成'},state:'completed'}], {mails:[]});
  const completedCard=flatten(calendar).find(n=>n.id==='important-mail-2');assert.ok(completedCard);assert.equal(completedCard.children[1].className,'important-actions');assert.equal(completedCard.children[1].children[0].className,'event-manage');
 }
