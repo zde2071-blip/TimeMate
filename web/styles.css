@@ -840,6 +840,10 @@ footer p {
   max-width: 900px;
 }
 
+.source-dialog-header { display: flex; align-items: center; gap: 16px; position: sticky; top: -28px; background: white; padding: 12px 0; z-index: 1; }
+.source-dialog-header h2 { flex: 1; margin: 0; }
+.source-close-x { margin: 0; padding: 4px 8px; font-size: 28px; }
+
 .course-filters {
   display: flex;
   flex-wrap: wrap;

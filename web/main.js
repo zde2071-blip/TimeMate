@@ -39,6 +39,8 @@ function confirmForwarding(){const key=forwardingKey();if(localStorage.getItem(k
 function renderSetupGuide(d){if(!d?.config)return;const forwarded=localStorage.getItem(forwardingKey())==='yes';const button=$('confirm-forwarding');button.textContent=forwarded?'✓':'○';button.className='field-status'+(forwarded?' success':'');$('forwarding-reminder').hidden=forwarded;button.disabled=!$('school_sender').value.trim()||!$('account').value.trim();button.setAttribute('aria-pressed',String(forwarded));button.title=forwarded?'已确认设置转发，点击取消确认':'点击确认已设置转发';button.setAttribute('aria-label',button.title)}
 function showPage(name){for(let page of ['important','mail','settings']){$(page+'-page').hidden=page!==name;$('nav-'+page).className=page===name?'':'secondary';$('nav-'+page).setAttribute('aria-current',page===name?'page':'false')}$('mail-controls').hidden=name!=='mail';$('header-mail-feedback').hidden=name!=='mail';window.scrollTo(0,0);requestAnimationFrame(updateMailWorkspaceHeight)}
 function value(text){return !text||/^(未说明|此封邮件暂无|无)$/.test(text)?'此封邮件暂无':text}
+function closeSource(){$('source-dialog').close()}
+function closeSourceOnBackdrop(event){const dialog=$('source-dialog');if(event.target!==dialog)return;const box=dialog.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)closeSource()}
 async function openSource(m){
  const box=$('source-content'),dialog=$('source-dialog'),heading=element('h3',m.subject);
  const status=element('p','加载原文…','meta'),toolbar=element('div','','source-toolbar');
@@ -296,3 +298,5 @@ refresh();setInterval(refresh,2000);
 
 $('setup-guide-dialog').addEventListener('click',event=>{if(event.target!==$('setup-guide-dialog'))return;const box=event.target.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)closeSetupGuide()});
 $('setup-guide-dialog').addEventListener('cancel',()=>{setupGuideRevision++});
+
+$('source-dialog').addEventListener('click',closeSourceOnBackdrop);
