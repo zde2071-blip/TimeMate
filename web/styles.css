@@ -2139,4 +2139,19 @@ footer p {
 button.field-status:hover { background: transparent; color: #245b47; }
 button.field-status:disabled { opacity: 1; }
 .field-heading .text-button { margin: 0; padding: 0; font-size: 13px; }
-#provider { margin-bottom: 20px; }
+
+
+.forwarding-required { display: flex; align-items: center; gap: 12px; margin: 20px 0 24px; }
+.forwarding-required .field-heading { flex: 1; margin: 0; }
+.forwarding-required .meta { margin: 0; font-size: 13px; }
+.setup-guide-dialog { width: min(1100px, calc(100vw - 40px)); max-width: calc(100vw - 40px); max-height: 85vh; box-sizing: border-box; padding: 24px; overflow: auto; }
+.setup-guide-header { display: flex; align-items: center; gap: 16px; position: sticky; top: -24px; background: white; padding: 12px 0; z-index: 1; }
+.setup-guide-header h2 { flex: 1; margin: 0; font-size: 22px; }
+.guide-close-x { margin: 0; padding: 4px 8px; font-size: 28px; }
+#setup-guide-content figure { margin: 24px 0; }
+#setup-guide-content figcaption { margin-bottom: 10px; font-weight: 600; }
+#setup-guide-content img { display: block; width: 100%; height: auto; }
+#setup-guide-content p { line-height: 1.7; }
+#setup-guide-content .setup-links { display: flex; gap: 16px; flex-wrap: wrap; }
+.setup-guide-dialog footer { margin-top: 24px; }
+@media(max-width:650px) { .setup-guide-dialog { padding: 16px; } .setup-guide-header { top: -16px; } .setup-guide-header h2 { font-size: 18px; } }
