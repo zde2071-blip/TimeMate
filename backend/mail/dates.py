@@ -1,5 +1,5 @@
 """Read original send times from forwarded headers without an LLM call."""
-import re
+import json, re
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 from zoneinfo import ZoneInfo
@@ -51,3 +51,20 @@ def forwarded_date(text):
         value = parse_date(match.group(1))
         if value is not None: return value
     return None
+
+def effective_date(row):
+    """Resolve once on import/upgrade, not by decoding image-rich HTML on polling."""
+    value = parse_date(row.get('sent_date') or '')
+    if value is not None: return value
+    value = forwarded_date(row.get('source_body') or row.get('body') or '')
+    if value is None and row.get('original'):
+        from backend.mail.original import text_from_html
+        try:
+            original = json.loads(row['original'])
+            value = forwarded_date(text_from_html(original.get('html', '')))
+        except (ValueError, TypeError, AttributeError): pass
+    return value or parse_date(row.get('date') or '')
+
+def stored_date(row):
+    value = effective_date(row)
+    return value.isoformat(timespec='minutes') if value else ''

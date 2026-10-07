@@ -102,13 +102,7 @@ def extract_events(ident):
 
 
 def mail_effective_date(row):
-    value=mail_dates.forwarded_date(row.get('source_body') or row.get('body') or '')
-    if value is None and row.get('original'):
-        try:
-            original=json.loads(row['original'])
-            value=mail_dates.forwarded_date(mail_original.text_from_html(original.get('html','')))
-        except (ValueError,TypeError,AttributeError): pass
-    return value or mail_dates.parse_date(row.get('date') or '')
+    return mail_dates.effective_date(row)
 
 def mail_sort_timestamp(row):
     value=mail_dates.parse_date(row['sent_date']) if row.get('sent_date') else mail_effective_date(row)
@@ -438,7 +432,7 @@ class APIHandler:
     def get(self):
         if self.path=='/api/state':
             with db() as c:
-                rows=[dict(r) for r in c.execute("SELECT * FROM mails WHERE is_deleted=0 AND source NOT IN ('simulation','test_archive') ORDER BY created DESC")]
+                rows=[dict(r) for r in c.execute("SELECT id,subject,sender,date,sent_date,body,result,created,source,source_links,source_body,is_read,is_deleted,manual_category,display_title,title_version,analysis_attempts,analysis_retry_at,analysis_error FROM mails WHERE is_deleted=0 AND source NOT IN ('simulation','test_archive') ORDER BY created DESC")]
                 written=[dict(r) for r in c.execute('SELECT mail_id,event_index,status,calendar_name,detail FROM calendar_events')]
                 pins=[dict(r) for r in c.execute("SELECT pins.* FROM pins JOIN mails ON mails.id=pins.mail_id WHERE pins.state IN ('active','completed') AND mails.is_deleted=0 AND mails.source NOT IN ('simulation','test_archive') ORDER BY pins.due")]
                 overrides=[dict(r) for r in c.execute("SELECT event_overrides.* FROM event_overrides JOIN mails ON mails.id=event_overrides.mail_id WHERE mails.is_deleted=0 AND mails.source NOT IN ('simulation','test_archive')")]
@@ -449,7 +443,6 @@ class APIHandler:
                 row['sent_date']=sent.isoformat(timespec='minutes') if sent else row['date']
             rows.sort(key=mail_sort_timestamp,reverse=True)
             for row in rows:
-                row.pop('original',None)
                 result=json.loads(row['result']) if row['result'] else {}
                 row['category']=category_for(row,result)
                 row['course_codes']=mail_course_codes(row)

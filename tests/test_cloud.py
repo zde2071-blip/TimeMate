@@ -1,4 +1,5 @@
-import json,os,re,tempfile,time,unittest
+import json,os,re,sqlite3,tempfile,time,unittest
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import Mock,patch
 from cryptography.fernet import Fernet
@@ -27,6 +28,30 @@ class CloudTests(unittest.TestCase):
   with self.app.store.db() as db:uid=db.execute('SELECT id FROM users WHERE email=?',(address,)).fetchone()[0]
   return token,uid
  def state(self,c,t):return c.get('/api/state',headers={'X-Token':t})
+ def test_polling_never_reads_original_images_or_cached_translation(self):
+  engine=self.app.store.engine(self.ua)
+  with engine.db() as c:
+   c.execute('INSERT INTO mails(id,subject,date,body,source_body,original,translation,sent_date) VALUES (?,?,?,?,?,?,?,?)',
+             ('large','通知','2026-10-07','正文','正文',json.dumps({'html':'<img src="data:image/png;base64,'+'A'*1_000_000+'">'}),'译文'*100_000,'2026-10-04T16:32+08:00'))
+  connect=engine.db
+  @contextmanager
+  def guarded_database():
+   with connect() as c:
+    def authorize(action,table,column,*_):
+     if action==sqlite3.SQLITE_READ and table=='mails' and column in ('original','translation'):
+      return sqlite3.SQLITE_DENY
+     return sqlite3.SQLITE_OK
+    c.set_authorizer(authorize)
+    yield c
+  with patch.object(engine,'db',guarded_database):
+   response=self.state(self.a,self.ta)
+  self.assertEqual(response.status_code,200)
+  self.assertLess(len(response.data),20_000)
+  row=response.json['mails'][0]
+  self.assertEqual(row['sent_date'],'2026-10-04T16:32+08:00')
+  self.assertNotIn('original',row)
+  self.assertNotIn('translation',row)
+  self.assertIn('data:image/png',self.post(self.a,'/api/source',{'id':'large'},self.ta).json['html'])
  def test_invitation_link_registration_and_expiry(self):
   email='friend+class@example.com';token=self.app.store.invite(email)
   link=invitation_link('http://127.0.0.1:18744',email,token)

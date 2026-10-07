@@ -73,7 +73,7 @@ class MailAnalyzer:
     def saved(self,ident):
         cfg=self.config.copy()
         with self.database() as c:
-            row=c.execute('SELECT * FROM mails WHERE id=?',(ident,)).fetchone()
+            row=c.execute('SELECT id,subject,sender,date,body,result FROM mails WHERE id=?',(ident,)).fetchone()
             if not row: raise UserFacingError('邮件不存在')
             if row['result']: return '这封邮件已有分析结果，未重复调用。'
             self.status['message']='正在分析这封邮件…'
@@ -99,7 +99,7 @@ class MailAnalyzer:
     def extract_events(self,ident):
         cfg=self.config.copy()
         with self.database() as c:
-            row=c.execute('SELECT * FROM mails WHERE id=?',(ident,)).fetchone()
+            row=c.execute('SELECT id,subject,sender,date,body,result FROM mails WHERE id=?',(ident,)).fetchone()
             if not row or not row['result']: raise UserFacingError('请先分析这封邮件。')
             result=json.loads(row['result'])
             if 'events' in result: return '这封邮件已经提取过日程。'
@@ -135,4 +135,3 @@ class MailAnalyzer:
                 operation_status.progress(self.status,analyzed,failed)
                 self.status['message']=f'并行分析进度：已完成 {analyzed+failed}/{len(pending)} 封，成功 {analyzed} 封，失败 {failed} 封。'
         return analyzed,failed
-

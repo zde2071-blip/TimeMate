@@ -40,6 +40,21 @@ class DatabaseUpgradeTests(unittest.TestCase):
                 with self.database.connect(self.path) as c:
                     self.assertEqual(c.execute('SELECT COUNT(*) FROM mails').fetchone()[0],0)
 
+    def test_version_two_upgrade_caches_original_header_date_and_keeps_images(self):
+        original=json.dumps({'html':'<div>From: Teacher</div><div>Sent: October 4, 2026 4:32 PM</div><img src="data:image/png;base64,'+'A'*1_000_000+'">'})
+        with self.database.connect(self.path) as c:
+            c.execute('ALTER TABLE mails DROP COLUMN sent_date')
+            c.execute('PRAGMA user_version=2')
+            c.execute('INSERT INTO mails(id,date,body,original) VALUES (?,?,?,?)',
+                      ('legacy','Mon, 05 Oct 2026 18:00:00 +0800','flattened text',original))
+        with mail_database.MailDatabase().connect(self.path) as c:
+            row=c.execute('SELECT sent_date,original FROM mails').fetchone()
+            self.assertEqual(row['sent_date'],'2026-10-04T16:32+08:00')
+            self.assertEqual(row['original'],original)
+        with patch.object(mail_database.mail_dates,'stored_date',side_effect=AssertionError('Date should be cached')):
+            with mail_database.MailDatabase().connect(self.path) as c:
+                self.assertEqual(c.execute('SELECT sent_date FROM mails').fetchone()[0],row['sent_date'])
+
     def test_restart_does_not_rewrite_titles(self):
         with self.database.connect(self.path) as c:
             c.execute('INSERT INTO mails(id,subject,display_title,title_version) VALUES (?,?,?,?)',('one','原题','已保存的标题',1))

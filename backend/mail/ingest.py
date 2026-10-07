@@ -6,6 +6,7 @@ from html.parser import HTMLParser
 from urllib.parse import urlparse
 import certifi
 from backend.mail import original as mail_original
+from backend.mail import dates as mail_dates
 from backend.core import operation_status
 from backend.core.user_errors import UserFacingError
 
@@ -48,8 +49,10 @@ def import_uid(conn,cfg,validity,uid,source,database,parse):
     raw=b''.join(x[1] for x in chunks if isinstance(x,tuple))
     m=parse(raw)
     with database() as c:
-        cur=c.execute('INSERT OR IGNORE INTO mails (id,subject,sender,date,body,result,created,source,source_links,original,source_body) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-                      (ident,m['subject'],m['sender'],m['date'],m['body'],None,time.time(),source,json.dumps(m['links'],ensure_ascii=False),json.dumps(m['original'],ensure_ascii=False),m['source_body']))
+        original=json.dumps(m['original'],ensure_ascii=False)
+        sent_date=mail_dates.stored_date({**m,'original':original})
+        cur=c.execute('INSERT OR IGNORE INTO mails (id,subject,sender,date,body,result,created,source,source_links,original,source_body,sent_date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                      (ident,m['subject'],m['sender'],m['date'],m['body'],None,time.time(),source,json.dumps(m['links'],ensure_ascii=False),original,m['source_body'],sent_date))
         return ident,bool(cur.rowcount)
 
 def checked(result):
@@ -185,4 +188,3 @@ class MailReceiver:
             raise
         finally:
             if conn: self.close(conn)
-

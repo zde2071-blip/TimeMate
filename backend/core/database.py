@@ -3,7 +3,8 @@ from pathlib import Path
 import sqlite3
 import threading
 from backend.mail import titles as mail_titles
-SCHEMA_VERSION = 2
+from backend.mail import dates as mail_dates
+SCHEMA_VERSION = 3
 MAIL_COLUMNS = {
     'original': 'TEXT', 'source_links': 'TEXT',
     'source': "TEXT NOT NULL DEFAULT 'manual'",
@@ -49,6 +50,12 @@ def initialize(connection):
                 connection.execute(statement)
         if version < 2:
             mail_titles.migrate(connection)
+        if version < 3:
+            connection.execute('ALTER TABLE mails ADD COLUMN sent_date TEXT')
+            # Stream one original at a time; embedded images can be many MB.
+            for row in connection.execute('SELECT id,date,body,source_body,original FROM mails'):
+                connection.execute('UPDATE mails SET sent_date=? WHERE id=?',
+                                   (mail_dates.stored_date(dict(row)), row['id']))
         connection.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
         connection.commit()
     except Exception:
