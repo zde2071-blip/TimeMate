@@ -842,7 +842,7 @@ footer p {
 
 .source-dialog-header { display: flex; align-items: center; gap: 16px; position: sticky; top: -28px; background: white; padding: 12px 0; z-index: 1; }
 .source-dialog-header h2 { flex: 1; margin: 0; }
-.source-close-x { margin: 0; padding: 4px 8px; font-size: 28px; }
+
 
 .course-filters {
   display: flex;
@@ -2153,7 +2153,7 @@ button.field-status:disabled { opacity: 1; }
 .setup-guide-dialog { width: min(1100px, calc(100vw - 40px)); max-width: calc(100vw - 40px); max-height: 85vh; box-sizing: border-box; padding: 24px; overflow: auto; }
 .setup-guide-header { display: flex; align-items: center; gap: 16px; position: sticky; top: -24px; background: white; padding: 12px 0; z-index: 1; }
 .setup-guide-header h2 { flex: 1; margin: 0; font-size: 22px; }
-.guide-close-x { margin: 0; padding: 4px 8px; font-size: 28px; }
+
 #setup-guide-content figure { margin: 24px 0; }
 #setup-guide-content figcaption { margin-bottom: 10px; font-weight: 600; }
 #setup-guide-content img { display: block; width: 100%; height: auto; }
@@ -2163,3 +2163,30 @@ button.field-status:disabled { opacity: 1; }
 @media(max-width:650px) { .setup-guide-dialog { padding: 16px; } .setup-guide-header { top: -16px; } .setup-guide-header h2 { font-size: 18px; } }
 
 .calendar-copy { margin: 0; font-size: 15px; font-weight: normal; }
+
+/* 弹窗关闭按钮独立于教程文字链接，统一固定在标题区域右上角。 */
+.source-dialog-header, .setup-guide-header {
+  display: block;
+  margin: -8px -8px 12px;
+  padding: 8px 56px 8px 8px;
+  min-height: 44px;
+}
+.modal-close-x {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #61707b;
+  font-size: 28px;
+  line-height: 1;
+  text-decoration: none;
+}
+.modal-close-x:hover { background: #edf2ef; color: #202c38; }
+.modal-close-x:focus-visible { outline: 2px solid #235b4b; outline-offset: 2px; }
