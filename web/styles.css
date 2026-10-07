@@ -831,6 +831,10 @@ footer p {
   margin-top: 16px;
 }
 
+.original-frame[hidden], .source-toolbar[hidden] {
+  display: none;
+}
+
 #source-dialog {
   max-width: 900px;
 }
