@@ -1029,6 +1029,22 @@ footer p {
   font-size: 13px;
 }
 
+.forwarding-guide figure {
+  margin: 24px 0;
+}
+
+.forwarding-guide figcaption {
+  margin-bottom: 10px;
+  color: #253b33;
+  font-weight: 600;
+}
+
+.forwarding-guide img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .setup-links {
   display: flex;
   gap: 14px;

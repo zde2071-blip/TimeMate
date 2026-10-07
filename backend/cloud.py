@@ -148,7 +148,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
     if url.scheme not in ('http','https') or not url.netloc or url.path or url.query or url.fragment: raise ValueError('请设置完整站点来源地址')
     if url.scheme!='https' and url.hostname not in ('localhost','127.0.0.1'): raise ValueError('公网必须使用 HTTPS')
     store=Store(directory,key)
-    app=Flask(__name__); app.store=store
+    app=Flask(__name__,static_folder=str(ROOT/'web/assets'),static_url_path='/assets'); app.store=store
     app.config.update(MAX_CONTENT_LENGTH=20000,TRUSTED_HOSTS=[url.hostname])
     secure=url.scheme=='https'
     @app.before_request
