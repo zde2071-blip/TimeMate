@@ -227,12 +227,7 @@ def mail_course_codes(row):
 def automatic_category_for(row,result):
     mapping={'课程作业':'课程与教学','会议':'活动与机会','竞赛':'活动与机会','模拟测试':'其他'}
     category=mapping.get(result.get('category','其他'),result.get('category','其他'))
-    codes=mail_course_codes(row)
-    if category=='课程与教学' and not codes:
-        text=' '.join(str(dict(row).get(k) or '') for k in ('subject','body','source_body'))
-        return '活动与机会' if re.search(r'IELTS|雅思|培训|workshop|报名|讲座|招募|机会|language|literacies',text,re.I) else '其他'
-    if category in CATEGORIES and category!='其他': return category
-    return '课程与教学' if codes else '其他'
+    return category if category in CATEGORIES else '其他'
 
 def category_for(row,result):
     manual=dict(row).get('manual_category')

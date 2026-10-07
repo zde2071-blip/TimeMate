@@ -4,16 +4,13 @@ import re
 import unicodedata
 
 VERSION = 1
-MAX_LENGTH = 32
+MAX_LENGTH = 120
 
 
 def normalize(value):
     if not isinstance(value, str):
         return ''
     title = unicodedata.normalize('NFKC', html.unescape(value))
-    title = re.sub(r'[（(][^）)]*[）)]', '', title)
-    title = re.sub(r'^(?:(?:关于|有关|开展|举行|通知|公告|提醒|邀请)\s*[:：]?)+', '', title)
-    title = re.sub(r'(?:工作)?(?:的)?(?:通知|公告|提醒)[!！。\s]*$', '', title)
     return ' '.join(title.split()).strip()
 
 

@@ -9,8 +9,8 @@ class CourseCategoriesTests(unittest.TestCase):
  def test_only_original_mail_has_trusted_codes(self):
   row={'subject':'IELTS for students','body':'报名语言培训','result':json.dumps({'summary':'CSI101'})}
   self.assertEqual(app.mail_course_codes(row),[])
-  self.assertEqual(app.category_for(row,{'category':'课程与教学'}),'活动与机会')
-  self.assertEqual(app.category_for({'subject':'通知','body':'无代码'}, {'category':'课程与教学'}),'其他')
+  self.assertEqual(app.category_for(row,{'category':'课程与教学'}),'课程与教学')
+  self.assertEqual(app.category_for({'subject':'通知','body':'无代码'}, {'category':'课程与教学'}),'课程与教学')
   row.update(subject='csi 101: notice',source_body='SOE104 assignment',body='ISA104 group')
   self.assertEqual(app.mail_course_codes(row),['CSI101','ISA104','SOE104'])
   self.assertEqual(app.category_for(row,{'category':'活动与机会'}),'活动与机会')
@@ -24,13 +24,13 @@ class CourseCategoriesTests(unittest.TestCase):
   app.change_mail_category({'id':'m','category':'校园服务'})
   with app.db() as c:row=c.execute('SELECT * FROM mails WHERE id=?',('m',)).fetchone()
   self.assertEqual(app.category_for(row,{'category':'课程与教学'}),'校园服务')
- def test_analysis_enforces_rule_without_overwriting_manual_choice(self):
+ def test_analysis_preserves_model_category_without_overwriting_manual_choice(self):
   with app.db() as c:
    c.execute('INSERT INTO mails(id,subject,body,created,manual_category) VALUES (?,?,?,?,?)',('m','IELTS','报名',1,'校园服务'))
   result={k:'' for k in ('summary','time','location','action','uncertainties')};result.update(category='课程与教学',events=[])
   with patch.object(app,'model_reply',return_value=result):app.analyze_saved_mail('m')
   with app.db() as c:row=c.execute('SELECT * FROM mails WHERE id=?',('m',)).fetchone()
-  self.assertEqual(json.loads(row['result'])['category'],'活动与机会')
+  self.assertEqual(json.loads(row['result'])['category'],'课程与教学')
   self.assertEqual(app.category_for(row,json.loads(row['result'])),'校园服务')
  def test_codes_normalized_deduplicated_persisted_and_isolated(self):
   app.add_course({'code':'csi 101'});app.add_course({'code':'CSI101'})

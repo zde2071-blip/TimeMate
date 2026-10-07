@@ -314,6 +314,7 @@ dialog::backdrop {
 }
 
 .summary-text {
+  white-space: pre-line;
   font-size: 17px;
   line-height: 1.8;
   color: #243b30;

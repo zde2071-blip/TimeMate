@@ -122,12 +122,12 @@ class MailImportTests(unittest.TestCase):
                 with app.db() as c:
                     row=c.execute('SELECT result FROM mails WHERE subject=?',(mode+' notice',)).fetchone()
                     self.assertEqual(json.loads(row['result'])['summary'],'课程通知。')
-                    self.assertEqual(json.loads(row['result'])['short_title'],'ISA104 小组项目主题提交')
+                    self.assertEqual(json.loads(row['result'])['short_title'],'ISA104 小组项目主题提交提醒')
                     self.assertEqual(c.execute('SELECT COUNT(*) FROM pins').fetchone()[0],0)
 
     def test_generated_sidebar_title_is_bounded_without_changing_summary(self):
         result={'category':'其他','summary':'保留完整摘要。','time':'','location':'','action':'','uncertainties':'','events':[],
-                'short_title':'中文主题（宣传补充）'+ '中文主题'*20}
+                'short_title':'中文主题（宣传补充）'+ '中文主题'*40}
         with app.db() as c:
             c.execute('INSERT INTO mails (id,subject,sender,date,body,created,source) VALUES (?,?,?,?,?,?,?)',
                       ('title-limit','原始完整标题','school@xjtlu.edu.cn','2026-10-05','body',1,'manual'))

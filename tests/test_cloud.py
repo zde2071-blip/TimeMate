@@ -90,7 +90,7 @@ class CloudTests(unittest.TestCase):
   engine=self.app.store.engine(self.ua)
   with engine.db() as c:
    c.execute('INSERT INTO mails(id,subject,body,result,created) VALUES (?,?,?,?,?)',('course-mail','IELTS for students','报名语言培训',json.dumps({'category':'课程与教学'}),1))
-  self.assertEqual(self.state(self.a,self.ta).json['mails'][0]['category'],'活动与机会')
+  self.assertEqual(self.state(self.a,self.ta).json['mails'][0]['category'],'课程与教学')
   foreign=self.post(self.b,'/api/mail/category',{'id':'course-mail','category':'校园服务'},self.tb)
   self.assertEqual(foreign.status_code,400);self.assertIn('找不到这封邮件',foreign.json['error'])
   self.assertEqual(self.post(self.a,'/api/mail/category',{'id':'course-mail','category':'课程与教学'},self.ta).status_code,200)

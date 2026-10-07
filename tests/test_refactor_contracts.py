@@ -13,9 +13,10 @@ from backend.core.user_errors import UserFacingError, payload
 
 class RefactorContracts(unittest.TestCase):
     def test_title_validation_preserves_topic_and_rejects_truncation(self):
-        self.assertEqual(mail_titles.validated('关于开展体质健康测试的通知'), '体质健康测试')
+        self.assertEqual(mail_titles.validated('太仓讲座（仅限本地生）'), '太仓讲座(仅限本地生)')
+        self.assertEqual(mail_titles.validated('长' * 40), '长' * 40)
         self.assertEqual(mail_titles.validated('ISA104 小组项目提交'), 'ISA104 小组项目提交')
-        for title in ['...体育活动', '标题…', '坏�标题', '长' * 33, None]:
+        for title in ['...体育活动', '标题…', '坏�标题', '长' * 121, None]:
             self.assertEqual(mail_titles.validated(title), '')
         self.assertEqual(mail_titles.from_analysis('完整原题', {'short_title': '坏…'}), '完整原题')
 

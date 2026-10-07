@@ -17,6 +17,11 @@ class EventExtractionTests(unittest.TestCase):
         )
         self.assertEqual(app.normalize_events([event], source), [])
 
+    def test_more_than_five_dated_events_are_preserved(self):
+        events = [{'title': f'活动 {i}', 'start': f'2026-10-{i:02d}T09:00:00',
+                   'end': '', 'kind': '活动', 'allDay': False} for i in range(1, 9)]
+        self.assertEqual(len(app.normalize_events(events)), 8)
+
     def test_specific_class_meeting_is_preserved(self):
         event = {
             'title': 'CSI101 Week 4 实验课',
