@@ -990,75 +990,19 @@ footer p {
   }
 }
 
-.setup-guide {
-  padding: 20px;
-  margin: 16px 0;
-  background: #f0f6f2;
-  border: 1px solid #d8e7dd;
-  border-radius: 14px;
-}
-
-.setup-guide>summary {
-  font-size: 17px;
-}
-
-.setup-guide[open]>summary {
-  margin-bottom: 12px;
-}
-
-.setup-step {
-  padding: 14px 16px;
-  margin: 10px 0;
-  background: white;
-  border: 1px solid #e0e5e9;
-  border-radius: 10px;
-}
-
-.setup-step>summary {
+.forwarding-row, .field-heading, .forwarding-actions {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: 15px;
 }
-
-.setup-step p {
-  margin: 10px 0;
-}
-
-.setup-step .meta {
-  font-size: 13px;
-}
-
-.forwarding-guide figure {
-  margin: 24px 0;
-}
-
-.forwarding-guide figcaption {
-  margin-bottom: 10px;
-  color: #253b33;
-  font-weight: 600;
-}
-
-.forwarding-guide img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.setup-links {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin: 10px 0;
-}
-
-.setup-links a {
-  font-size: 13px;
-}
-
-.setup-step button {
-  margin-top: 6px;
-}
+.forwarding-row { margin: 20px 0; flex-wrap: wrap; }
+.guide-title { font-weight: 600; }
+.forwarding-actions { margin-left: auto; }
+.forwarding-actions button { margin: 0; }
+.field-heading { margin-bottom: 6px; flex-wrap: wrap; }
+.field-heading label { margin: 0; }
+.field-heading a { font-size: 13px; white-space: nowrap; }
 
 .deadline-title {
   display: block;
