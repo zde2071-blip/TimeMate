@@ -2157,3 +2157,5 @@ button.field-status:disabled { opacity: 1; }
 #setup-guide-content .setup-links { display: flex; gap: 16px; flex-wrap: wrap; }
 .setup-guide-dialog footer { margin-top: 24px; }
 @media(max-width:650px) { .setup-guide-dialog { padding: 16px; } .setup-guide-header { top: -16px; } .setup-guide-header h2 { font-size: 18px; } }
+
+.calendar-copy { margin: 0; font-size: 15px; font-weight: normal; }
