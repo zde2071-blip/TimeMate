@@ -16,7 +16,7 @@ async function run(){
  assert.equal(content[0].start,'2026-10-11T23:59');assert.equal(content[0].action,'提交150词简介');
 
  const elements=new Map(),pending=[],renders=[];
- const refreshContext=vm.createContext({token:'test',refreshIssued:0,refreshApplied:0,initialized:true,settingsFoldsInitialized:true,last:'',state:null,$:id=>{if(!elements.has(id))elements.set(id,new Element('div'));return elements.get(id)},fetch:()=>new Promise(resolve=>pending.push(resolve)),savedSecret:()=>{},connectionBadge:()=>{},renderCalendarSettings:()=>{},renderSetupGuide:()=>{},renderMailControls:()=>{},document:{querySelectorAll:()=>[]},render:()=>renders.push(refreshContext.state.marker),console});
+ const refreshContext=vm.createContext({token:'test',refreshIssued:0,refreshApplied:0,initialized:true,settingsFoldsInitialized:true,last:'',state:null,$:id=>{if(!elements.has(id))elements.set(id,new Element('div'));return elements.get(id)},fetch:()=>new Promise(resolve=>pending.push(resolve)),savedSecret:()=>{},connectionBadge:()=>{},renderCalendarSettings:()=>{},renderSetupGuide:()=>{},renderFieldStatuses:()=>{},renderMailControls:()=>{},document:{querySelectorAll:()=>[]},render:()=>renders.push(refreshContext.state.marker),console});
  vm.runInContext(html.slice(html.indexOf('async function refresh(){'),html.indexOf('\nasync function accountRequest(')),refreshContext);
  const payload=marker=>({marker,config:{},ready:{mail:true,ai:true},status:{auto:true},mails:[marker]});
  const old=refreshContext.refresh(),latest=refreshContext.refresh();
