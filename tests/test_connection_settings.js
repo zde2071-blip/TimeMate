@@ -12,7 +12,7 @@ async function run(){
  $('mail-settings').open=true;fails=true;await ctx.connectionAction('mail','save');assert.deepEqual(requests,['/api/settings/mail/test'],'failed validation must not save');assert.equal($('password').value,'new-secret');assert.equal($('mail-settings').open,true);assert.equal($('mail-save').textContent,'连接并保存');
  requests.length=0;fails=false;await ctx.connectionAction('mail','save');assert.deepEqual(requests,['/api/settings/mail/test','/api/settings/mail']);assert.equal($('password').value,'');assert.equal($('mail-settings').open,false);assert.equal($('mail-save').textContent,'✓ 已连接');assert.equal($('mail-feedback').textContent,'');
  ctx.connectionEdited('mail');assert.equal($('mail-save').textContent,'连接并保存');
- ctx.connectionStates.ai='未保存';ctx.renderFieldStatuses(ctx.state);assert.equal($('key-status').textContent,'○');ctx.connectionStates.ai='✓ 成功';ctx.renderFieldStatuses(ctx.state);assert.equal($('key-status').textContent,'✓');
+ $('provider').value='deepseek';ctx.connectionStates.ai='未保存';ctx.renderFieldStatuses(ctx.state);assert.equal($('provider-status').textContent,'✓','selected provider is checked before connecting');assert.equal($('key-status').textContent,'○');ctx.connectionStates.ai='✓ 成功';ctx.renderFieldStatuses(ctx.state);assert.equal($('key-status').textContent,'✓');
  const storage=new Map();ctx.localStorage={getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)};ctx.state.config={};
  vm.runInContext(source.slice(source.indexOf('function forwardingKey('),source.indexOf('\nfunction showPage(')),ctx);
  ctx.renderSetupGuide(ctx.state);assert.equal($('forwarding-reminder').hidden,false);
