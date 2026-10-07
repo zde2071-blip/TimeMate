@@ -13,6 +13,17 @@ class CloudTests(unittest.TestCase):
   self.a=self.app.test_client();self.b=self.app.test_client();self.anon=self.app.test_client()
   self.ta,self.ua=self.register(self.a,'a@example.com');self.tb,self.ub=self.register(self.b,'b@example.com')
  def tearDown(self):self.tmp.cleanup()
+ def test_only_versioned_public_guide_images_are_cached(self):
+  root=Path(self.app.static_folder)
+  image=next((root/'outlook-forwarding').glob('*.webp'))
+  response=self.anon.get('/assets/outlook-forwarding/'+image.name)
+  self.assertEqual(response.status_code,200)
+  self.assertEqual(response.headers['Cache-Control'],'public, max-age=31536000, immutable')
+  response.close()
+  for path in ['/login','/assets/guides/outlook.html','/assets/outlook-forwarding/01.png','/assets/outlook-forwarding/99.000000000000.webp']:
+   with self.anon.get(path) as response:
+    self.assertEqual(response.headers['Cache-Control'],'no-store')
+  self.assertEqual(self.state(self.a,self.ta).headers['Cache-Control'],'no-store')
  def test_privacy_notice_is_public_and_linked(self):
   response=self.anon.get('/privacy')
   self.assertEqual(response.status_code,200)

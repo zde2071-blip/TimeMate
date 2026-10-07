@@ -169,6 +169,8 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
     @app.after_request
     def headers(response):
         response.headers.update({'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; frame-src 'self' about:; frame-ancestors 'none'; form-action 'self'"})
+        if response.status_code==200 and request.endpoint=='static' and re.fullmatch(r'/assets/(outlook-forwarding|qq-mail)/[0-9]{2}\.[0-9a-f]{12}\.webp',request.path):
+            response.headers['Cache-Control']='public, max-age=31536000, immutable'
         if secure: response.headers['Strict-Transport-Security']='max-age=31536000'
         return response
     def new_session(uid):
