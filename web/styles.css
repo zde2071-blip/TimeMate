@@ -2131,10 +2131,11 @@ footer p {
   margin: 7px 0 0;
 }
 
-.settings-save { margin: 0 0 0 auto; font-size: 14px; white-space: nowrap; }
+.settings-panel { --settings-action-width: 112px; }
+.settings-save { width: var(--settings-action-width); flex: 0 0 var(--settings-action-width); padding-inline: 12px; margin: 0 0 0 auto; font-size: 14px; white-space: nowrap; }
 .setting-input-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
 .setting-input-row input,.setting-input-row select { flex: 1; min-width: 0; margin: 0; }
-.field-status { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 32px; width: 32px; min-height: 32px; padding: 0; margin: 0; color: #75847d; background: transparent; border: 0; font-size: 22px; }
+.field-status { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 var(--settings-action-width, 112px); width: var(--settings-action-width, 112px); min-height: 32px; padding: 0; margin: 0; color: #75847d; background: transparent; border: 0; font-size: 22px; }
 .field-status.success { color: #318657; }
 button.field-status:hover { background: transparent; color: #245b47; }
 button.field-status:disabled { opacity: 1; }
@@ -2143,7 +2144,8 @@ button.field-status:disabled { opacity: 1; }
 
 .forwarding-required { display: flex; align-items: center; gap: 12px; margin: 20px 0 24px; }
 .forwarding-required .field-heading { flex: 1; margin: 0; }
-.forwarding-required .meta { margin: 0; font-size: 13px; }
+.forwarding-reminder { color: #b66014; font-size: 13px; font-weight: 600; }
+.setting-input-row select { appearance: none; padding-right: 44px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23566471' stroke-width='1.5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; }
 .setup-guide-dialog { width: min(1100px, calc(100vw - 40px)); max-width: calc(100vw - 40px); max-height: 85vh; box-sizing: border-box; padding: 24px; overflow: auto; }
 .setup-guide-header { display: flex; align-items: center; gap: 16px; position: sticky; top: -24px; background: white; padding: 12px 0; z-index: 1; }
 .setup-guide-header h2 { flex: 1; margin: 0; font-size: 22px; }
