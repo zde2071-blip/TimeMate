@@ -7,14 +7,14 @@ import certifi
 from backend.core.user_errors import UserFacingError
 
 PROVIDERS = {
- 'openai': {'name':'OpenAI','base':'https://api.openai.com/v1'},
- 'deepseek': {'name':'DeepSeek','base':'https://api.deepseek.com'},
- 'qwen': {'name':'通义千问 · 阿里云百炼（北京）','base':'https://dashscope.aliyuncs.com/compatible-mode/v1','hint':'地区和业务空间必须与 Key 一致。专属域名或其他地区请在高级设置中修改。'},
- 'zhipu': {'name':'智谱 GLM','base':'https://open.bigmodel.cn/api/paas/v4','hint':'使用按量计费 API Key。若无法获取列表，请手动填写已开通的模型 ID。'},
- 'doubao': {'name':'豆包 · 火山方舟（北京）','base':'https://ark.cn-beijing.volces.com/api/v3','hint':'若无法获取列表，请手动填写已开通的模型 ID 或推理接入点 ID（ep-…）。'},
- 'kimi': {'name':'Kimi · Moonshot（中国）','base':'https://api.moonshot.cn/v1'},
- 'gemini': {'name':'Google Gemini','base':'https://generativelanguage.googleapis.com/v1beta/openai'},
- 'claude': {'name':'Anthropic Claude','base':'https://api.anthropic.com/v1','protocol':'anthropic'},
+ 'openai': {'key_label':'OpenAI','key_url':'https://platform.openai.com/api-keys','name':'OpenAI','base':'https://api.openai.com/v1'},
+ 'deepseek': {'key_label':'DeepSeek','key_url':'https://platform.deepseek.com/','name':'DeepSeek','base':'https://api.deepseek.com'},
+ 'qwen': {'key_label':'阿里云百炼','key_url':'https://bailian.console.aliyun.com/','name':'通义千问 · 阿里云百炼（北京）','base':'https://dashscope.aliyuncs.com/compatible-mode/v1','hint':'地区和业务空间必须与 Key 一致。专属域名或其他地区请在高级设置中修改。'},
+ 'zhipu': {'key_label':'智谱','key_url':'https://open.bigmodel.cn/','name':'智谱 GLM','base':'https://open.bigmodel.cn/api/paas/v4','hint':'使用按量计费 API Key。若无法获取列表，请手动填写已开通的模型 ID。'},
+ 'doubao': {'key_label':'火山方舟','key_url':'https://console.volcengine.com/ark','name':'豆包 · 火山方舟（北京）','base':'https://ark.cn-beijing.volces.com/api/v3','hint':'若无法获取列表，请手动填写已开通的模型 ID 或推理接入点 ID（ep-…）。'},
+ 'kimi': {'key_label':'Kimi','key_url':'https://platform.kimi.com/','name':'Kimi · Moonshot（中国）','base':'https://api.moonshot.cn/v1'},
+ 'gemini': {'key_label':'Google AI Studio','key_url':'https://aistudio.google.com/apikey','name':'Google Gemini','base':'https://generativelanguage.googleapis.com/v1beta/openai'},
+ 'claude': {'key_label':'Claude','key_url':'https://platform.claude.com/','name':'Anthropic Claude','base':'https://api.anthropic.com/v1','protocol':'anthropic'},
  'custom': {'name':'其他兼容服务','base':'','hint':'填写支持 Chat Completions 的 HTTPS 基础地址和模型 ID。'},
 }
 class AIServiceError(UserFacingError):

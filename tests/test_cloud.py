@@ -18,7 +18,7 @@ class CloudTests(unittest.TestCase):
   self.assertEqual(response.status_code,200)
   self.assertIn('没有应用层加密',response.text)
   self.assertIn('href="/privacy"',self.anon.get('/login').text)
-  self.assertIn('href="/privacy"',self.a.get('/').text)
+  self.assertNotIn('href="/privacy"',self.a.get('/').text)
  def post(self,c,path,data,token=''):
   return c.post(path,json=data,headers={'Origin':'http://127.0.0.1:18744','X-Token':token})
  def register(self,c,address):

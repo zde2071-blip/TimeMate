@@ -1000,7 +1000,11 @@ footer p {
 .guide-title { font-weight: 600; }
 .forwarding-actions { margin-left: auto; }
 .forwarding-actions button { margin: 0; }
-.field-heading { margin-bottom: 6px; flex-wrap: wrap; }
+.field-heading { margin-bottom: 6px; flex-wrap: wrap; justify-content: flex-start; }
+.setup-step-heading { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.setup-step-heading a { font-size: 13px; white-space: nowrap; }
+.connection-step { margin: 24px 0 16px; }
+#api-key-help-note { margin: 0; font-size: 13px; }
 .field-heading label { margin: 0; }
 .field-heading a { font-size: 13px; white-space: nowrap; }
 
