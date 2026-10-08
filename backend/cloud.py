@@ -149,7 +149,15 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
     if url.scheme!='https' and url.hostname not in ('localhost','127.0.0.1'): raise ValueError('公网必须使用 HTTPS')
     store=Store(directory,key)
     app=Flask(__name__,static_folder=str(ROOT/'web/assets'),static_url_path='/assets'); app.store=store
-    app.config.update(MAX_CONTENT_LENGTH=20000,TRUSTED_HOSTS=[url.hostname])
+    # MAIL_ORIGIN is the canonical address used in generated links. Also accept
+    # Railway's generated domain as an alias so both public URLs keep working.
+    railway_domain=os.environ.get('RAILWAY_PUBLIC_DOMAIN','').strip().rstrip('.')
+    trusted_hosts={url.hostname}
+    allowed_origins={origin}
+    if railway_domain:
+        trusted_hosts.add(railway_domain)
+        allowed_origins.add('https://'+railway_domain)
+    app.config.update(MAX_CONTENT_LENGTH=20000,TRUSTED_HOSTS=sorted(trusted_hosts),MAIL_ALLOWED_ORIGINS=allowed_origins)
     secure=url.scheme=='https'
     @app.before_request
     def guard():
@@ -159,7 +167,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
             c.execute('DELETE FROM sessions WHERE expires<?',(time.time(),))
             if token: g.auth=c.execute('SELECT * FROM sessions WHERE token=?',(digest(token),)).fetchone()
         if request.method=='POST':
-            if request.headers.get('Origin')!=origin: return jsonify(error='页面来源不匹配，请重新打开。'),403
+            if request.headers.get('Origin') not in app.config['MAIL_ALLOWED_ORIGINS']: return jsonify(error='页面来源不匹配，请重新打开。'),403
             if not request.is_json: return jsonify(error='请求格式不正确。'),415
         if request.path.startswith('/api/') and not (request.path.startswith('/api/auth/') and request.method=='POST'):
             if not g.auth: return jsonify(error='请先登录。'),401

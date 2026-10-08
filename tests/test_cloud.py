@@ -407,6 +407,15 @@ class CloudTests(unittest.TestCase):
   response=self.post(self.anon,'/api/auth/login',{'email':'a@example.com','password':'test-password-123'})
   cookie=response.headers['Set-Cookie'];self.assertIn('HttpOnly',cookie);self.assertIn('SameSite=Lax',cookie)
 
+ def test_custom_and_railway_domains_are_both_accepted(self):
+  with patch.dict(os.environ,{'RAILWAY_PUBLIC_DOMAIN':'mail.example.up.railway.app'},clear=True):
+   app=create_app(self.tmp.name,self.key,'https://timemate.cc');app.testing=True
+   for email,origin in [('custom@example.com','https://timemate.cc'),('railway@example.com','https://mail.example.up.railway.app')]:
+    client=app.test_client();invite=app.store.invite(email)
+    response=client.post('/api/auth/register',json={'email':email,'password':'test-password-123','invite':invite},headers={'Origin':origin},base_url=origin)
+    self.assertEqual(response.status_code,200)
+    self.assertEqual(client.get('/',base_url=origin).status_code,200)
+
 class RailwaySettingsTests(unittest.TestCase):
  def test_requires_persistent_volume_and_https_domain(self):
   env={'RAILWAY_ENVIRONMENT_ID':'test','MAIL_MASTER_KEY':Fernet.generate_key().decode()}
