@@ -18,7 +18,7 @@ from backend.core import operation_status
 RUNTIME = None
 DB = None
 PREFS = None
-DEFAULTS={'account':'','base':'https://api.deepseek.com','model':'deepseek-flash','school_sender':'','calendar_method':'unset','calendar_provider':'','calendar_subscription_confirmed':'no','provider':'deepseek'}
+DEFAULTS={'account':'','mail_provider':'','base':'https://api.deepseek.com','model':'deepseek-flash','school_sender':'','calendar_method':'unset','calendar_provider':'','calendar_subscription_confirmed':'no','provider':'deepseek'}
 CFG={**DEFAULTS,'password':'','key':''}
 LOCK=threading.Lock()
 STATUS={'busy':False,'auto':False}
@@ -41,6 +41,9 @@ def initialize(runtime):
         if not isinstance(stored,dict): stored={}
     except (OSError,ValueError): stored={}
     CFG={**DEFAULTS,**{k:stored[k] for k in DEFAULTS if isinstance(stored.get(k),str)}}
+    if not CFG['mail_provider']:
+        address=CFG['account'].casefold()
+        CFG['mail_provider']='qq' if address.endswith(('@qq.com','@foxmail.com')) else 'netease' if address.endswith(('@163.com','@126.com')) else ''
     if 'provider' not in stored: CFG['provider']=ai_services.infer_provider(CFG['base'])
     for group,field in [('mail','password'),('ai','key')]:
         CFG[field]=credential_store('load',group,CFG)
@@ -118,7 +121,7 @@ def original_mail(ident):
     try:
         cfg=CFG.copy();conn,validity,ids=connect_mail(cfg)
         uid=next((uid for uid in ids if mail_id(cfg['account'],validity,uid)==ident),None)
-        if uid is None: raise UserFacingError('QQ 邮箱中已找不到这封原邮件。')
+        if uid is None: raise UserFacingError('接收邮箱中已找不到这封原邮件。')
         chunks=checked(conn.uid('FETCH',str(uid),'(BODY.PEEK[])'))
         parsed=parse_mail(b''.join(x[1] for x in chunks if isinstance(x,tuple)))
         with db() as c: c.execute('UPDATE mails SET original=COALESCE(original,?),source_links=?,source_body=COALESCE(source_body,?) WHERE id=?',(json.dumps(parsed['original'],ensure_ascii=False),json.dumps(parsed['links'],ensure_ascii=False),parsed['source_body'],ident))
@@ -170,16 +173,21 @@ def model_reply(cfg,prompt,data):
 
 def connection_draft(group,data):
     candidate=CFG.copy()
-    keys=('account','school_sender','password') if group=='mail' else ('provider','base','model','key')
+    keys=('account','mail_provider','school_sender','password') if group=='mail' else ('provider','base','model','key')
     for k in keys:
         if k in data and isinstance(data[k],str): candidate[k]=data[k].strip()
     secret='password' if group=='mail' else 'key'
-    same=(candidate['account']==CFG['account']) if group=='mail' else (candidate['provider']==CFG['provider'] and candidate['base'].rstrip('/')==CFG['base'].rstrip('/'))
+    same=(candidate['account']==CFG['account'] and candidate['mail_provider']==CFG['mail_provider']) if group=='mail' else (candidate['provider']==CFG['provider'] and candidate['base'].rstrip('/')==CFG['base'].rstrip('/'))
     if not isinstance(data.get(secret),str) or not data[secret].strip(): candidate[secret]=CFG[secret] if same else ''
     if group=='mail':
-        if not candidate['account'].lower().endswith(('@qq.com','@foxmail.com')) or '@' not in candidate['account']: raise UserFacingError('请填写完整 QQ 或 Foxmail 邮箱。')
+        account=candidate['account'].lower()
+        inferred='qq' if account.endswith(('@qq.com','@foxmail.com')) else 'netease' if account.endswith(('@163.com','@126.com')) else ''
+        if not candidate['mail_provider']: candidate['mail_provider']=inferred
+        if candidate['mail_provider'] not in ('qq','netease'): raise UserFacingError('请选择 QQ 邮箱或网易邮箱。')
+        allowed=('@qq.com','@foxmail.com') if candidate['mail_provider']=='qq' else ('@163.com','@126.com')
+        if not account.endswith(allowed) or '@' not in account: raise UserFacingError('邮箱地址与所选邮箱服务商不匹配。')
         if not parseaddr(candidate['school_sender'])[1] or '@' not in candidate['school_sender']: raise UserFacingError('请填写完整学校邮箱。')
-        if not candidate['password']: raise UserFacingError('请填写 QQ 邮箱授权码。')
+        if not candidate['password']: raise UserFacingError('请填写邮箱客户端授权码。')
     else: ai_services.validate(candidate,model=False)
     return candidate
 
@@ -188,7 +196,7 @@ def save_connection(group,data):
     try:
         candidate=connection_draft(group,data)
         if group=='ai': ai_services.validate(candidate)
-        keys=('account','school_sender','password') if group=='mail' else ('provider','base','model','key')
+        keys=('account','mail_provider','school_sender','password') if group=='mail' else ('provider','base','model','key')
         updated={**CFG,**{k:candidate[k] for k in keys}}
         secret_field='password' if group=='mail' else 'key'
         credential_store('save',group,updated,updated[secret_field])
@@ -202,7 +210,7 @@ def test_mail_connection(data):
     candidate=connection_draft('mail',data)
     conn=None
     try:
-        conn=imaplib.IMAP4_SSL('imap.qq.com',993,ssl_context=ssl.create_default_context(cafile=certifi.where()),timeout=15)
+        conn=imaplib.IMAP4_SSL(mail_ingest.mail_server(candidate),993,ssl_context=ssl.create_default_context(cafile=certifi.where()),timeout=15)
         checked(conn.login(candidate['account'],candidate['password']))
         checked(conn.select('INBOX',readonly=True))
         return '连接成功，已验证登录和只读打开收件箱。尚未保存设置。'
@@ -447,7 +455,7 @@ class APIHandler:
                 row['category']=category_for(row,result)
                 row['course_codes']=mail_course_codes(row)
                 row['links']=json.loads(row['source_links']) if row.get('source_links') else extract_source_links(row['body'])
-            visible_cfg={k:CFG[k] for k in ('account','base','model','school_sender','calendar_method','calendar_provider','calendar_subscription_confirmed','provider')}
+            visible_cfg={k:CFG[k] for k in ('account','mail_provider','base','model','school_sender','calendar_method','calendar_provider','calendar_subscription_confirmed','provider')}
             return self.reply(200,{'status':STATUS,'courseCodes':courses,'mails':rows,'pins':pins,'calendarEvents':written,'eventOverrides':overrides,'eventLinks':event_links,'config':visible_cfg,'providers':ai_services.PROVIDERS,'ready':{'mail':bool(CFG['account'] and CFG['password'] and CFG['school_sender']),'ai':bool(CFG['base'] and CFG['model'] and CFG['key'])}})
         self.reply(404,{})
     def post(self):

@@ -13,8 +13,14 @@ from backend.core.user_errors import UserFacingError
 def mail_id(account,validity,uid):
     return hashlib.sha256((account.lower()+validity+str(uid)).encode()).hexdigest()
 
+def mail_server(cfg):
+    account=(cfg.get('account') or '').strip().casefold()
+    if account.endswith('@163.com'): return 'imap.163.com'
+    if account.endswith('@126.com'): return 'imap.126.com'
+    return 'imap.qq.com'
+
 def connect_mail(cfg):
-    conn=imaplib.IMAP4_SSL('imap.qq.com',993,ssl_context=ssl.create_default_context(cafile=certifi.where()),timeout=15)
+    conn=imaplib.IMAP4_SSL(mail_server(cfg),993,ssl_context=ssl.create_default_context(cafile=certifi.where()),timeout=15)
     try:
         checked(conn.login(cfg['account'],cfg['password']))
         checked(conn.select('INBOX',readonly=True))
@@ -122,13 +128,13 @@ class MailReceiver:
 
     def fetch(self):
         cfg=self.config.copy()
-        if not cfg['account'] or not cfg['password']: raise UserFacingError('请先填写并应用 QQ 邮箱与授权码。')
+        if not cfg['account'] or not cfg['password']: raise UserFacingError('请先填写并应用接收邮箱与客户端授权码。')
         conn=None; added=0; matched=0
         try:
-            operation_status.begin(self.status,'checking','正在登录 QQ 邮箱…',kind='check')
+            operation_status.begin(self.status,'checking','正在连接接收邮箱…',kind='check')
             conn,validity,ids=self.connect(cfg)
             for uid in reversed(ids[-50:]):
-                self.status['message']='正在检查 QQ 邮箱最近 50 封邮件的发件人地址…'
+                self.status['message']='正在检查接收邮箱最近 50 封邮件的发件人地址…'
                 ident,was_added=self.importer(conn,cfg,validity,uid,'manual')
                 matched+=ident is not None
                 added+=was_added
@@ -143,7 +149,7 @@ class MailReceiver:
     def start_auto(self):
         cfg=self.config.copy()
         if not all(cfg[k] for k in ('account','password','school_sender','base','model','key')):
-            raise UserFacingError('先填写 QQ 邮箱授权码、学校邮箱和模型 API Key。')
+            raise UserFacingError('先填写接收邮箱授权码、学校邮箱和模型 API Key。')
         conn=None
         try:
             operation_status.begin(self.status,'checking','正在记录当前邮件位置，旧邮件不会自动分析…')
