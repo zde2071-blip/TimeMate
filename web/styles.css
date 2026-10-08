@@ -2188,14 +2188,22 @@ body.mail-layout .mail-workspace #mail-detail-pane { position: static; min-heigh
 .setup-guide-dialog { width: min(1100px, calc(100vw - 40px)); max-width: calc(100vw - 40px); max-height: 85vh; box-sizing: border-box; padding: 24px; overflow: auto; }
 .setup-guide-header { display: flex; align-items: center; gap: 16px; position: sticky; top: -24px; background: white; padding: 12px 0; z-index: 1; }
 .setup-guide-header h2 { flex: 1; margin: 0; font-size: 22px; }
+.setup-guide-links { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.setup-guide-links a { color: #245e4d; font-size: 14px; white-space: nowrap; }
 
 #setup-guide-content figure { margin: 24px 0; }
 #setup-guide-content figcaption { margin-bottom: 10px; font-weight: 600; }
 #setup-guide-content img { display: block; width: 100%; height: auto; }
 #setup-guide-content p { line-height: 1.7; }
 #setup-guide-content .setup-links { display: flex; gap: 16px; flex-wrap: wrap; }
+#setup-guide-content .annotated-shot { position: relative; }
+#setup-guide-content .annotated-shot img { width: 100%; height: auto; }
+#setup-guide-content .annotated-shot svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#setup-guide-content .annotated-shot .mark-line { fill: none; stroke: #e21d24; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+#setup-guide-content .annotated-shot .mark-circle { fill: #e21d24; stroke: white; stroke-width: 5; }
+#setup-guide-content .annotated-shot .mark-number { fill: white; font: 700 44px system-ui,sans-serif; text-anchor: middle; dominant-baseline: central; }
 .setup-guide-dialog footer { margin-top: 24px; }
-@media(max-width:650px) { .setup-guide-dialog { padding: 16px; } .setup-guide-header { top: -16px; } .setup-guide-header h2 { font-size: 18px; } }
+@media(max-width:650px) { .setup-guide-dialog { padding: 16px; } .setup-guide-header { top: -16px; flex-wrap: wrap; } .setup-guide-header h2 { font-size: 18px; } .setup-guide-links { order: 3; flex: 1 0 100%; } }
 
 .calendar-copy { margin: 0; font-size: 15px; font-weight: normal; }
 
