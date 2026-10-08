@@ -2,7 +2,7 @@
 *{box-sizing:border-box}body{margin:0;background:#f5f7f8;color:#26333f;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;display:grid;place-items:center;padding:32px 20px}main{width:100%;max-width:420px;background:#fff;border:1px solid #e0e6e9;border-radius:20px;padding:36px}h1{font-size:30px;letter-spacing:-1px;margin:0 0 28px;font-weight:650}.tabs{display:flex;gap:24px;border-bottom:1px solid #e7eceb;margin-bottom:26px}.tab{border:0;border-bottom:2px solid transparent;background:none;padding:0 0 12px;color:#708078;font:inherit;cursor:pointer}.tab[aria-selected=true]{color:#235b4b;border-color:#235b4b}label.field{display:block;font-size:14px;color:#596a75;margin:20px 0 8px}input:not([type=checkbox]){width:100%;min-width:0;height:48px;border:1px solid #ccd7dd;border-radius:9px;padding:0 13px;font:inherit;color:#26333f;background:white}input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid #39876b;outline-offset:3px}.code-row{display:flex;gap:10px}.send{flex-shrink:0;border:0;border-radius:9px;background:#edf3f0;color:#235b4b;padding:0 14px;font:14px inherit;cursor:pointer}.primary{width:100%;height:48px;margin-top:24px;border:0;border-radius:9px;background:#235b4b;color:white;font:inherit;cursor:pointer}.primary:disabled{opacity:.4;cursor:not-allowed}.forgot{display:block;margin:16px 0 0 auto;border:0;background:none;font:14px inherit;color:#235b4b;cursor:pointer;padding:0}.consent{display:flex;gap:9px;align-items:flex-start;margin-top:22px;font-size:14px;line-height:22px;color:#65736e}.consent input{width:17px;height:17px;margin:2px 0 0;accent-color:#235b4b;flex-shrink:0}a{color:#235b4b;text-underline-offset:3px}.message{font-size:14px;line-height:1.6;color:#65736e;margin:16px 0 0}.back{border:0;background:none;color:#235b4b;font:14px inherit;padding:0;cursor:pointer;margin-bottom:8px}[hidden]{display:none!important}@media(max-width:480px){main{padding:28px 24px}body{padding:20px 16px}}
 
 .switch{display:flex;gap:24px;border-bottom:1px solid #e7eceb;margin-bottom:26px}.switch button{border:0;border-bottom:2px solid transparent;background:none;padding:0 0 12px;color:#708078;font:inherit;cursor:pointer}.switch button[aria-selected=true]{color:#235b4b;border-color:#235b4b}label:not(.consent){display:block;font-size:14px;color:#596a75;margin:20px 0 8px}#submit{width:100%;height:48px;margin-top:24px;border:0;border-radius:9px;background:#235b4b;color:white;font:inherit;cursor:pointer}#submit:disabled{opacity:.4;cursor:not-allowed}#message{font-size:14px;color:#a34435;line-height:1.6}#message:empty{display:none}#invite-note,#reset-row p{font-size:14px;color:#65736e;line-height:1.6}</style>
-<main><h1>TimeMate</h1><nav class="switch" aria-label="账号操作"><button type="button" id="login-tab" onclick="mode('login')">登录</button><button type="button" id="register-tab" onclick="mode('register')">注册</button></nav><form id="form"><div id="email-row"><label for="email">邮箱</label><input id="email" type="email" autocomplete="username" maxlength="254" required></div><label for="password">密码</label><input id="password" type="password" autocomplete="current-password" maxlength="128" required><p id="invite-note" hidden>这是你的专属邀请，请设置至少 8 个字符的密码。</p><div id="reset-row" hidden><label for="reset">重置码</label><input id="reset" autocomplete="off"><p>请联系邀请你的管理员，核实身份后获取重置码。</p></div><button type="button" class="forgot" id="forgot" onclick="mode('reset')">忘记密码？</button><button type="button" class="back" id="back" hidden onclick="mode('login')">← 返回登录</button><label class="consent" id="consent-group" hidden><input type="checkbox" id="consent"><span>我已阅读并同意<a href="/privacy" target="_blank" rel="noopener noreferrer">《隐私说明》</a></span></label><button id="submit">登录</button><p id="message" role="status"></p></form></main>
+<main><h1>TimeMate</h1><nav class="switch" aria-label="账号操作"><button type="button" id="login-tab" onclick="mode('login')">登录</button><button type="button" id="register-tab" onclick="mode('register')">注册</button></nav><form id="form"><div id="email-row"><label for="email">邮箱</label><input id="email" type="email" autocomplete="username" maxlength="254" required></div><div id="code-row" hidden><label for="code">邮箱验证码</label><div class="code-row"><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}"><button type="button" class="send" id="send-code">获取验证码</button></div></div><label for="password">密码</label><input id="password" type="password" autocomplete="current-password" maxlength="128" required><p id="invite-note" hidden>这是你的专属邀请，请设置至少 8 个字符的密码。</p><div id="reset-row" hidden><label for="reset">重置码</label><input id="reset" autocomplete="off"><p>请联系邀请你的管理员，核实身份后获取重置码。</p></div><button type="button" class="forgot" id="forgot" onclick="mode('reset')">忘记密码？</button><button type="button" class="back" id="back" hidden onclick="mode('login')">← 返回登录</button><label class="consent" id="consent-group" hidden><input type="checkbox" id="consent"><span>我已阅读并同意<a href="/privacy" target="_blank" rel="noopener noreferrer">《隐私说明》</a></span></label><button id="submit">登录</button><p id="message" role="status"></p></form></main>
 <script>
 let action='login';const $=id=>document.getElementById(id);
 const invitation=new URLSearchParams(location.hash.slice(1));
@@ -10,26 +10,32 @@ const inviteToken=invitation.get('invite')||'',inviteEmail=invitation.get('email
 const invited=!!(inviteToken&&inviteEmail);
 if(location.hash)history.replaceState(null,'',location.pathname+location.search);
 function mode(value){
-  action=value;$('login-tab').setAttribute('aria-selected',String(value==='login'));$('register-tab').setAttribute('aria-selected',String(value==='register'));$('forgot').hidden=value!=='login';$('back').hidden=value!=='reset';$('consent-group').hidden=value!=='register';$('consent').required=value==='register';$('email-row').hidden=value==='reset';$('email').required=value!=='reset';
+  action=value;$('login-tab').setAttribute('aria-selected',String(value==='login'));$('register-tab').setAttribute('aria-selected',String(value==='register'));$('forgot').hidden=value!=='login';$('back').hidden=value!=='reset';$('consent-group').hidden=value!=='register';$('consent').required=value==='register';$('email-row').hidden=value==='reset';$('email').required=value!=='reset';$('code-row').hidden=value!=='register';$('code').required=value==='register'&&!invited;$('send-code').hidden=value!=='register'||invited;
   $('email').readOnly=value==='register'&&invited;
   if(value==='register'&&invited)$('email').value=inviteEmail;
   $('invite-note').hidden=value!=='register';
-  $('invite-note').textContent=invited?'这是你的专属邀请，请设置至少 8 个字符的密码。':'请联系管理员获取专属注册链接，并通过该链接打开注册页面。';
+  $('invite-note').textContent='这是你的专属邀请，请设置至少 8 个字符的密码。';
   $('reset-row').hidden=value!=='reset';
   $('submit').textContent={login:'登录',register:'注册',reset:'重置密码'}[value];
-  $('submit').disabled=value==='register'&&(!invited||!$('consent').checked);
+  $('submit').disabled=value==='register'&&(!$('consent').checked||(!invited&&!$('code').value));
   $('password').autocomplete=value==='login'?'current-password':'new-password';
   $('password').minLength=value==='login'?1:8;$('password').placeholder=value==='login'?'':'至少 8 个字符';$('message').textContent='';
 }
 $('form').onsubmit=async e=>{
-  e.preventDefault();if(action==='register'&&(!invited||!$('consent').checked))return;
+  e.preventDefault();if(action==='register'&&(!invited&&!$('code').value||!$('consent').checked))return;
   $('submit').disabled=true;
   try{
-    let r=await fetch('/api/auth/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:action==='register'?inviteEmail:$('email').value,password:$('password').value,invite:inviteToken,reset:$('reset').value})});
+    let r=await fetch('/api/auth/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:action==='register'&&invited?inviteEmail:$('email').value,password:$('password').value,invite:inviteToken,code:$('code').value,reset:$('reset').value})});
     let d=await r.json();if(!r.ok)throw Error(d.error||'暂时无法完成，请重试。');
     if(action==='reset'){mode('login');$('password').value='';$('message').textContent='密码已更新，请登录。'}else location.href='/';
-  }catch(e){$('message').textContent=e.message}finally{$('submit').disabled=action==='register'&&(!invited||!$('consent').checked)}
+  }catch(e){$('message').textContent=e.message}finally{$('submit').disabled=action==='register'&&(!$('consent').checked||(!invited&&!$('code').value))}
 };
-$('consent').onchange=()=>{$('submit').disabled=action==='register'&&(!invited||!$('consent').checked)};
+$('send-code').onclick=async()=>{
+  if(!$('email').value){$('message').textContent='请先填写邮箱地址。';return}
+  $('send-code').disabled=true;$('message').textContent='正在发送验证码…';
+  try{const r=await fetch('/api/auth/send-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value})});const d=await r.json();if(!r.ok)throw Error(d.error||'验证码发送失败，请重试。');$('message').textContent='验证码已发送，请查看邮箱（10 分钟内有效）。'}catch(e){$('message').textContent=e.message}finally{$('send-code').disabled=false}
+};
+$('code').oninput=()=>{$('submit').disabled=action==='register'&&(!$('consent').checked||(!invited&&!$('code').value))};
+$('consent').onchange=()=>{$('submit').disabled=action==='register'&&(!$('consent').checked||(!invited&&!$('code').value))};
 mode(invited?'register':'login');
 </script></html>

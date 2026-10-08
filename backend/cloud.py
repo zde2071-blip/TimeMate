@@ -1,8 +1,9 @@
 """Invite-only web gateway. Each authenticated user owns an isolated engine and DB.
 Run exactly one application process; its scheduler services all user engines.
 """
-import argparse, hashlib, importlib.util, json, os, re, secrets, sqlite3, threading, time
+import argparse, hashlib, hmac, importlib.util, json, os, re, secrets, smtplib, sqlite3, ssl, threading, time
 from contextlib import contextmanager
+from email.message import EmailMessage
 from pathlib import Path
 from urllib.parse import urlsplit, urlencode
 from cryptography.fernet import Fernet
@@ -56,6 +57,7 @@ class Store:
             CREATE TABLE IF NOT EXISTS credentials(user_id TEXT,identity TEXT,value BLOB,PRIMARY KEY(user_id,identity));
             CREATE TABLE IF NOT EXISTS resets(token TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS attempts(bucket TEXT PRIMARY KEY,count INTEGER NOT NULL,expires REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS email_verifications(email TEXT PRIMARY KEY,code_hash TEXT NOT NULL,expires REAL NOT NULL,attempts INTEGER NOT NULL DEFAULT 0);
             CREATE TABLE IF NOT EXISTS calendar_feeds(user_id TEXT PRIMARY KEY,token_hash TEXT UNIQUE NOT NULL,token BLOB NOT NULL);
             ''')
     @contextmanager
@@ -142,6 +144,28 @@ def valid_email(value):
 def password_hash(value):
     if not isinstance(value,str) or not 8<=len(value)<=128: raise ValueError('密码需为 8–128 个字符。')
     return generate_password_hash(value,method='scrypt')
+
+def send_verification_email(address,code):
+    host=os.environ.get('MAIL_SMTP_HOST','').strip()
+    username=os.environ.get('MAIL_SMTP_USERNAME','').strip()
+    password=os.environ.get('MAIL_SMTP_PASSWORD','')
+    sender=os.environ.get('MAIL_FROM','').strip() or username
+    port=int(os.environ.get('MAIL_SMTP_PORT','465'))
+    if not all((host,username,password,sender)):
+        raise ValueError('邮箱验证服务尚未配置，请稍后再试或联系管理员。')
+    message=EmailMessage()
+    message['Subject']='TimeMate 注册验证码'
+    message['From']=sender
+    message['To']=address
+    message.set_content(f'你的 TimeMate 注册验证码是：{code}\n\n验证码 10 分钟内有效。若非本人操作，请忽略此邮件。')
+    context=ssl.create_default_context()
+    if port==465:
+        with smtplib.SMTP_SSL(host,port,context=context,timeout=15) as server:
+            server.login(username,password);server.send_message(message)
+    else:
+        with smtplib.SMTP(host,port,timeout=15) as server:
+            server.ehlo();server.starttls(context=context);server.ehlo()
+            server.login(username,password);server.send_message(message)
 
 def create_app(directory,key,origin='http://127.0.0.1:18744'):
     url=urlsplit(origin)
@@ -237,17 +261,41 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         if not isinstance(d,dict): return jsonify(error='请求格式不正确。'),400
         if store.limited('ip:'+str(request.remote_addr),60): return jsonify(error='操作过于频繁，请 15 分钟后重试。'),429
         try:
+            if action=='send-code':
+                address=valid_email(d.get('email',''))
+                if store.limited('email-code:'+address,3): return jsonify(error='验证码发送过于频繁，请 15 分钟后重试。'),429
+                code=f'{secrets.randbelow(1000000):06d}'
+                code_hash=hmac.new(key,('timemate-email:'+address+':'+code).encode(),hashlib.sha256).hexdigest()
+                try: send_verification_email(address,code)
+                except (OSError,smtplib.SMTPException,ValueError) as error:
+                    app.logger.warning('Verification email could not be sent (%s)',type(error).__name__)
+                    raise ValueError(str(error) if isinstance(error,ValueError) else '验证码邮件暂时发送失败，请稍后重试。')
+                with store.db() as c:
+                    c.execute('INSERT OR REPLACE INTO email_verifications(email,code_hash,expires,attempts) VALUES (?,?,?,0)',(address,code_hash,time.time()+600))
+                return jsonify(ok=True)
             if action in ('register','login'):
                 address=valid_email(d.get('email',''))
                 if store.limited('account:'+address): return jsonify(error='操作过于频繁，请 15 分钟后重试。'),429
                 if action=='register':
                     hashed=password_hash(d.get('password')); uid=secrets.token_hex(16)
+                    registration_error=None
                     with store.db() as c:
                         c.execute('BEGIN IMMEDIATE')
                         invite=c.execute('SELECT * FROM invites WHERE token=? AND email=? AND used=0 AND expires>?',(digest(str(d.get('invite',''))),address,time.time())).fetchone()
-                        if not invite: raise ValueError('邀请链接无效、已过期、已使用或与邮箱不匹配，请联系管理员重新邀请。')
-                        c.execute('INSERT INTO users VALUES (?,?,?)',(uid,address,hashed))
-                        c.execute('UPDATE invites SET used=1 WHERE token=?',(invite['token'],))
+                        if invite:
+                            c.execute('UPDATE invites SET used=1 WHERE token=?',(invite['token'],))
+                        else:
+                            verification=c.execute('SELECT * FROM email_verifications WHERE email=? AND expires>?',(address,time.time())).fetchone()
+                            if not verification: raise ValueError('请先获取有效的邮箱验证码。')
+                            code=str(d.get('code','')).strip()
+                            supplied=hmac.new(key,('timemate-email:'+address+':'+code).encode(),hashlib.sha256).hexdigest()
+                            if verification['attempts']>=5 or not hmac.compare_digest(verification['code_hash'],supplied):
+                                c.execute('UPDATE email_verifications SET attempts=attempts+1 WHERE email=?',(address,))
+                                registration_error='验证码错误或已失效，请检查后重试。'
+                        if not registration_error:
+                            c.execute('INSERT INTO users VALUES (?,?,?)',(uid,address,hashed))
+                            c.execute('DELETE FROM email_verifications WHERE email=?',(address,))
+                    if registration_error: raise ValueError(registration_error)
                 else:
                     with store.db() as c: user=c.execute('SELECT * FROM users WHERE email=?',(address,)).fetchone()
                     supplied=d.get('password','')

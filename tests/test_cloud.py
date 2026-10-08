@@ -116,6 +116,24 @@ class CloudTests(unittest.TestCase):
   self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'x@example.com','password':'test-password-123','invite':'invalid'}).status_code,400)
   self.assertEqual(self.post(self.a,'/api/auth/logout',{},self.ta).status_code,200)
   self.assertEqual(self.state(self.a,self.ta).status_code,401)
+ def test_email_code_registration(self):
+  email='new-user@example.com'
+  with patch('backend.cloud.send_verification_email') as send:
+   response=self.post(self.anon,'/api/auth/send-code',{'email':email})
+   self.assertEqual(response.status_code,200);send.assert_called_once()
+   code=send.call_args.args[1]
+  bad=self.post(self.anon,'/api/auth/register',{'email':email,'code':'000000','password':'test-password-123'})
+  self.assertEqual(bad.status_code,400)
+  with self.app.store.db() as c:
+   self.assertEqual(c.execute('SELECT attempts FROM email_verifications WHERE email=?',(email,)).fetchone()[0],1)
+  response=self.post(self.anon,'/api/auth/register',{'email':email,'code':code,'password':'test-password-123'})
+  self.assertEqual(response.status_code,200)
+  with self.app.store.db() as c:
+   self.assertIsNone(c.execute('SELECT email FROM email_verifications WHERE email=?',(email,)).fetchone())
+   self.assertIsNotNone(c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone())
+ def test_email_code_requires_smtp_and_is_rate_limited(self):
+  response=self.post(self.anon,'/api/auth/send-code',{'email':'x@example.com'})
+  self.assertEqual(response.status_code,400);self.assertIn('尚未配置',response.json['error'])
  def test_courses_and_manual_categories_are_user_isolated(self):
   self.assertEqual(self.post(self.a,'/api/courses/add',{'code':'csi 101'},self.ta).status_code,200)
   self.assertEqual(self.post(self.a,'/api/courses/add',{'code':'CSI101'},self.ta).status_code,200)
