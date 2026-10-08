@@ -2208,12 +2208,25 @@ body.mail-layout .mail-workspace #mail-detail-pane { position: static; min-heigh
 .calendar-copy { margin: 0; font-size: 15px; font-weight: normal; }
 
 /* 弹窗关闭按钮独立于教程文字链接，统一固定在标题区域右上角。 */
-.source-dialog-header, .setup-guide-header {
+.source-dialog-header {
   display: block;
   margin: -8px -8px 12px;
   padding: 8px 56px 8px 8px;
   min-height: 44px;
 }
+.setup-guide-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: -24px;
+  margin: -8px -8px 12px;
+  padding: 8px 56px 8px 8px;
+  min-height: 44px;
+  background: white;
+}
+.setup-guide-header h2 { flex: 0 1 auto; }
+.setup-guide-links { flex: 0 1 auto; }
 .modal-close-x {
   position: absolute;
   top: 0;
