@@ -1,11 +1,10 @@
-import json,os,re,sqlite3,tempfile,time,unittest
+import hashlib,hmac,json,os,re,sqlite3,tempfile,time,unittest
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import Mock,patch
 from cryptography.fernet import Fernet
 from backend.core.ai_services import AIServiceError
-from backend.cloud import create_app,settings,invitation_link
-from urllib.parse import urlsplit,parse_qs
+from backend.cloud import create_app,settings
 
 class CloudTests(unittest.TestCase):
  def setUp(self):
@@ -33,8 +32,9 @@ class CloudTests(unittest.TestCase):
  def post(self,c,path,data,token=''):
   return c.post(path,json=data,headers={'Origin':'http://127.0.0.1:18744','X-Token':token})
  def register(self,c,address):
-  code=self.app.store.invite(address)
-  r=self.post(c,'/api/auth/register',{'email':address,'password':'test-password-123','invite':code});self.assertEqual(r.status_code,200)
+  code='123456';code_hash=hmac.new(self.key,('timemate-email:'+address+':'+code).encode(),hashlib.sha256).hexdigest()
+  with self.app.store.db() as db:db.execute('INSERT OR REPLACE INTO email_verifications(email,code_hash,expires,attempts) VALUES (?,?,?,0)',(address,code_hash,time.time()+600))
+  r=self.post(c,'/api/auth/register',{'email':address,'password':'test-password-123','code':code});self.assertEqual(r.status_code,200)
   page=c.get('/').text; token=re.search('name="csrf-token" content="([^"]+)"',page)[1]
   with self.app.store.db() as db:uid=db.execute('SELECT id FROM users WHERE email=?',(address,)).fetchone()[0]
   return token,uid
@@ -63,18 +63,6 @@ class CloudTests(unittest.TestCase):
   self.assertNotIn('original',row)
   self.assertNotIn('translation',row)
   self.assertIn('data:image/png',self.post(self.a,'/api/source',{'id':'large'},self.ta).json['html'])
- def test_invitation_link_registration_and_expiry(self):
-  email='friend+class@example.com';token=self.app.store.invite(email)
-  link=invitation_link('http://127.0.0.1:18744',email,token)
-  parts=urlsplit(link);params=parse_qs(parts.fragment)
-  self.assertEqual(parts.query,'');self.assertEqual(params['email'],[email])
-  self.assertEqual(self.anon.get(parts.path).status_code,200)
-  payload={'email':params['email'][0],'invite':params['invite'][0],'password':'12345678'}
-  self.assertEqual(self.post(self.anon,'/api/auth/register',payload).status_code,200)
-  self.assertEqual(self.post(self.anon,'/api/auth/register',payload).status_code,400)
-  expired=self.app.store.invite('expired@example.com')
-  with self.app.store.db() as c:c.execute("UPDATE invites SET expires=0 WHERE email=?",('expired@example.com',))
-  self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'expired@example.com','invite':expired,'password':'12345678'}).status_code,400)
  def test_extracted_stylesheet_is_available(self):
   response=self.anon.get('/styles.css')
   self.assertEqual(response.status_code,200)
@@ -109,16 +97,19 @@ class CloudTests(unittest.TestCase):
   self.assertEqual(self.post(self.a,'/api/calendar/add',{},self.ta).status_code,404)
   self.assertEqual(self.post(self.a,'/api/calendar/settings',{'calendar_method':'subscribe','calendar_provider':'apple'},self.ta).status_code,200)
   self.assertEqual(self.post(self.a,'/api/calendar/subscription',{},self.ta).status_code,200)
- def test_auth_csrf_invite_logout(self):
+ def test_auth_csrf_public_registration_and_logout(self):
   self.assertEqual(self.anon.get('/').status_code,302);self.assertEqual(self.state(self.anon,'').status_code,401)
   self.assertEqual(self.post(self.b,'/api/pin',{},self.ta).status_code,403)
   self.assertEqual(self.a.post('/api/auto',json={},headers={'X-Token':self.ta}).status_code,403)
-  self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'x@example.com','password':'test-password-123','invite':'invalid'}).status_code,400)
+  self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'x@example.com','password':'test-password-123'}).status_code,400)
   self.assertEqual(self.post(self.a,'/api/auth/logout',{},self.ta).status_code,200)
   self.assertEqual(self.state(self.a,self.ta).status_code,401)
  def test_email_code_registration(self):
+  # Production passes MAIL_MASTER_KEY as a string, unlike generated test keys.
+  self.app=create_app(self.tmp.name,self.key.decode());self.app.testing=True;self.app.config['SERVER_NAME']='127.0.0.1:18744'
+  self.anon=self.app.test_client()
   email='new-user@example.com'
-  with patch('backend.cloud.send_verification_email') as send:
+  with patch('backend.cloud.send_auth_email') as send:
    response=self.post(self.anon,'/api/auth/send-code',{'email':email})
    self.assertEqual(response.status_code,200);send.assert_called_once()
    code=send.call_args.args[1]
@@ -345,19 +336,17 @@ class CloudTests(unittest.TestCase):
   for base in ['https://127.0.0.1','https://api.deepseek.com.evil.example','https://api.deepseek.com@evil.example']:
    r=self.post(self.a,'/api/settings/ai',{'provider':'deepseek','base':base,'model':'test','key':'test-key'},self.ta)
    self.assertEqual(r.status_code,400)
- def test_password_change_and_invite_binding(self):
-  invite=self.app.store.invite('invited@example.com')
-  self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'wrong@example.com','password':'test-password-123','invite':invite}).status_code,400)
-  self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'invited@example.com','password':'test-password-123','invite':invite}).status_code,200)
-  self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'invited@example.com','password':'test-password-123','invite':invite}).status_code,400)
+ def test_password_change_and_public_registration(self):
+  self.assertEqual(self.register(self.anon,'public@example.com')[1] != '',True)
   self.assertEqual(self.post(self.a,'/api/auth/password',{'old':'test-password-123','password':'changed-password-123'},self.ta).status_code,200)
   self.assertEqual(self.state(self.a,self.ta).status_code,403)
   self.assertEqual(self.post(self.b,'/api/auth/login',{'email':'a@example.com','password':'test-password-123'}).status_code,400)
   self.assertEqual(self.post(self.b,'/api/auth/login',{'email':'a@example.com','password':'changed-password-123'}).status_code,200)
  def test_eight_character_password_applies_to_registration_and_reset(self):
-  invite=self.app.store.invite('short@example.com')
-  self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'short@example.com','password':'1234567','invite':invite}).status_code,400)
-  self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'short@example.com','password':'12345678','invite':invite}).status_code,200)
+  code='123456';code_hash=hmac.new(self.key,('timemate-email:short@example.com:'+code).encode(),hashlib.sha256).hexdigest()
+  with self.app.store.db() as c:c.execute('INSERT INTO email_verifications(email,code_hash,expires) VALUES (?,?,?)',('short@example.com',code_hash,time.time()+600))
+  self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'short@example.com','password':'1234567','code':code}).status_code,400)
+  self.assertEqual(self.post(self.anon,'/api/auth/register',{'email':'short@example.com','password':'12345678','code':code}).status_code,200)
   reset=self.app.store.reset('short@example.com')
   self.assertEqual(self.post(self.anon,'/api/auth/reset',{'reset':reset,'password':'1234567'}).status_code,400)
   self.assertEqual(self.post(self.anon,'/api/auth/reset',{'reset':reset,'password':'abcdefgh'}).status_code,200)
@@ -427,10 +416,12 @@ class CloudTests(unittest.TestCase):
 
  def test_custom_and_railway_domains_are_both_accepted(self):
   with patch.dict(os.environ,{'RAILWAY_PUBLIC_DOMAIN':'mail.example.up.railway.app'},clear=True):
-   app=create_app(self.tmp.name,self.key,'https://timemate.cc');app.testing=True
+   signing_key=self.key;app=create_app(self.tmp.name,signing_key,'https://timemate.cc');app.testing=True
    for email,origin in [('custom@example.com','https://timemate.cc'),('railway@example.com','https://mail.example.up.railway.app')]:
-    client=app.test_client();invite=app.store.invite(email)
-    response=client.post('/api/auth/register',json={'email':email,'password':'test-password-123','invite':invite},headers={'Origin':origin},base_url=origin)
+    client=app.test_client();code='123456'
+    code_hash=hmac.new(signing_key,('timemate-email:'+email+':'+code).encode(),hashlib.sha256).hexdigest()
+    with app.store.db() as db:db.execute('INSERT INTO email_verifications(email,code_hash,expires) VALUES (?,?,?)',(email,code_hash,time.time()+600))
+    response=client.post('/api/auth/register',json={'email':email,'password':'test-password-123','code':code},headers={'Origin':origin},base_url=origin)
     self.assertEqual(response.status_code,200)
     self.assertEqual(client.get('/',base_url=origin).status_code,200)
 

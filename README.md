@@ -60,7 +60,7 @@ python3 -m venv .venv
 .venv/bin/python -m tools.preview
 ```
 
-预览工具只监听本机，并在被 Git 忽略的 `cloud-data/development.secret` 中保存开发密钥。账号邀请、正式运行、日历订阅和 Railway 部署步骤见 [多人版说明](docs/多人版说明.md)。
+预览工具只监听本机，并在被 Git 忽略的 `cloud-data/development.secret` 中保存开发密钥。邮箱验证码注册、账号恢复、正式运行、日历订阅和 Railway 部署步骤见 [多人版说明](docs/多人版说明.md)。
 
 生产环境通过 `python -m backend.cloud serve` 启动。仓库中的 Docker 配置已同步更新。下面的命令均在仓库根目录运行。
 

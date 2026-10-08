@@ -1,20 +1,17 @@
-"""Invite-only web gateway. Each authenticated user owns an isolated engine and DB.
+"""Email-verified public web gateway. Each authenticated user owns an isolated engine and DB.
 Run exactly one application process; its scheduler services all user engines.
 """
 import argparse, hashlib, hmac, importlib.util, json, os, re, secrets, smtplib, sqlite3, ssl, threading, time
 from contextlib import contextmanager
 from email.message import EmailMessage
 from pathlib import Path
-from urllib.parse import urlsplit, urlencode
+from urllib.parse import urlsplit
 from cryptography.fernet import Fernet
 from flask import Flask, request, jsonify, redirect, g, make_response
 from werkzeug.security import generate_password_hash, check_password_hash
 from backend.core import ai_services
 ROOT=Path(__file__).resolve().parents[1]
 os.umask(0o077)
-
-def invitation_link(origin,email,token):
-    return origin+'/login#'+urlencode({'email':valid_email(email),'invite':token})
 
 def digest(value): return hashlib.sha256(value.encode()).hexdigest()
 
@@ -52,12 +49,12 @@ class Store:
         with self.db() as c:
             c.executescript('''
             CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,password TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS invites(token TEXT PRIMARY KEY,email TEXT NOT NULL,expires REAL NOT NULL,used INTEGER DEFAULT 0);
             CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL,csrf TEXT NOT NULL,expires REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS credentials(user_id TEXT,identity TEXT,value BLOB,PRIMARY KEY(user_id,identity));
             CREATE TABLE IF NOT EXISTS resets(token TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS attempts(bucket TEXT PRIMARY KEY,count INTEGER NOT NULL,expires REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS email_verifications(email TEXT PRIMARY KEY,code_hash TEXT NOT NULL,expires REAL NOT NULL,attempts INTEGER NOT NULL DEFAULT 0);
+            CREATE TABLE IF NOT EXISTS password_reset_codes(email TEXT PRIMARY KEY,code_hash TEXT NOT NULL,expires REAL NOT NULL,attempts INTEGER NOT NULL DEFAULT 0);
             CREATE TABLE IF NOT EXISTS calendar_feeds(user_id TEXT PRIMARY KEY,token_hash TEXT UNIQUE NOT NULL,token BLOB NOT NULL);
             ''')
     @contextmanager
@@ -66,10 +63,6 @@ class Store:
         try:
             with c: yield c
         finally: c.close()
-    def invite(self,email):
-        email=valid_email(email); token=secrets.token_urlsafe(24)
-        with self.db() as c: c.execute('INSERT INTO invites(token,email,expires) VALUES (?,?,?)',(digest(token),email,time.time()+7*86400))
-        return token
     def reset(self,email):
         with self.db() as c:
             user=c.execute('SELECT id FROM users WHERE email=?',(valid_email(email),)).fetchone()
@@ -145,7 +138,7 @@ def password_hash(value):
     if not isinstance(value,str) or not 8<=len(value)<=128: raise ValueError('密码需为 8–128 个字符。')
     return generate_password_hash(value,method='scrypt')
 
-def send_verification_email(address,code):
+def send_auth_email(address,code,subject,action):
     host=os.environ.get('MAIL_SMTP_HOST','').strip()
     username=os.environ.get('MAIL_SMTP_USERNAME','').strip()
     password=os.environ.get('MAIL_SMTP_PASSWORD','')
@@ -154,10 +147,10 @@ def send_verification_email(address,code):
     if not all((host,username,password,sender)):
         raise ValueError('邮箱验证服务尚未配置，请稍后再试或联系管理员。')
     message=EmailMessage()
-    message['Subject']='TimeMate 注册验证码'
+    message['Subject']=subject
     message['From']=sender
     message['To']=address
-    message.set_content(f'你的 TimeMate 注册验证码是：{code}\n\n验证码 10 分钟内有效。若非本人操作，请忽略此邮件。')
+    message.set_content(f'你的 TimeMate{action}验证码是：{code}\n\n验证码 10 分钟内有效。若非本人操作，请忽略此邮件。')
     context=ssl.create_default_context()
     if port==465:
         with smtplib.SMTP_SSL(host,port,context=context,timeout=15) as server:
@@ -168,6 +161,8 @@ def send_verification_email(address,code):
             server.login(username,password);server.send_message(message)
 
 def create_app(directory,key,origin='http://127.0.0.1:18744'):
+    # Environment variables are strings; HMAC requires bytes.
+    key=key.encode('ascii') if isinstance(key,str) else key
     url=urlsplit(origin)
     if url.scheme not in ('http','https') or not url.netloc or url.path or url.query or url.fragment: raise ValueError('请设置完整站点来源地址')
     if url.scheme!='https' and url.hostname not in ('localhost','127.0.0.1'): raise ValueError('公网必须使用 HTTPS')
@@ -261,12 +256,26 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         if not isinstance(d,dict): return jsonify(error='请求格式不正确。'),400
         if store.limited('ip:'+str(request.remote_addr),60): return jsonify(error='操作过于频繁，请 15 分钟后重试。'),429
         try:
+            if action=='send-reset-code':
+                address=valid_email(d.get('email',''))
+                if store.limited('password-reset:'+address,3): return jsonify(error='验证码发送过于频繁，请 15 分钟后重试。'),429
+                with store.db() as c: user=c.execute('SELECT 1 FROM users WHERE email=?',(address,)).fetchone()
+                if user:
+                    code=f'{secrets.randbelow(1000000):06d}'
+                    code_hash=hmac.new(key,('timemate-reset:'+address+':'+code).encode(),hashlib.sha256).hexdigest()
+                    try: send_auth_email(address,code,'TimeMate 密码重置验证码','密码重置')
+                    except (OSError,smtplib.SMTPException,ValueError) as error:
+                        app.logger.warning('Password reset email could not be sent (%s)',type(error).__name__)
+                        raise ValueError('验证码邮件暂时发送失败，请稍后重试。')
+                    with store.db() as c:
+                        c.execute('INSERT OR REPLACE INTO password_reset_codes(email,code_hash,expires,attempts) VALUES (?,?,?,0)',(address,code_hash,time.time()+600))
+                return jsonify(ok=True,message='如果该邮箱已注册，验证码邮件已发送。')
             if action=='send-code':
                 address=valid_email(d.get('email',''))
                 if store.limited('email-code:'+address,3): return jsonify(error='验证码发送过于频繁，请 15 分钟后重试。'),429
                 code=f'{secrets.randbelow(1000000):06d}'
                 code_hash=hmac.new(key,('timemate-email:'+address+':'+code).encode(),hashlib.sha256).hexdigest()
-                try: send_verification_email(address,code)
+                try: send_auth_email(address,code,'TimeMate 注册验证码','注册')
                 except (OSError,smtplib.SMTPException,ValueError) as error:
                     app.logger.warning('Verification email could not be sent (%s)',type(error).__name__)
                     raise ValueError(str(error) if isinstance(error,ValueError) else '验证码邮件暂时发送失败，请稍后重试。')
@@ -281,17 +290,13 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                     registration_error=None
                     with store.db() as c:
                         c.execute('BEGIN IMMEDIATE')
-                        invite=c.execute('SELECT * FROM invites WHERE token=? AND email=? AND used=0 AND expires>?',(digest(str(d.get('invite',''))),address,time.time())).fetchone()
-                        if invite:
-                            c.execute('UPDATE invites SET used=1 WHERE token=?',(invite['token'],))
-                        else:
-                            verification=c.execute('SELECT * FROM email_verifications WHERE email=? AND expires>?',(address,time.time())).fetchone()
-                            if not verification: raise ValueError('请先获取有效的邮箱验证码。')
-                            code=str(d.get('code','')).strip()
-                            supplied=hmac.new(key,('timemate-email:'+address+':'+code).encode(),hashlib.sha256).hexdigest()
-                            if verification['attempts']>=5 or not hmac.compare_digest(verification['code_hash'],supplied):
-                                c.execute('UPDATE email_verifications SET attempts=attempts+1 WHERE email=?',(address,))
-                                registration_error='验证码错误或已失效，请检查后重试。'
+                        verification=c.execute('SELECT * FROM email_verifications WHERE email=? AND expires>?',(address,time.time())).fetchone()
+                        if not verification: raise ValueError('请先获取有效的邮箱验证码。')
+                        code=str(d.get('code','')).strip()
+                        supplied=hmac.new(key,('timemate-email:'+address+':'+code).encode(),hashlib.sha256).hexdigest()
+                        if verification['attempts']>=5 or not hmac.compare_digest(verification['code_hash'],supplied):
+                            c.execute('UPDATE email_verifications SET attempts=attempts+1 WHERE email=?',(address,))
+                            registration_error='验证码错误或已失效，请检查后重试。'
                         if not registration_error:
                             c.execute('INSERT INTO users VALUES (?,?,?)',(uid,address,hashed))
                             c.execute('DELETE FROM email_verifications WHERE email=?',(address,))
@@ -319,13 +324,35 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                 return new_session(user['id'])
             if action=='reset':
                 hashed=password_hash(d.get('password'))
+                reset_error=None
                 with store.db() as c:
                     c.execute('BEGIN IMMEDIATE')
-                    row=c.execute('SELECT * FROM resets WHERE token=? AND expires>?',(digest(str(d.get('reset',''))),time.time())).fetchone()
-                    if not row: raise ValueError('重置码无效或已过期。')
-                    c.execute('UPDATE users SET password=? WHERE id=?',(hashed,row['user_id']))
-                    c.execute('DELETE FROM resets WHERE user_id=?',(row['user_id'],))
-                    c.execute('DELETE FROM sessions WHERE user_id=?',(row['user_id'],))
+                    address=valid_email(d.get('email',''))
+                    verification=c.execute('SELECT * FROM password_reset_codes WHERE email=? AND expires>?',(address,time.time())).fetchone()
+                    if verification:
+                        code=str(d.get('code','')).strip()
+                        supplied=hmac.new(key,('timemate-reset:'+address+':'+code).encode(),hashlib.sha256).hexdigest()
+                        if verification['attempts']>=5 or not hmac.compare_digest(verification['code_hash'],supplied):
+                            c.execute('UPDATE password_reset_codes SET attempts=attempts+1 WHERE email=?',(address,))
+                            reset_error='验证码错误或已失效，请检查后重试。'
+                        else:
+                            user=c.execute('SELECT id FROM users WHERE email=?',(address,)).fetchone()
+                            if not user: reset_error='验证码错误或已失效，请检查后重试。'
+                            else:
+                                uid=user['id']
+                                c.execute('DELETE FROM password_reset_codes WHERE email=?',(address,))
+                    else:
+                        # Keep the administrator-issued one-time reset token as an emergency fallback.
+                        row=c.execute('SELECT * FROM resets WHERE token=? AND expires>?',(digest(str(d.get('reset',''))),time.time())).fetchone()
+                        if not row: reset_error='验证码错误或已失效，请检查后重试。'
+                        else:
+                            uid=row['user_id']
+                            c.execute('DELETE FROM resets WHERE user_id=?',(uid,))
+                    if not reset_error:
+                        c.execute('UPDATE users SET password=? WHERE id=?',(hashed,uid))
+                        c.execute('DELETE FROM resets WHERE user_id=?',(uid,))
+                        c.execute('DELETE FROM sessions WHERE user_id=?',(uid,))
+                if reset_error: raise ValueError(reset_error)
                 return jsonify(ok=True)
             return jsonify(error='接口不存在。'),404
         except sqlite3.IntegrityError: return jsonify(error='无法注册，请核对账号或登录。'),400
@@ -402,11 +429,11 @@ def settings():
     return directory,key,origin
 
 def main():
-    parser=argparse.ArgumentParser(); parser.add_argument('command',choices=['serve','invite','reset']);parser.add_argument('--email'); args=parser.parse_args()
+    parser=argparse.ArgumentParser(); parser.add_argument('command',choices=['serve','reset']);parser.add_argument('--email'); args=parser.parse_args()
     directory,key,origin=settings(); app=create_app(directory,key,origin)
     if args.command!='serve':
         if not args.email: parser.error('需要 --email')
-        print(invitation_link(origin,args.email,app.store.invite(args.email)) if args.command=='invite' else app.store.reset(args.email))
+        print(app.store.reset(args.email))
     else:
         # An OS lock rejects a second process sharing this data directory.
         import fcntl
