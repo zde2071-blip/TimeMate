@@ -15,9 +15,9 @@ async function run(){
  $('provider').value='deepseek';ctx.connectionStates.ai='未保存';ctx.renderFieldStatuses(ctx.state);assert.equal($('provider-status').textContent,'✓','selected provider is checked before connecting');assert.equal($('key-status').textContent,'○');ctx.connectionStates.ai='✓ 成功';ctx.renderFieldStatuses(ctx.state);assert.equal($('key-status').textContent,'✓');
  const storage=new Map();ctx.localStorage={getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)};ctx.state.config={};
  vm.runInContext(source.slice(source.indexOf('function forwardingKey('),source.indexOf('\nfunction showPage(')),ctx);
- ctx.renderSetupGuide(ctx.state);assert.equal($('forwarding-reminder').hidden,false);
- ctx.confirmForwarding();assert.equal($('confirm-forwarding').textContent,'✓');assert.equal($('confirm-forwarding').disabled,false);assert.equal($('forwarding-reminder').hidden,true);
- ctx.confirmForwarding();assert.equal($('confirm-forwarding').textContent,'○');assert.equal($('forwarding-reminder').hidden,false);
+ ctx.renderSetupGuide(ctx.state);assert.equal($('confirm-forwarding').textContent,'○ 未确认');
+ ctx.confirmForwarding();assert.equal($('confirm-forwarding').textContent,'✓ 已确认');assert.equal($('confirm-forwarding').disabled,false);assert.equal($('confirm-forwarding').textContent,'✓ 已确认');
+ ctx.confirmForwarding();assert.equal($('confirm-forwarding').textContent,'○ 未确认');assert.equal($('confirm-forwarding').textContent,'○ 未确认');
  ctx.connectionStates.mail='';ctx.renderFieldStatuses(ctx.state);assert.equal($('school_sender-status').textContent,'✓');
  ctx.connectionStates.mail='未保存';ctx.renderFieldStatuses(ctx.state);assert.equal($('school_sender-status').textContent,'○');
  console.log('Connection validation, retained credentials and field statuses passed');

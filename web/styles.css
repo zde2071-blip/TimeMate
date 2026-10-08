@@ -2246,3 +2246,11 @@ body.mail-layout .mail-workspace #mail-detail-pane { position: static; min-heigh
 }
 .modal-close-x:hover { background: #edf2ef; color: #202c38; }
 .modal-close-x:focus-visible { outline: 2px solid #235b4b; outline-offset: 2px; }
+
+/* Forwarding is an action after the mailbox fields. */
+.forwarding-required { box-sizing: border-box; width: calc(100% - var(--settings-action-width, 112px) - 12px); padding: 14px 16px; margin: 4px 0 0; border-radius: 10px; background: #f0f5f2; gap: 16px; }
+.forwarding-required .field-heading { min-width: 0; flex-wrap: wrap; gap: 8px 16px; }
+.forwarding-status { flex: none; width: auto; margin: 0; padding: 6px 8px; border: 0; background: transparent; color: #66776f; font-size: 14px; white-space: nowrap; }
+.forwarding-status.success { color: #318657; }
+.forwarding-status:hover { background: #e3ede7; }
+@media (max-width: 600px) { .forwarding-required { padding: 12px; gap: 8px; } .forwarding-status { padding: 6px 0; } }
