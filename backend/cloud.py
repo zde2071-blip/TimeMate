@@ -1,11 +1,12 @@
 """Email-verified public web gateway. Each authenticated user owns an isolated engine and DB.
 Run exactly one application process; its scheduler services all user engines.
 """
-import argparse, hashlib, hmac, importlib.util, json, os, re, secrets, smtplib, sqlite3, ssl, threading, time
+import argparse, hashlib, hmac, importlib.util, json, os, re, secrets, sqlite3, threading, time, logging
 from contextlib import contextmanager
-from email.message import EmailMessage
 from pathlib import Path
 from urllib.parse import urlsplit
+from urllib.request import Request, build_opener, HTTPRedirectHandler
+from urllib.error import HTTPError, URLError
 from cryptography.fernet import Fernet
 from flask import Flask, request, jsonify, redirect, g, make_response
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -138,27 +139,40 @@ def password_hash(value):
     if not isinstance(value,str) or not 8<=len(value)<=128: raise ValueError('密码需为 8–128 个字符。')
     return generate_password_hash(value,method='scrypt')
 
+class NoEmailRedirect(HTTPRedirectHandler):
+    def redirect_request(self,req,fp,code,msg,headers,newurl):
+        return None
+
+
 def send_auth_email(address,code,subject,action):
-    host=os.environ.get('MAIL_SMTP_HOST','').strip()
-    username=os.environ.get('MAIL_SMTP_USERNAME','').strip()
-    password=os.environ.get('MAIL_SMTP_PASSWORD','')
-    sender=os.environ.get('MAIL_FROM','').strip() or username
-    port=int(os.environ.get('MAIL_SMTP_PORT','465'))
-    if not all((host,username,password,sender)):
+    api_key=os.environ.get('RESEND_API_KEY','').strip()
+    sender=os.environ.get('MAIL_FROM','').strip() or 'TimeMate <noreply@timemate.cc>'
+    if not api_key:
         raise ValueError('邮箱验证服务尚未配置，请稍后再试或联系管理员。')
-    message=EmailMessage()
-    message['Subject']=subject
-    message['From']=sender
-    message['To']=address
-    message.set_content(f'你的 TimeMate{action}验证码是：{code}\n\n验证码 10 分钟内有效。若非本人操作，请忽略此邮件。')
-    context=ssl.create_default_context()
-    if port==465:
-        with smtplib.SMTP_SSL(host,port,context=context,timeout=15) as server:
-            server.login(username,password);server.send_message(message)
-    else:
-        with smtplib.SMTP(host,port,timeout=15) as server:
-            server.ehlo();server.starttls(context=context);server.ehlo()
-            server.login(username,password);server.send_message(message)
+    payload={'from':sender,'to':[address],'subject':subject,
+             'text':f'你的 TimeMate{action}验证码是：{code}\n\n验证码 10 分钟内有效。若非本人操作，请忽略此邮件。'}
+    req=Request('https://api.resend.com/emails',data=json.dumps(payload).encode('utf-8'),
+                headers={'Authorization':'Bearer '+api_key,'Content-Type':'application/json',
+                         'User-Agent':'TimeMate/1.0'},method='POST')
+    try:
+        with build_opener(NoEmailRedirect()).open(req,timeout=15) as response:
+            result=json.loads(response.read(65536))
+        if not isinstance(result,dict) or not result.get('id'):
+            raise ValueError('验证码邮件暂时发送失败，请稍后重试。')
+    except HTTPError as error:
+        try:
+            details=json.loads(error.read(65536))
+            name=str(details.get('name','unknown')) if isinstance(details,dict) else 'unknown'
+        except (ValueError,OSError):
+            name='unknown'
+        if name not in {'validation_error','missing_api_key','invalid_api_key','restricted_api_key','rate_limit_exceeded','daily_quota_exceeded','monthly_quota_exceeded'}:
+            name='unknown'
+        error.close()
+        logging.getLogger(__name__).warning('Email API rejected request (status=%s, reason=%s)',error.code,name)
+        raise ValueError('验证码邮件暂时发送失败，请稍后重试。') from None
+    except (URLError,TimeoutError,OSError,ValueError) as error:
+        logging.getLogger(__name__).warning('Email API request failed (%s)',type(error).__name__)
+        raise ValueError('验证码邮件暂时发送失败，请稍后重试。') from None
 
 def create_app(directory,key,origin='http://127.0.0.1:18744'):
     # Environment variables are strings; HMAC requires bytes.
@@ -264,7 +278,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                     code=f'{secrets.randbelow(1000000):06d}'
                     code_hash=hmac.new(key,('timemate-reset:'+address+':'+code).encode(),hashlib.sha256).hexdigest()
                     try: send_auth_email(address,code,'TimeMate 密码重置验证码','密码重置')
-                    except (OSError,smtplib.SMTPException,ValueError) as error:
+                    except (OSError,ValueError) as error:
                         app.logger.warning('Password reset email could not be sent (%s)',type(error).__name__)
                         raise ValueError('验证码邮件暂时发送失败，请稍后重试。')
                     with store.db() as c:
@@ -276,7 +290,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                 code=f'{secrets.randbelow(1000000):06d}'
                 code_hash=hmac.new(key,('timemate-email:'+address+':'+code).encode(),hashlib.sha256).hexdigest()
                 try: send_auth_email(address,code,'TimeMate 注册验证码','注册')
-                except (OSError,smtplib.SMTPException,ValueError) as error:
+                except (OSError,ValueError) as error:
                     app.logger.warning('Verification email could not be sent (%s)',type(error).__name__)
                     raise ValueError(str(error) if isinstance(error,ValueError) else '验证码邮件暂时发送失败，请稍后重试。')
                 with store.db() as c:
@@ -327,7 +341,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                 reset_error=None
                 with store.db() as c:
                     c.execute('BEGIN IMMEDIATE')
-                    address=valid_email(d.get('email',''))
+                    address=valid_email(d.get('email','')) if not d.get('reset') else ''
                     verification=c.execute('SELECT * FROM password_reset_codes WHERE email=? AND expires>?',(address,time.time())).fetchone()
                     if verification:
                         code=str(d.get('code','')).strip()

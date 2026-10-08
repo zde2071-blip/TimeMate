@@ -122,9 +122,24 @@ class CloudTests(unittest.TestCase):
   with self.app.store.db() as c:
    self.assertIsNone(c.execute('SELECT email FROM email_verifications WHERE email=?',(email,)).fetchone())
    self.assertIsNotNone(c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone())
- def test_email_code_requires_smtp_and_is_rate_limited(self):
+ def test_email_code_requires_delivery_configuration(self):
   response=self.post(self.anon,'/api/auth/send-code',{'email':'x@example.com'})
   self.assertEqual(response.status_code,400);self.assertIn('尚未配置',response.json['error'])
+ def test_email_reset_code_revokes_sessions_and_cannot_be_reused(self):
+  with patch('backend.cloud.send_auth_email') as send:
+   response=self.post(self.anon,'/api/auth/send-reset-code',{'email':'a@example.com'})
+   self.assertEqual(response.status_code,200)
+   code=send.call_args.args[1]
+  data={'email':'a@example.com','code':code,'password':'new-password-123'}
+  self.assertEqual(self.post(self.anon,'/api/auth/reset',data).status_code,200)
+  self.assertEqual(self.state(self.a,self.ta).status_code,401)
+  self.assertEqual(self.post(self.anon,'/api/auth/reset',data).status_code,400)
+  self.assertEqual(self.post(self.anon,'/api/auth/login',{'email':'a@example.com','password':'new-password-123'}).status_code,200)
+ def test_delivery_failure_does_not_create_valid_code(self):
+  with patch('backend.cloud.send_auth_email',side_effect=ValueError('验证码邮件暂时发送失败，请稍后重试。')):
+   self.assertEqual(self.post(self.anon,'/api/auth/send-code',{'email':'failed@example.com'}).status_code,400)
+  with self.app.store.db() as db:
+   self.assertIsNone(db.execute('SELECT * FROM email_verifications WHERE email=?',('failed@example.com',)).fetchone())
  def test_courses_and_manual_categories_are_user_isolated(self):
   self.assertEqual(self.post(self.a,'/api/courses/add',{'code':'csi 101'},self.ta).status_code,200)
   self.assertEqual(self.post(self.a,'/api/courses/add',{'code':'CSI101'},self.ta).status_code,200)
