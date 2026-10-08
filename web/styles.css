@@ -2158,6 +2158,28 @@ button.field-status:hover { background: transparent; color: #245b47; }
 button.field-status:disabled { opacity: 1; }
 .field-heading .text-button { margin: 0; padding: 0; font-size: 13px; }
 
+/* 邮件处理页占满视口，滚动仅发生在邮件列表和正文中。 */
+body.mail-layout { height: 100dvh; overflow: hidden; padding-bottom: 0; }
+body.mail-layout main { display: flex; flex-direction: column; width: 100%; max-width: none; height: 100%; margin: 0; padding: 16px 24px 88px; overflow: hidden; }
+body.mail-layout .top { flex: 0 0 auto; }
+body.mail-layout .top button { margin: 0; }
+body.mail-layout .header-mail-feedback { flex: 0 0 auto; min-height: 0; margin: 0; gap: 0; }
+body.mail-layout .header-mail-feedback #status[hidden] { display: none !important; }
+body.mail-layout #mail-page { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: hidden; }
+body.mail-layout #mail-page[hidden] { display: none !important; }
+body.mail-layout .mail-search { flex: 0 0 auto; margin: 10px 0 8px; }
+body.mail-layout .filters, body.mail-layout .course-filters { flex: 0 0 auto; }
+body.mail-layout .mail-workspace { flex: 1 1 auto; min-height: 0; align-items: stretch; margin-top: 8px; }
+body.mail-layout .mail-workspace #mails { min-height: 0; }
+body.mail-layout .mail-workspace #mail-detail-pane { position: static; min-height: 0; }
+
+@media(max-width:650px) {
+  body.mail-layout main { padding: 12px 14px 82px; }
+  body.mail-layout .mail-workspace { flex: 1 1 auto; min-height: 0; }
+  body.mail-layout .mail-workspace #mails { flex: 0 0 min(26dvh,220px); width: 100%; height: min(26dvh,220px); max-height: none; min-height: 120px; }
+  body.mail-layout .mail-workspace #mail-detail-pane { flex: 1 1 0; width: 100%; height: auto; max-height: none; min-height: 0; overflow: auto; }
+}
+
 
 .forwarding-required { display: flex; align-items: center; gap: 12px; margin: 20px 0 24px; }
 .forwarding-required .field-heading { flex: 1; margin: 0; }
