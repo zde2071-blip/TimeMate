@@ -298,7 +298,13 @@ for(let group of ['mail','ai'])document.querySelectorAll('#'+group+'-settings in
 $('course-add-form').onsubmit=async event=>{event.preventDefault();let error=$('course-add-error'),form=$('course-add-form'),button=form.querySelector('button[type=submit]');button.disabled=true;try{let response=await fetch('/api/courses/add',{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify({code:$('course-code-input').value})}),data=await response.json();if(!response.ok)throw Error(data.error);if(!await refresh())throw Error('课程已保存，但页面刷新失败，请刷新页面查看。');$('course-add-dialog').close();notify('课程已添加')}catch(e){error.textContent=e.message;error.hidden=false}finally{button.disabled=false}};
 window.addEventListener('resize',updateMailWorkspaceHeight);window.addEventListener('scroll',updateMailWorkspaceHeight,{passive:true});
 if(typeof ResizeObserver==='function'){let readingObserver=new ResizeObserver(updateMailWorkspaceHeight);for(let id of ['filters','course-filters','header-mail-feedback'])readingObserver.observe($(id))}
-refresh();setInterval(refresh,2000);
+// State includes the user's full mail list. Keep polling sequential, and pause
+// background tabs so slow responses cannot pile up in the server request queue.
+let statePollTimer=null,statePollInFlight=false;
+function scheduleStatePoll(delay=5000){clearTimeout(statePollTimer);if(!document.hidden)statePollTimer=setTimeout(pollState,delay)}
+async function pollState(){if(document.hidden||statePollInFlight)return;statePollInFlight=true;try{await refresh()}finally{statePollInFlight=false;scheduleStatePoll(5000)}}
+refresh();scheduleStatePoll(5000);
+document.addEventListener('visibilitychange',()=>{clearTimeout(statePollTimer);if(!document.hidden)scheduleStatePoll(0)});
 
 $('setup-guide-dialog').addEventListener('click',event=>{if(event.target!==$('setup-guide-dialog'))return;const box=event.target.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)closeSetupGuide()});
 $('setup-guide-dialog').addEventListener('cancel',()=>{setupGuideRevision++});
