@@ -265,6 +265,16 @@ body {
   color: #202c38;
 }
 
+.event-row-controls {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.event-row-controls small { text-align: right; }
+
 .event-copy p {
   margin: 0;
   white-space: pre-line;
@@ -1378,9 +1388,13 @@ footer p {
 }
 
 .calendar-entry>.event-copy>strong {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding-right: 65px;
 }
+
+.calendar-entry>.event-copy>strong .deadline-badge { flex: 0 0 auto; margin-left: 0 !important; }
 
 .important-source-title {
   display: inline;
@@ -2130,7 +2144,7 @@ footer p {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 7px;
+  margin-top: 0;
 }
 
 .mail-search-controls input {
@@ -2248,10 +2262,10 @@ body.mail-layout .mail-workspace #mail-detail-pane { position: static; min-heigh
 .modal-close-x:focus-visible { outline: 2px solid #235b4b; outline-offset: 2px; }
 
 /* Forwarding is an action after the mailbox fields. */
-.forwarding-required { box-sizing: border-box; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) var(--settings-action-width, 112px); align-items: stretch; gap: 12px; margin: 4px 0 0; }
-.forwarding-required .field-heading { box-sizing: border-box; min-width: 0; min-height: 60px; margin: 0; padding: 14px 18px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; border-radius: 10px; background: #f0f5f2; }
-.forwarding-status { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--settings-action-width, 112px); height: auto; min-height: 0; margin: 0; padding: 12px; border: 0; border-radius: 8px; background: #eef2f0; color: #66776f; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.forwarding-required { box-sizing: border-box; width: calc(100% - var(--settings-action-width, 112px) - 12px); display: grid; grid-template-columns: minmax(0, 1fr) var(--settings-action-width, 112px); align-items: center; gap: 12px; margin: 4px 0 0; padding: 6px; border-radius: 10px; background: #f0f5f2; }
+.forwarding-required .field-heading { box-sizing: border-box; min-width: 0; min-height: 44px; margin: 0; padding: 8px 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; background: transparent; }
+.forwarding-status { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--settings-action-width, 112px); height: 44px; min-height: 44px; margin: 0; padding: 8px; border: 0; border-radius: 8px; background: #eef2f0; color: #66776f; font-size: 14px; font-weight: 600; white-space: nowrap; }
 .forwarding-status.success { background: #245e4d; color: white; }
 .forwarding-status:hover { background: #e3ede7; }
 .forwarding-status.success:hover { background: #1d4c3e; color: white; }
-@media (max-width: 600px) { .forwarding-required { grid-template-columns: minmax(0, 1fr) 82px; gap: 8px; } .forwarding-required .field-heading { padding: 12px; } .forwarding-status { width: 82px; height: auto; padding: 12px 6px; font-size: 12px; } }
+@media (max-width: 600px) { .forwarding-required { width: calc(100% - var(--settings-action-width, 82px) - 12px); grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 4px; } .forwarding-required .field-heading { padding: 8px; } .forwarding-status { width: auto; min-width: 82px; height: 40px; min-height: 40px; padding: 8px 6px; font-size: 12px; } }
