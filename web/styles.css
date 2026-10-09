@@ -2269,3 +2269,35 @@ body.mail-layout .mail-workspace #mail-detail-pane { position: static; min-heigh
 .forwarding-status:hover { background: #e3ede7; }
 .forwarding-status.success:hover { background: #1d4c3e; color: white; }
 @media (max-width: 600px) { .forwarding-required { grid-template-columns: minmax(0, 1fr) var(--settings-action-width, 112px); gap: 12px; } .forwarding-required .field-heading { padding: 12px; } .forwarding-status { width: var(--settings-action-width, 112px); height: 44px; min-height: 44px; padding: 8px 6px; font-size: 12px; } }
+
+/* 邮件列表多选与设置菜单 */
+.mail-tools { position: relative; flex: 0 0 auto; }
+.mail-tools > button { margin: 0; white-space: nowrap; }
+.mail-settings-menu { position: absolute; z-index: 10; top: calc(100% + 8px); left: 0; min-width: 150px; padding: 6px; background: #fff; border: 1px solid #dfe6e2; border-radius: 10px; box-shadow: 0 8px 24px #1b30241f; }
+.mail-settings-menu[hidden] { display: none; }
+.mail-settings-menu button { display: block; width: 100%; margin: 0; padding: 10px 12px; border: 0; border-radius: 7px; background: transparent; color: #26333a; text-align: left; }
+.mail-settings-menu button:hover { background: #edf5f0; }
+.mail-list-item.multi-selected { background: #edf5f0; border-color: #94b9a6; }
+.mail-list-content { min-width: 0; flex: 1; }
+.mail-select-checkbox { flex: 0 0 auto; width: 18px; height: 18px; margin: 3px 4px 0 0; accent-color: #245e4d; }
+.mail-selection-card { display: flex; flex-direction: column; min-height: 100%; }
+.mail-selection-card .mail-detail-heading { flex: 0 0 auto; }
+.mail-selection-count { margin: 14px 0; color: #71808a; }
+.mail-bulk-actions { display: flex; flex-direction: column; gap: 4px; }
+.mail-bulk-action { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; margin: 0; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: #26333a; text-align: left; }
+.mail-bulk-action:hover:not(:disabled) { background: #edf5f0; }
+.mail-bulk-action:disabled { opacity: .48; }
+.mail-bulk-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; color: #245e4d; font-size: 18px; }
+.mail-bulk-action.destructive { color: #b64c42; }
+.mail-bulk-action.destructive .mail-bulk-icon { color: #b64c42; }
+.mail-selection-footer { margin-top: auto; padding-top: 22px; }
+.mail-selection-footer hr { margin: 0 0 8px; border: 0; border-top: 1px solid #e8eeeb; }
+.mail-selection-footer button { margin: 0; padding: 8px 4px; color: #71808a; }
+@media(max-width:650px) {
+  .mail-search-controls { flex-wrap: wrap; }
+  .mail-tools { order: 0; }
+  .mail-search-controls input { order: 1; flex-basis: 100%; }
+  .mail-search-controls #mail-search-clear { order: 2; }
+  .mail-settings-menu { top: calc(100% + 4px); }
+  .mail-selection-card { min-height: 240px; }
+}

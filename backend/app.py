@@ -295,6 +295,20 @@ def update_mail(data):
         cursor=c.execute(f"UPDATE mails SET {column}=? WHERE id=? AND is_deleted=0 AND source NOT IN ('simulation','test_archive')",(value,ident))
         if cursor.rowcount!=1: raise UserFacingError('找不到这封邮件。')
 
+def update_mail_batch(data):
+    ids=data.get('ids'); action=data.get('action')
+    if not isinstance(ids,list) or not ids or len(ids)>500 or any(not isinstance(ident,str) or not ident for ident in ids):
+        raise UserFacingError('请选择有效的邮件。')
+    ids=list(dict.fromkeys(ids))
+    updates={'read':('is_read',1),'unread':('is_read',0),'delete':('is_deleted',1)}
+    if action not in updates: raise UserFacingError('邮件操作无效。')
+    column,value=updates[action]
+    placeholders=','.join('?' for _ in ids)
+    with db() as c:
+        rows=c.execute(f"SELECT id FROM mails WHERE id IN ({placeholders}) AND is_deleted=0 AND source NOT IN ('simulation','test_archive')",ids).fetchall()
+        if len(rows)!=len(ids): raise UserFacingError('部分邮件已不存在，请刷新后重试。')
+        c.execute(f"UPDATE mails SET {column}=? WHERE id IN ({placeholders}) AND is_deleted=0 AND source NOT IN ('simulation','test_archive')",[value,*ids])
+
 def update_pin(data):
     ident=data.get('id'); index=data.get('index'); action=data.get('action')
     if not isinstance(ident,str) or not isinstance(index,int) or isinstance(index,bool): raise UserFacingError('提醒编号无效。')
@@ -493,6 +507,8 @@ class APIHandler:
                 change_mail_category(d)
             elif self.path=='/api/mail':
                 update_mail(d)
+            elif self.path=='/api/mail/batch':
+                update_mail_batch(d)
             elif self.path=='/api/fetch': job(fetch_mail)
             elif self.path=='/api/analyze': job(lambda:analyze(d['id']))
             elif self.path=='/api/events/extract': job(lambda:extract_events(d['id']))

@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync(require.resolve('../web/main.js'),'utf8');
+const start=source.indexOf('function selectMailInList('),end=source.indexOf('\nasync function bulkMailAction(',start);
+assert.ok(start>=0&&end>start,'selection helper should exist');
+const selectedMailIds=new Set(),visible=[{id:'a'},{id:'b'},{id:'c'},{id:'d'}];let lastSelectedMailIndex=null,renders=0;
+const context=vm.createContext({selectedMailIds,visible,lastSelectedMailIndex,render(){renders++}});
+vm.runInContext(source.slice(start,end),context);
+context.selectMailInList('b',1,false,visible,true);
+assert.deepEqual([...selectedMailIds],['b']);
+context.selectMailInList('d',3,true,visible,true);
+assert.deepEqual([...selectedMailIds],['b','c','d'],'Shift selects the inclusive range');
+context.selectMailInList('c',2,false,visible,false);
+assert.deepEqual([...selectedMailIds],['b','d'],'unchecking removes only that mail');
+assert.equal(renders,3);
+console.log('邮件多选测试通过');
