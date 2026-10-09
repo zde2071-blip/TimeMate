@@ -2301,3 +2301,11 @@ body.mail-layout .mail-workspace #mail-detail-pane { position: static; min-heigh
   .mail-settings-menu { top: calc(100% + 4px); }
   .mail-selection-card { min-height: 240px; }
 }
+
+/* 让复选框与邮件分类标签在同一行，操作图标采用克制的线框样式。 */
+.mail-list-item.multi-select-mode { display: flex; align-items: flex-start; gap: 10px; }
+.mail-list-item.multi-select-mode .mail-select-checkbox { margin: 1px 0 0; }
+.mail-list-item.multi-select-mode .mail-list-content { flex: 1 1 auto; }
+.mail-bulk-icon { width: 20px; height: 20px; }
+.mail-bulk-icon svg { display: block; width: 18px; height: 18px; }
+.mail-bulk-action.destructive .mail-bulk-icon { color: #c45a50; }
