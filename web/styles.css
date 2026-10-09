@@ -2248,9 +2248,10 @@ body.mail-layout .mail-workspace #mail-detail-pane { position: static; min-heigh
 .modal-close-x:focus-visible { outline: 2px solid #235b4b; outline-offset: 2px; }
 
 /* Forwarding is an action after the mailbox fields. */
-.forwarding-required { box-sizing: border-box; width: calc(100% - var(--settings-action-width, 112px) - 12px); padding: 14px 16px; margin: 4px 0 0; border-radius: 10px; background: #f0f5f2; gap: 16px; }
-.forwarding-required .field-heading { min-width: 0; flex-wrap: wrap; gap: 8px 16px; }
-.forwarding-status { flex: none; width: auto; margin: 0; padding: 6px 8px; border: 0; background: transparent; color: #66776f; font-size: 14px; white-space: nowrap; }
-.forwarding-status.success { color: #318657; }
+.forwarding-required { box-sizing: border-box; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) var(--settings-action-width, 112px); align-items: stretch; gap: 12px; margin: 4px 0 0; }
+.forwarding-required .field-heading { box-sizing: border-box; min-width: 0; min-height: 60px; margin: 0; padding: 14px 18px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; border-radius: 10px; background: #f0f5f2; }
+.forwarding-status { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--settings-action-width, 112px); min-height: 60px; margin: 0; padding: 8px; border: 0; border-radius: 10px; background: #eef2f0; color: #66776f; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.forwarding-status.success { background: #245e4d; color: white; }
 .forwarding-status:hover { background: #e3ede7; }
-@media (max-width: 600px) { .forwarding-required { padding: 12px; gap: 8px; } .forwarding-status { padding: 6px 0; } }
+.forwarding-status.success:hover { background: #1d4c3e; color: white; }
+@media (max-width: 600px) { .forwarding-required { grid-template-columns: minmax(0, 1fr) 82px; gap: 8px; } .forwarding-required .field-heading { padding: 12px; } .forwarding-status { width: 82px; padding: 6px; font-size: 12px; } }
