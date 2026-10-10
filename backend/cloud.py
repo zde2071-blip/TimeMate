@@ -2,6 +2,7 @@
 Run exactly one application process; its scheduler services all user engines.
 """
 import argparse, hashlib, hmac, importlib.util, json, os, re, secrets, sqlite3, threading, time, logging
+from html import escape
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -229,7 +230,9 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
     @app.get('/')
     def index():
         if not g.auth: return redirect('/login')
-        return (ROOT/'web/index.html').read_text().replace('__TOKEN__',g.auth['csrf'])
+        with store.db() as c: user=c.execute('SELECT email FROM users WHERE id=?',(g.auth['user_id'],)).fetchone()
+        if not user: return redirect('/login')
+        return (ROOT/'web/index.html').read_text().replace('__TOKEN__',g.auth['csrf']).replace('__EMAIL__',escape(user['email'],quote=True))
     @app.get('/main.js')
     def javascript():
         response=make_response((ROOT/'web/main.js').read_text())

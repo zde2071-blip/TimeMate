@@ -82,6 +82,8 @@ class CloudTests(unittest.TestCase):
   self.assertIn('<script src="/main.js"></script>',page.text)
   self.assertNotIn('function render(',page.text)
   self.assertIn('name="csrf-token" content="'+self.ta+'"',page.text)
+  self.assertIn('name="account-email" content="a@example.com"',page.text)
+  self.assertNotIn('name="account-email" content="b@example.com"',page.text)
   self.assertNotEqual(self.ta,self.tb)
   directives={part.strip().split()[0]:part.strip().split()[1:] for part in page.headers['Content-Security-Policy'].split(';') if part.strip()}
   self.assertIn("'self'",directives['script-src'])

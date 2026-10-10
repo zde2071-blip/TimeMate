@@ -2309,3 +2309,161 @@ body.mail-layout .mail-workspace #mail-detail-pane { position: static; min-heigh
 .mail-bulk-icon { width: 20px; height: 20px; }
 .mail-bulk-icon svg { display: block; width: 18px; height: 18px; }
 .mail-bulk-action.destructive .mail-bulk-icon { color: #c45a50; }
+
+/* TimeMate header and account menu */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 64px;
+  margin: -16px 0 28px;
+  padding: 0 2px 14px;
+  border-bottom: 1px solid #e1e8e4;
+}
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #24332e;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -.35px;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: #245d4d;
+  background: #eaf2ee;
+  border-radius: 12px;
+}
+.clock-glyph {
+  position: relative;
+  width: 19px;
+  height: 19px;
+  border: 1.8px solid currentColor;
+  border-radius: 50%;
+}
+.clock-glyph::before,
+.clock-glyph::after {
+  position: absolute;
+  left: 8px;
+  top: 3px;
+  width: 1.5px;
+  height: 6px;
+  content: "";
+  background: currentColor;
+  border-radius: 2px;
+  transform-origin: bottom center;
+}
+.clock-glyph::after { transform: rotate(125deg); }
+.account-menu-wrap { position: relative; }
+.account-avatar {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  color: #245d4d;
+  background: #eaf2ee;
+  border: 1px solid #dce8e1;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.account-avatar:hover { background: #e0eee7; }
+.account-avatar:focus-visible,
+.account-menu-item:focus-visible { outline: 2px solid #5f9b7d; outline-offset: 2px; }
+.profile-glyph { position: relative; display: block; width: 20px; height: 20px; }
+.profile-glyph::before {
+  position: absolute;
+  top: 1px;
+  left: 7px;
+  width: 7px;
+  height: 7px;
+  content: "";
+  border: 1.6px solid currentColor;
+  border-radius: 50%;
+}
+.profile-glyph::after {
+  position: absolute;
+  bottom: 1px;
+  left: 3px;
+  width: 15px;
+  height: 8px;
+  content: "";
+  border: 1.6px solid currentColor;
+  border-radius: 10px 10px 6px 6px;
+}
+.account-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(300px, calc(100vw - 36px));
+  padding: 10px;
+  color: #273630;
+  background: #fff;
+  border: 1px solid #e0e7e3;
+  border-radius: 14px;
+  box-shadow: 0 14px 34px rgb(25 47 38 / 15%);
+}
+.account-menu[hidden] { display: none !important; }
+.account-identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 48px;
+  padding: 5px 7px 10px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.account-provider {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  color: #245d4d;
+  background: #edf4f0;
+  border-radius: 50%;
+  font-size: 18px;
+}
+.account-menu hr { height: 1px; margin: 6px 2px; border: 0; background: #e8edea; }
+.account-menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 43px;
+  padding: 0 9px;
+  color: #35453d;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.account-menu-item:hover { background: #f1f5f3; }
+.account-logout { color: #607168; }
+#page-title { color: #202c38; }
+@media (max-width: 650px) {
+  .app-header { margin-top: -8px; margin-bottom: 20px; }
+  .app-brand { font-size: 18px; }
+  .brand-mark { width: 34px; height: 34px; }
+  .account-menu { right: -2px; }
+}
+
+.password-dialog {
+  width: min(440px, calc(100% - 32px));
+  padding: 26px;
+}
+.password-dialog h2 { margin: 0 0 20px; color: #202c38; font-size: 22px; }
+.password-dialog label { display: block; margin: 14px 0; color: #52635a; }
+.password-dialog input { width: 100%; margin-top: 6px; }
+.password-dialog #account-feedback { min-height: 0; margin: 8px 0 0; color: #a64b3f; }
+.password-dialog #account-feedback:empty { display: none; }
+.password-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.password-dialog-actions button { margin: 0; }
+@media (max-width: 500px) { .password-dialog { padding: 20px; } }
+body.mail-layout .app-header { flex: 0 0 auto; margin: 0 0 12px; }
