@@ -2461,3 +2461,28 @@ body.mail-layout .mail-workspace #mail-detail-pane { position: static; min-heigh
 .password-dialog-actions button { margin: 0; }
 @media (max-width: 500px) { .password-dialog { padding: 20px; } }
 body.mail-layout .app-header { flex: 0 0 64px; margin: 0; }
+
+.mail-check-menu { position: relative; }
+.mail-check-menu > button { display: flex; align-items: center; justify-content: space-between; }
+.mail-check-menu > button span { margin-left: 18px; color: #71808a; font-size: 19px; line-height: 1; }
+.mail-check-submenu {
+  position: absolute;
+  z-index: 11;
+  top: -7px;
+  left: 100%;
+  display: grid;
+  gap: 2px;
+  min-width: 174px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #dfe6e2;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px #1b30241f;
+}
+.mail-check-submenu[hidden] { display: none !important; }
+.mail-check-submenu button { justify-content: flex-start; text-align: left; white-space: nowrap; }
+.mail-check-submenu .auto-switch-control { display: flex; align-items: center; justify-content: space-between; background: transparent; color: #26333a; }
+.mail-check-submenu .auto-switch-control:hover { background: #edf5f0; }
+@media(max-width:650px) {
+  .mail-check-submenu { left: 100%; }
+}
