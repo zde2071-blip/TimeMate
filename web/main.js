@@ -298,7 +298,18 @@ async function refresh(){let revision=++refreshIssued;try{let r=await fetch('/ap
   state=d;renderSetupGuide(d);renderFieldStatuses(d);let signature=JSON.stringify([d.mails,d.calendarEvents,d.pins,d.eventOverrides,d.eventLinks,d.courseCodes,calendarMethod,Math.floor(Date.now()/60000)]);if(signature!==last){render();last=signature}refreshApplied=revision;return true;
 }catch(e){if(revision>=refreshApplied){$('status').hidden=false;$('status').textContent='页面刷新失败，请重新刷新页面。';console.error('邮件助手页面刷新失败',e)}return false}}
 async function accountRequest(action,data){let r=await fetch('/api/auth/'+action,{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify(data)});let d=await r.json();if(!r.ok)throw Error(d.error||'操作未完成');return d}
-$('account-email').textContent=document.querySelector('meta[name="account-email"]').content;
+const loginEmail=document.querySelector('meta[name="account-email"]').content;
+$('account-email').textContent=loginEmail;
+const providerLogo=$('account-provider-logo'),domain=(loginEmail.split('@')[1]||'').toLowerCase();
+let providerMark='✉',providerClass='';
+if(domain==='qq.com'){providerMark='QQ';providerClass='provider-qq'}
+else if(['163.com','126.com','yeah.net','188.com'].includes(domain)){providerMark='网易';providerClass='provider-netease'}
+else if(['gmail.com','googlemail.com'].includes(domain)){providerMark='M';providerClass='provider-gmail'}
+else if(['outlook.com','hotmail.com','live.com','msn.com'].includes(domain)){providerMark='O';providerClass='provider-outlook'}
+else if(domain==='xjtlu.edu.cn'||domain.endsWith('.xjtlu.edu.cn')){providerMark='XJ';providerClass='provider-school'}
+providerLogo.textContent=providerMark;
+providerLogo.classList.add(...providerClass.split(' ').filter(Boolean));
+providerLogo.setAttribute('aria-label',providerMark==='网易'?'网易邮箱':providerMark==='QQ'?'QQ 邮箱':providerMark==='M'?'Gmail':providerMark==='O'?'Outlook':providerMark==='XJ'?'学校邮箱':'邮箱');
 $('account-avatar').onclick=()=>{const menu=$('account-menu'),open=menu.hidden;menu.hidden=!open;$('account-avatar').setAttribute('aria-expanded',String(open))};
 document.addEventListener('pointerdown',event=>{if(!event.target.closest('.account-menu-wrap')){$('account-menu').hidden=true;$('account-avatar').setAttribute('aria-expanded','false')}});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('account-menu').hidden){$('account-menu').hidden=true;$('account-avatar').setAttribute('aria-expanded','false');$('account-avatar').focus()}});
