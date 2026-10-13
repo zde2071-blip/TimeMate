@@ -145,6 +145,11 @@ providerLogo.classList.add(...providerClass.split(' ').filter(Boolean));
 
 providerLogo.setAttribute('aria-label', providerMark === '网易' ? '网易邮箱' : providerMark === 'QQ' ? 'QQ 邮箱' : providerMark === 'M' ? 'Gmail' : providerMark === 'O' ? 'Outlook' : providerMark === 'XJ' ? '学校邮箱' : '邮箱');
 
+function closeAccountMenu() {
+  $('account-menu').hidden = true;
+  $('account-avatar').setAttribute('aria-expanded', 'false');
+}
+
 $('account-avatar').onclick = () => {
   const menu = $('account-menu'),
     open = menu.hidden;

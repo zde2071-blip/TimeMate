@@ -458,8 +458,7 @@ function render() {
 function updateMailWorkspaceHeight() {
   let workspace = document.querySelector('.mail-workspace');
   if (!workspace || $('mail-page').hidden || window.innerWidth <= 650) return;
-  let nav = document.querySelector('.tabs'),
-    bottom = (nav ? nav.getBoundingClientRect().height : 65) + 12;
+  const bottom = 12;
   let top = Math.max(12, workspace.getBoundingClientRect().top);
   workspace.style.setProperty('--mail-reading-height', Math.max(160, window.innerHeight - top - bottom) + 'px');
 }

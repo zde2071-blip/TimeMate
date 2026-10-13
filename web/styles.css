@@ -2683,3 +2683,55 @@ body.mail-layout .app-header { flex: 0 0 64px; margin: 0; }
   .settings-nav-item { flex: 0 0 auto; width: auto; min-width: 150px; }
   .settings-detail-pane { padding: 20px; }
 }
+
+/* The application rail is shared by every page. It expands over the content. */
+body { padding: 0 0 0 64px; }
+body > main { width: 100%; max-width: 1240px; margin: 0 auto; padding: 32px; }
+.app-rail {
+  position: fixed; inset: 0 auto 0 0; z-index: 30;
+  display: flex; flex-direction: column; justify-content: space-between;
+  width: 64px; padding: 18px 10px 14px; background: #fff;
+  border-right: 1px solid #e4e6e8; transition: width .18s ease;
+}
+.app-rail:hover,.app-rail:has(button:focus-visible) { width: 208px; box-shadow: 8px 0 20px rgb(0 0 0 / 3%); }
+.rail-navigation { display: flex; flex-direction: column; gap: 8px; }
+.rail-item,.app-rail .account-avatar {
+  display: flex; align-items: center; gap: 14px; flex: 0 0 auto;
+  width: 100%; height: 44px; padding: 12px; border: 0; border-radius: 9px;
+  background: transparent; color: #717b80; cursor: pointer; text-align: left;
+}
+.rail-item svg,.app-rail .profile-glyph {
+  display: block; flex: 0 0 20px; width: 20px; height: 20px;
+  fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round;
+}
+.rail-item:hover,.app-rail .account-avatar:hover { background: #f5f6f7; }
+.rail-item.is-active,.app-rail .account-avatar.is-active { color: #283238; background: #eef0f2; }
+.rail-label { width: 0; opacity: 0; overflow: hidden; white-space: nowrap; font-size: 14px; transition: opacity .12s; }
+.app-rail:hover .rail-label,.app-rail:has(button:focus-visible) .rail-label { width: auto; opacity: 1; }
+.rail-account { padding-top: 10px; border-top: 1px solid #eceef0; }
+.app-rail .account-menu { inset: auto auto 0 calc(100% + 12px); color: #30383d; border-color: #e2e5e7; box-shadow: 0 12px 34px rgb(0 0 0 / 10%); }
+.app-rail .account-menu-item { color: #485258; }
+.app-rail .account-menu-item:hover { background: #f1f3f4; }
+.app-rail .account-menu hr { background: none; border-top: 1px dashed #e0e4e7; }
+body.mail-layout { padding-left: 64px; }
+body.mail-layout main { width: 100%; height: 100dvh; max-width: none; margin: 0; padding: 24px 28px 12px; }
+.settings-layout { align-items: start; min-height: 0; }
+.settings-detail-pane { margin: 0; min-height: 420px; }
+.settings-nav .settings-icon { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; border-radius: 8px; }
+.settings-nav .settings-icon svg { width: 20px; height: 20px; }
+.settings-detail-heading { align-items: flex-start; }
+.settings-heading-actions { flex: 0 0 auto; padding-top: 0; }
+.settings-heading-actions .settings-actions { margin: 0; }
+.settings-heading-actions .settings-actions[hidden] { display: none; }
+.settings-heading-actions .settings-save { height: 40px; margin: 0; padding: 8px 15px; background: #f1f3f4; color: #485258; font-size: 13px; }
+.settings-heading-actions .settings-save:hover { background: #e8ebed; }
+.settings-detail-pane > .settings-panel .settings-content > label:first-child { margin-top: 0; }
+#settings-page > .settings-section-title { margin-top: 0; }
+@media(max-width:760px) {
+  body,body.mail-layout { padding-left: 56px; }
+  .app-rail { width: 56px; padding-inline: 6px; }
+  body > main,body.mail-layout main { padding: 20px 14px 12px; }
+  .settings-detail-pane { min-height: 0; }
+  .settings-detail-heading { gap: 10px; }
+}
+@media(prefers-reduced-motion:reduce) { .app-rail,.rail-label { transition: none; } }

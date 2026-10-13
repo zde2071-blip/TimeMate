@@ -129,9 +129,10 @@ function showPage(name) {
   if (name === 'settings' && !document.querySelector('.settings-nav-item[aria-current="page"]')) selectConnectionSettings('mail');
   for (let page of ['important', 'mail', 'settings']) {
     $(page + '-page').hidden = page !== name;
-    $('nav-' + page).className = page === name ? '' : 'secondary';
+    $('nav-' + page).classList.toggle('is-active', page === name);
     $('nav-' + page).setAttribute('aria-current', page === name ? 'page' : 'false');
   }
+  $('account-avatar').classList.toggle('is-active', name === 'settings');
   const titles = {
       important: '重要事项',
       mail: '邮件处理',
@@ -157,6 +158,7 @@ function selectConnectionSettings(group) {
     const selected = key === group;
     $('settings-nav-' + key)?.setAttribute('aria-current', selected ? 'page' : 'false');
     $(key + '-settings').hidden = !selected;
+    document.querySelector('[data-setting-actions="' + key + '"]').hidden = !selected;
   }
   $('settings-detail-title').textContent = labels[group][0];
   $('settings-detail-description').textContent = labels[group][1];
