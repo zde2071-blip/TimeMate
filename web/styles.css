@@ -2779,6 +2779,13 @@ body.mail-layout .mail-workspace #mails { flex:1 1 auto; height:auto; min-height
 body.mail-layout .mail-list-item { flex:0 0 auto; padding:16px 14px; border:0; border-bottom:1px solid #e7e8ea; border-radius:0; box-shadow:none; background:transparent; }
 body.mail-layout .mail-list-item:hover { background:#f7f8f9; }
 body.mail-layout .mail-list-item.selected,body.mail-layout .mail-list-item.multi-selected { background:#f1f2f3; }
+/* Keep mail panes clean at rest; briefly reveal their scrollbar while scrolling. */
+body.mail-layout #mails,body.mail-layout #mail-detail-pane { scrollbar-width:thin; scrollbar-color:transparent transparent; }
+body.mail-layout #mails.is-scrolling,body.mail-layout #mail-detail-pane.is-scrolling { scrollbar-color:#aeb5bb transparent; }
+body.mail-layout #mails::-webkit-scrollbar,body.mail-layout #mail-detail-pane::-webkit-scrollbar { width:8px; height:8px; }
+body.mail-layout #mails::-webkit-scrollbar-track,body.mail-layout #mail-detail-pane::-webkit-scrollbar-track { background:transparent; }
+body.mail-layout #mails::-webkit-scrollbar-thumb,body.mail-layout #mail-detail-pane::-webkit-scrollbar-thumb { border:2px solid transparent; border-radius:8px; background:transparent; background-clip:padding-box; }
+body.mail-layout #mails.is-scrolling::-webkit-scrollbar-thumb,body.mail-layout #mail-detail-pane.is-scrolling::-webkit-scrollbar-thumb { background-color:#aeb5bb; }
 body.mail-layout .mail-list-sender-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; color:#7a8791; font-size:12px; }
 body.mail-layout .mail-list-sender { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 body.mail-layout .mail-list-item.unread { box-shadow:inset 3px 0 #8a9298; }

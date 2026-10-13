@@ -639,6 +639,17 @@ function initMailSearch() {
   };
 }
 
+function initAutoHideMailScrollbars() {
+  const hideTimers = new WeakMap();
+  for (const pane of [$('mails'), $('mail-detail-pane')]) {
+    pane.addEventListener('scroll', () => {
+      pane.classList.add('is-scrolling');
+      clearTimeout(hideTimers.get(pane));
+      hideTimers.set(pane, setTimeout(() => pane.classList.remove('is-scrolling'), 650));
+    }, { passive: true });
+  }
+}
+
 // A successful delete must remain undoable even when its subsequent refresh fails.
 async function mutateMailDeletion(ids, action, snapshots = []) {
   try {

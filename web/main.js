@@ -56,6 +56,7 @@ document.addEventListener('keydown', event => {
 });
 
 initMailSearch();
+initAutoHideMailScrollbars();
 
 async function refresh() {
   let revision = ++refreshIssued;
