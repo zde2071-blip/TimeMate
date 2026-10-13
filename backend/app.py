@@ -13,6 +13,7 @@ from backend.mail import translation as mail_translation
 from backend.core import database as mail_database
 from backend.mail import ingest as mail_ingest
 from backend.mail import analysis as mail_analysis
+from backend.mail.read_model import MailReadModel, json_object
 from backend.core import operation_status
 # An engine is initialized only with an authenticated user's runtime.
 RUNTIME = None
@@ -140,7 +141,7 @@ def translate_source(ident):
     with SOURCE_TRANSLATION_LOCKS_GUARD: lock=SOURCE_TRANSLATION_LOCKS.setdefault(ident,threading.Lock())
     with lock:
         with db() as c:
-            row=c.execute('SELECT subject,body,source_body,original,translation,translation_subject,translation_format FROM mails WHERE id=? AND is_deleted=0',(ident,)).fetchone()
+            row=c.execute("SELECT subject,body,source_body,original,translation,translation_subject,translation_format FROM mails WHERE id=? AND source NOT IN ('simulation','test_archive')",(ident,)).fetchone()
         if not row: raise UserFacingError('邮件不存在。')
         markup,external=mail_translation.source(row)
         subject=html.unescape(row['subject'] or '')
@@ -191,6 +192,13 @@ def connection_draft(group,data):
     else: ai_services.validate(candidate,model=False)
     return candidate
 
+def clear_receiver_health(message):
+    """An explicit stop or new mailbox settings supersede the old retry state."""
+    STATUS.update(sync_state='idle', sync_error_code='', sync_message='',
+                  sync_retry_at=0, sync_attempts=0)
+    operation_status.begin(STATUS, 'idle', message)
+
+
 def save_connection(group,data):
     if not LOCK.acquire(False): raise UserFacingError('请等待当前操作结束后保存设置。')
     try:
@@ -203,7 +211,9 @@ def save_connection(group,data):
         PREFS.write_text(json.dumps({k:updated[k] for k in DEFAULTS},ensure_ascii=False))
         CFG.update({k:updated[k] for k in keys})
         STATUS['auto']=False
-        STATUS['message']='连接设置已保存，自动分析已暂停；请重新开启。'
+        message='连接设置已保存，自动分析已暂停；请重新开启。'
+        if group=='mail' or STATUS.get('sync_state')=='retrying': clear_receiver_health(message)
+        else: STATUS['message']=message
     finally: LOCK.release()
 
 def test_mail_connection(data):
@@ -285,14 +295,22 @@ def export_calendar_event(data):
         folded.append(chunk)
     return '\r\n'.join(folded)+'\r\n'
 
+MAIL_ACTIONS = {
+    'read': ('is_read', 1),
+    'unread': ('is_read', 0),
+    'delete': ('is_deleted', 1),
+    'restore': ('is_deleted', 0),
+}
+
+
 def update_mail(data):
     ident=data.get('id'); action=data.get('action')
     if not isinstance(ident,str) or not ident: raise UserFacingError('邮件编号无效。')
-    updates={'read':('is_read',1),'unread':('is_read',0),'delete':('is_deleted',1)}
-    if action not in updates: raise UserFacingError('邮件操作无效。')
-    column,value=updates[action]
+    if action not in MAIL_ACTIONS: raise UserFacingError('邮件操作无效。')
+    column,value=MAIL_ACTIONS[action]
+    deleted = int(action == 'restore')
     with db() as c:
-        cursor=c.execute(f"UPDATE mails SET {column}=? WHERE id=? AND is_deleted=0 AND source NOT IN ('simulation','test_archive')",(value,ident))
+        cursor=c.execute(f"UPDATE mails SET {column}=? WHERE id=? AND is_deleted=? AND source NOT IN ('simulation','test_archive')",(value,ident,deleted))
         if cursor.rowcount!=1: raise UserFacingError('找不到这封邮件。')
 
 def update_mail_batch(data):
@@ -300,14 +318,16 @@ def update_mail_batch(data):
     if not isinstance(ids,list) or not ids or len(ids)>500 or any(not isinstance(ident,str) or not ident for ident in ids):
         raise UserFacingError('请选择有效的邮件。')
     ids=list(dict.fromkeys(ids))
-    updates={'read':('is_read',1),'unread':('is_read',0),'delete':('is_deleted',1)}
-    if action not in updates: raise UserFacingError('邮件操作无效。')
-    column,value=updates[action]
+    if action not in MAIL_ACTIONS: raise UserFacingError('邮件操作无效。')
+    column,value=MAIL_ACTIONS[action]
+    deleted = int(action == 'restore')
     placeholders=','.join('?' for _ in ids)
     with db() as c:
-        rows=c.execute(f"SELECT id FROM mails WHERE id IN ({placeholders}) AND is_deleted=0 AND source NOT IN ('simulation','test_archive')",ids).fetchall()
+        # Validate and update one selection atomically, including undo operations.
+        c.execute('BEGIN IMMEDIATE')
+        rows=c.execute(f"SELECT id FROM mails WHERE id IN ({placeholders}) AND is_deleted=? AND source NOT IN ('simulation','test_archive')",[*ids,deleted]).fetchall()
         if len(rows)!=len(ids): raise UserFacingError('部分邮件已不存在，请刷新后重试。')
-        c.execute(f"UPDATE mails SET {column}=? WHERE id IN ({placeholders}) AND is_deleted=0 AND source NOT IN ('simulation','test_archive')",[value,*ids])
+        c.execute(f"UPDATE mails SET {column}=? WHERE id IN ({placeholders}) AND is_deleted=? AND source NOT IN ('simulation','test_archive')",[value,*ids,deleted])
 
 def update_pin(data):
     ident=data.get('id'); index=data.get('index'); action=data.get('action')
@@ -346,7 +366,8 @@ def manage_event(data,connection=None):
             c.execute("INSERT INTO event_overrides(mail_id,event_index,fields,state) VALUES (?,?,'{}','removed') ON CONFLICT(mail_id,event_index) DO UPDATE SET state='removed'",(ident,index))
             event_join.unlink_removed(c,ident,index)
             return
-        row=c.execute('SELECT result FROM mails WHERE id=? AND is_deleted=0',(ident,)).fetchone()
+        # Hiding a source mail does not remove or freeze a saved event.
+        row=c.execute("SELECT result FROM mails WHERE id=? AND source NOT IN ('simulation','test_archive')",(ident,)).fetchone()
         if not row or not row['result']: raise UserFacingError('找不到这条事项对应的邮件。')
         result=json.loads(row['result']);events=result.get('events',[])
         if index<0 or index>=len(events): raise UserFacingError('事项已不存在，请刷新后重试。')
@@ -437,7 +458,7 @@ def job(fn):
     def run():
         try:
             message=fn()
-            if STATUS.get('phase') not in ('complete','idle'):operation_status.finish(STATUS,message)
+            if STATUS.get('phase') not in ('complete','idle','error','retrying','paused'):operation_status.finish(STATUS,message)
             else:STATUS['message']=message
         except Exception as e:
             msg=str(e)
@@ -452,25 +473,27 @@ class APIHandler:
     def reply(self,code,data):
         raise NotImplementedError
     def get(self):
-        if self.path=='/api/state':
-            with db() as c:
-                rows=[dict(r) for r in c.execute("SELECT id,subject,sender,date,sent_date,body,result,created,source,source_links,source_body,is_read,is_deleted,manual_category,display_title,title_version,analysis_attempts,analysis_retry_at,analysis_error FROM mails WHERE is_deleted=0 AND source NOT IN ('simulation','test_archive') ORDER BY created DESC")]
-                written=[dict(r) for r in c.execute('SELECT mail_id,event_index,status,calendar_name,detail FROM calendar_events')]
-                pins=[dict(r) for r in c.execute("SELECT pins.* FROM pins JOIN mails ON mails.id=pins.mail_id WHERE pins.state IN ('active','completed') AND mails.is_deleted=0 AND mails.source NOT IN ('simulation','test_archive') ORDER BY pins.due")]
-                overrides=[dict(r) for r in c.execute("SELECT event_overrides.* FROM event_overrides JOIN mails ON mails.id=event_overrides.mail_id WHERE mails.is_deleted=0 AND mails.source NOT IN ('simulation','test_archive')")]
-                event_links=[dict(r) for r in c.execute('SELECT * FROM event_links')]
-                courses=[r['code'] for r in c.execute('SELECT code FROM courses ORDER BY code')]
-            for row in rows:
-                sent=mail_effective_date(row)
-                row['sent_date']=sent.isoformat(timespec='minutes') if sent else row['date']
-            rows.sort(key=mail_sort_timestamp,reverse=True)
-            for row in rows:
-                result=json.loads(row['result']) if row['result'] else {}
-                row['category']=category_for(row,result)
-                row['course_codes']=mail_course_codes(row)
-                row['links']=json.loads(row['source_links']) if row.get('source_links') else extract_source_links(row['body'])
-            visible_cfg={k:CFG[k] for k in ('account','mail_provider','base','model','school_sender','calendar_method','calendar_provider','calendar_subscription_confirmed','provider')}
-            return self.reply(200,{'status':STATUS,'courseCodes':courses,'mails':rows,'pins':pins,'calendarEvents':written,'eventOverrides':overrides,'eventLinks':event_links,'config':visible_cfg,'providers':ai_services.PROVIDERS,'ready':{'mail':bool(CFG['account'] and CFG['password'] and CFG['school_sender']),'ai':bool(CFG['base'] and CFG['model'] and CFG['key'])}})
+        def decorate(row):
+            sent = mail_effective_date(row)
+            row['sent_date'] = sent.isoformat(timespec='minutes') if sent else row['date']
+            row['_sort_timestamp'] = mail_sort_timestamp(row)
+            result = json_object(row['result'])
+            row['category'] = category_for(row, result)
+            row['course_codes'] = mail_course_codes(row)
+            try:
+                row['links'] = json.loads(row['source_links']) if row.get('source_links') else extract_source_links(row.get('body') or '')
+            except (ValueError, TypeError):
+                row['links'] = []
+            return row
+        reader = MailReadModel(db, CFG, STATUS, ai_services.PROVIDERS, decorate)
+        query = getattr(self, 'query', {})
+        try:
+            if self.path == '/api/state': return self.reply(200, reader.state())
+            if self.path == '/api/updates': return self.reply(200, reader.updates())
+            if self.path == '/api/mail/detail': return self.reply(200, reader.detail(query.get('id')))
+            if self.path == '/api/mail/search': return self.reply(200, reader.search(query.get('q', '')))
+        except UserFacingError as error:
+            return self.reply(400, error_payload(error))
         self.reply(404,{})
     def post(self):
         try:
@@ -536,7 +559,7 @@ class APIHandler:
                     job(start_auto)
                 else:
                     STATUS['auto']=False
-                    operation_status.begin(STATUS,'idle','自动分析已停止。')
+                    clear_receiver_health('自动分析已停止。')
             else: return self.reply(404,{})
             self.reply(200,{'ok':True})
         except Exception as e: self.reply(400,error_payload(e))

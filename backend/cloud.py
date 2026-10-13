@@ -18,16 +18,43 @@ os.umask(0o077)
 def digest(value): return hashlib.sha256(value.encode()).hexdigest()
 
 class PersistentStatus(dict):
-    def __init__(self,path):
-        self.path=path
-        try: enabled=json.loads(path.read_text()).get('auto',False) is True
-        except (OSError,ValueError): enabled=False
-        super().__init__(busy=False,auto=enabled,message='自动分析已恢复。' if enabled else '尚未开启自动分析。')
-    def __setitem__(self,key,value):
-        super().__setitem__(key,value)
-        if key=='auto':
-            temp=self.path.with_suffix('.tmp')
-            temp.write_text(json.dumps({'auto':bool(value)})); temp.replace(self.path)
+    """Keep receiver health across restarts without persisting transient jobs."""
+    PERSISTED = {'auto', 'last_sync_at', 'sync_state', 'sync_error_code',
+                 'sync_message', 'sync_retry_at', 'sync_attempts'}
+
+    def __init__(self, path):
+        self.path = path
+        self._save_lock = threading.Lock()
+        try:
+            stored = json.loads(path.read_text())
+            if not isinstance(stored, dict): stored = {}
+        except (OSError, ValueError):
+            stored = {}
+        enabled = stored.get('auto') is True
+        super().__init__(busy=False, auto=enabled,
+                         message='自动分析已恢复' if enabled else '尚未开启自动分析')
+        for key in self.PERSISTED - {'auto'}:
+            if key in stored: dict.__setitem__(self, key, stored[key])
+        if self.get('sync_state') == 'checking':
+            dict.__setitem__(self, 'sync_state', 'ready' if enabled else 'paused')
+
+    def _save(self):
+        temp = self.path.with_suffix('.tmp')
+        temp.write_text(json.dumps({k:self[k] for k in self.PERSISTED if k in self}, ensure_ascii=False))
+        temp.replace(self.path)
+
+    def __setitem__(self, key, value):
+        with self._save_lock:
+            super().__setitem__(key, value)
+            if key in self.PERSISTED: self._save()
+
+    def update(self, *args, **kwargs):
+        changes = dict(*args, **kwargs)
+        with self._save_lock:
+            super().update(changes)
+            if self.PERSISTED.intersection(changes): self._save()
+
+
 
 class Runtime:
     def __init__(self,store,uid):
@@ -126,7 +153,7 @@ class Store:
         for uid in users:
             try:
                 engine=self.engine(uid)
-                if engine.STATUS['auto'] and not engine.STATUS['busy']: engine.job(engine.process_new)
+                if engine.STATUS['auto'] and not engine.STATUS['busy'] and engine.STATUS.get('sync_retry_at',0)<=time.time(): engine.job(engine.process_new)
             except Exception:
                 # One damaged account must not stop other users. Never log secrets.
                 continue
@@ -233,9 +260,12 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         with store.db() as c: user=c.execute('SELECT email FROM users WHERE id=?',(g.auth['user_id'],)).fetchone()
         if not user: return redirect('/login')
         return (ROOT/'web/index.html').read_text().replace('__TOKEN__',g.auth['csrf']).replace('__EMAIL__',escape(user['email'],quote=True))
-    @app.get('/main.js')
-    def javascript():
-        response=make_response((ROOT/'web/main.js').read_text())
+    @app.get('/<filename>.js')
+    def javascript(filename):
+        if not re.fullmatch(r'[a-z][a-z0-9_-]*', filename): return '',404
+        path = ROOT/'web'/(filename+'.js')
+        if not path.is_file(): return '',404
+        response=make_response(path.read_text())
         response.headers['Content-Type']='text/javascript; charset=utf-8'
         return response
     @app.get('/styles.css')
@@ -412,7 +442,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
             return jsonify(ok=True)
         class Adapter(engine.APIHandler):
             def __init__(self):
-                self.path='/api/'+path; self.data=request.get_json(silent=True)
+                self.path='/api/'+path; self.data=request.get_json(silent=True); self.query=request.args
             def reply(self,code,data,ctype='application/json; charset=utf-8'):
                 # The core handler already serializes intentional errors by type.
                 # Never decide visibility by matching translated message text.

@@ -2,8 +2,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const source=fs.readFileSync('web/main.js','utf8'),html=fs.readFileSync('web/index.html','utf8');
 const nodes=new Map(),$=id=>{if(!nodes.has(id))nodes.set(id,{value:'',children:[],setAttribute(k,v){this[k]=v},replaceChildren(...items){this.children=items},append(item){this.children.push(item)},showModal(){this.open=true},close(){this.open=false}});return nodes.get(id)};
 let cfg={calendar_provider:'apple',calendar_method:'subscribe',calendar_subscription_confirmed:'no'};const requests=[];
-const ctx=vm.createContext({$,setupGuideRevision:0,element:(tag,text,cls)=>({tag,text,cls}),call:async(path,data)=>{requests.push(data);cfg={...cfg,...data};ctx.renderCalendarSettings(cfg,'https://example.com/calendar.ics');return true}});
-vm.runInContext(source.slice(source.indexOf('let calendarEditing='),source.indexOf('async function copyCalendarUrl')),ctx);
+const ctx=vm.createContext({calendarEditing:false,calendarConfig:{},calendarUrl:null,$,setupGuideRevision:0,element:(tag,text,cls)=>({tag,text,cls}),call:async(path,data)=>{requests.push(data);cfg={...cfg,...data};ctx.renderCalendarSettings(cfg,'https://example.com/calendar.ics');return true}});
+vm.runInContext(require('./ui_source').functions("calendarHelp", "renderCalendarSettings", "changeCalendar", "showCalendarGuide", "calendarAction", "saveCalendar", "confirmCalendar"),ctx);
 (async()=>{
  ctx.renderCalendarSettings(cfg,'https://example.com/calendar.ics');assert.equal($('calendar-connect').hidden,false);assert.equal($('calendar-connect').textContent,'确认订阅');
  await ctx.calendarAction();assert.equal(requests[0].calendar_subscription_confirmed,'yes');assert.equal($('calendar-connect').textContent,'✓ 已订阅');assert.equal($('calendar-connect').disabled,false);

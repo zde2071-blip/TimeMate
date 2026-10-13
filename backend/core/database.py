@@ -4,7 +4,7 @@ import sqlite3
 import threading
 from backend.mail import titles as mail_titles
 from backend.mail import dates as mail_dates
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 MAIL_COLUMNS = {
     'original': 'TEXT', 'source_links': 'TEXT',
     'source': "TEXT NOT NULL DEFAULT 'manual'",
@@ -56,6 +56,18 @@ def initialize(connection):
             for row in connection.execute('SELECT id,date,body,source_body,original FROM mails'):
                 connection.execute('UPDATE mails SET sent_date=? WHERE id=?',
                                    (mail_dates.stored_date(dict(row)), row['id']))
+        if version < 4:
+            columns = {row[1] for row in connection.execute('PRAGMA table_info(mails)')}
+            for name in ('source_fingerprint', 'receiving_account'):
+                if name not in columns:
+                    connection.execute(f'ALTER TABLE mails ADD COLUMN {name} TEXT')
+            connection.execute('CREATE INDEX IF NOT EXISTS mail_source_fingerprint ON mails(receiving_account,source_fingerprint)')
+            connection.execute('CREATE INDEX IF NOT EXISTS pending_mail_analysis ON mails(is_deleted,analysis_retry_at) WHERE result IS NULL')
+            connection.execute('CREATE TABLE IF NOT EXISTS state_revision (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL)')
+            connection.execute('INSERT OR IGNORE INTO state_revision VALUES (1,0)')
+            for table in ('mails', 'pins', 'calendar_events', 'event_overrides', 'event_links', 'courses'):
+                for action in ('INSERT', 'UPDATE', 'DELETE'):
+                    connection.execute(f"CREATE TRIGGER IF NOT EXISTS revision_{table}_{action.lower()} AFTER {action} ON {table} BEGIN UPDATE state_revision SET revision=revision+1 WHERE id=1; END")
         connection.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
         connection.commit()
     except Exception:

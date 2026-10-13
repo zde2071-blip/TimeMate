@@ -11,8 +11,9 @@ const flatten=n=>[n,...n.children.flatMap(flatten)];
 async function run(){
  const body=new Element('body'),listeners={},timers=[];let ok=true,requests=[],editOpened=false;
  const document={body,getElementById:id=>flatten(body).find(n=>n.id===id),querySelectorAll:()=>flatten(body).filter(n=>n.className==='event-manage'&&n.open),addEventListener:(name,fn)=>listeners[name]=fn};
- const context=vm.createContext({document,element:(tag,text,cls)=>new Element(tag,text,cls),call:async(path,data)=>{requests.push(data);return ok},openEventEditor:()=>editOpened=true,setTimeout:fn=>{timers.push(fn);return timers.length},clearTimeout:()=>{}});
- vm.runInContext(html.slice(html.indexOf('function editEventMenu('),html.indexOf('\nfunction openEventEditor(')),context);
+ const context=vm.createContext({eventFeedbackTimer:null,cleanFeedbackText:s=>s,document,element:(tag,text,cls)=>new Element(tag,text,cls),call:async(path,data)=>{requests.push(data);return ok},openEventEditor:()=>editOpened=true,setTimeout:fn=>{timers.push(fn);return timers.length},clearTimeout:()=>{}});
+ vm.runInContext(require('./ui_source').functions("initEventMenus", "allEventMails", "editEventMenu", "eventActionFeedback", "performEventAction", "closeEventMenus"),context);
+ context.initEventMenus();
  const item={kind:'deadline',mail_id:'mail',index:2,state:'active'},menu=context.editEventMenu(item);body.append(menu);menu.open=true;
  // Clicking an option or the summary stays inside the menu; blank space closes it.
  listeners.click({target:menu.children[0]});assert.equal(menu.open,true);
@@ -28,7 +29,7 @@ async function run(){
  completed.open=true;completed.children[1].children[0].onclick();assert.equal(completed.open,false);assert.equal(editOpened,true);
  // Execute the actual completed-card rendering and verify the same action wrapper.
  const calendar=new Element('div');Object.assign(context,{$:()=>calendar,calendarMonth:new Date('2026-10-01'),calendarSelected:'',localDateKey:d=>d.toISOString().slice(0,10),importantView:'all',eventContent:()=>new Element('div')});document.createElement=tag=>new Element(tag);
- vm.runInContext(html.slice(html.indexOf('function renderImportantCard('),html.indexOf('\nfunction setImportantView(')),context);
+ vm.runInContext(require('./ui_source').functions("renderImportantCard", "moveCalendarMonth", "goCalendarToday", "openCalendarMonthPicker", "renderMonthCalendar"),context);
  context.renderMonthCalendar([], [{...item,event:{title:'已完成'},state:'completed'}], {mails:[]});
  const completedCard=flatten(calendar).find(n=>n.id==='important-mail-2');assert.ok(completedCard);assert.equal(completedCard.children[1].className,'important-actions');assert.equal(completedCard.children[1].children[0].className,'event-manage');
 }

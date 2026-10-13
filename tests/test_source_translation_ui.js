@@ -15,7 +15,7 @@ async function run(){
  const source={html:'<p><a href="https://example.test/%E6%9C%88">Register</a><img data-external="0"></p>',external:['https://example.test/poster.png']};
  const translated={html:source.html.replace('Register','报名'),external:source.external,subject:'通知',cached:false,elapsedMs:20};
  const context=vm.createContext({token:'test',$:id=>id==='source-content'?box:dialog,element:(tag,text,cls)=>Object.assign(new Element(tag,text),{className:cls}),document:{createElement:tag=>new Element(tag)},performance:{now:()=>0},setInterval:()=>1,clearInterval:()=>{},fetch:async url=>{calls.push(url);return {ok:true,json:async()=>url==='/api/source'?source:translated};}});
- vm.runInContext(html.slice(html.indexOf('async function openSource('),html.indexOf('\nfunction formatEventTime(')),context);
+ vm.runInContext(require('./ui_source').functions("openSource"),context);
  await context.openSource({id:'1',subject:'Notice'});
  assert.deepEqual(calls,['/api/source']);
  const toolbar=box.children.find(n=>n.className==='source-toolbar'),[original,chinese]=toolbar.children,[frame,chineseFrame]=box.children.filter(n=>n.tag==='iframe');

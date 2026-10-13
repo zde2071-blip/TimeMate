@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const js=fs.readFileSync('web/main.js','utf8'),html=fs.readFileSync('web/index.html','utf8');
 let closed=0;const dialog={close(){closed++},getBoundingClientRect(){return {left:100,right:700,top:80,bottom:600}}};
 const ctx=vm.createContext({$:()=>dialog});
-vm.runInContext(js.slice(js.indexOf('function closeSource(){'),js.indexOf('async function openSource(')),ctx);
+vm.runInContext(require('./ui_source').functions("closeSource", "closeSourceOnBackdrop"),ctx);
 for(const [clientX,clientY] of [[50,200],[750,200],[200,50],[200,650]])ctx.closeSourceOnBackdrop({target:dialog,clientX,clientY});
 assert.equal(closed,4,'each backdrop edge closes');
 ctx.closeSourceOnBackdrop({target:dialog,clientX:200,clientY:200});
@@ -12,5 +12,5 @@ ctx.closeSource();assert.equal(closed,5);
 const markup=html.match(/<dialog id="source-dialog"[\s\S]*?<\/dialog>/)[0];
 assert.match(markup,/aria-labelledby="source-title"/);assert.match(markup,/aria-label="关闭原邮件"[^>]*onclick="closeSource\(\)"/);
 assert.equal((markup.match(/onclick="closeSource\(\)"/g)||[]).length,2,'both close buttons share action');
-assert.match(js,/\$\('source-dialog'\)\.addEventListener\('click',closeSourceOnBackdrop\)/);
+assert.match(js,/\$\('source-dialog'\)\.addEventListener\('click',\s*closeSourceOnBackdrop\)/);
 console.log('Original mail dialog close buttons, backdrop and content boundaries passed');

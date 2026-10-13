@@ -19,7 +19,8 @@ def resolve(c,ident,index):
     return (row['target_mail_id'],row['target_index']) if row else (ident,index)
 
 def raw_event(c,ident,index):
-    row=c.execute("SELECT result FROM mails WHERE id=? AND is_deleted=0 AND source NOT IN ('simulation','test_archive')",(ident,)).fetchone()
+    # Saved items and their linked source mails outlive inbox deletion.
+    row=c.execute("SELECT result FROM mails WHERE id=? AND source NOT IN ('simulation','test_archive')",(ident,)).fetchone()
     events=json.loads(row['result']).get('events',[]) if row and row['result'] else []
     if index<0 or index>=len(events) or events[index].get('kind') not in ('活动','截止'):
         raise UserFacingError('找不到这条事项。')

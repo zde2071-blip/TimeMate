@@ -22,7 +22,7 @@ function setup(check, succeeds = true) {
     call: async (url, data) => { calls.push({ url, data }); return succeeds; },
     notify: message => notices.push(message), focusImportantEvent: (id,index) => targets.push({id,index}),
   });
-  vm.runInContext(html.slice(html.indexOf('async function joinEvent('), html.indexOf('\nfunction focusImportantEvent(')), context);
+  vm.runInContext(require('./ui_source').functions("joinEvent"), context);
   return { join: vm.runInContext('joinEvent', context), calls, notices, targets, dialog, content };
 }
 const flatten = node => [node, ...node.children.flatMap(child => child instanceof Element ? flatten(child) : [])];

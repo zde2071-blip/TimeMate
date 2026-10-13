@@ -4,23 +4,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const html = require('./ui_source').readUI();
-const start = html.indexOf('function genericHelpSuggestion(');
-const end = html.indexOf('\nfunction matchesMailSearch(', start);
-assert.notEqual(start, -1, 'event helpers exist in index.html');
-assert.notEqual(end, -1, 'event helpers end before render()');
 const context = vm.createContext({});
-vm.runInContext(html.slice(start, end), context);
-const durationStart = html.indexOf('function addDurationToDateTime(');
-const durationEnd = html.indexOf('\nfunction isVagueTimetableWeek(', durationStart);
-vm.runInContext(html.slice(durationStart, durationEnd), context);
-const deadlineHelpersStart = html.indexOf('function deadlineRemainingMs(');
-const deadlineHelpersEnd = html.indexOf('\nfunction renderMonthCalendar(', deadlineHelpersStart);
-vm.runInContext(html.slice(deadlineHelpersStart, deadlineHelpersEnd), context);
-const { mergeScheduleDuplicates, deadlineReminder, sortDeadlineItems, addDurationToDateTime } = vm.runInContext('({ mergeScheduleDuplicates, deadlineReminder, sortDeadlineItems, addDurationToDateTime })', context);
-const vagueWeekStart = html.indexOf('function isVagueTimetableWeek(');
-const vagueWeekEnd = html.indexOf('\nfunction openCalendar(', vagueWeekStart);
-vm.runInContext(html.slice(vagueWeekStart, vagueWeekEnd), context);
-const { isVagueTimetableWeek } = vm.runInContext('({ isVagueTimetableWeek })', context);
+vm.runInContext(require('./ui_source').functions('genericHelpSuggestion', 'eventAction', 'normalizeEventLabel', 'sameScheduledEvent', 'mergeScheduleDuplicates', 'relatedEventAction', 'deadlineRemainingMs', 'deadlineReminder', 'compareDeadlineItems', 'sortDeadlineItems', 'addDurationToDateTime', 'isVagueTimetableWeek'), context);
+const {mergeScheduleDuplicates, deadlineReminder, sortDeadlineItems, addDurationToDateTime, isVagueTimetableWeek} = context;
 
 const title = '第二届西交利物浦大学芯片学院学术沙龙暨校外导师半导体行业专委会思享汇';
 const location = '西浦创业家学院 G-1006（太仓）';
@@ -52,11 +38,9 @@ assert.equal(isVagueTimetableWeek({ title: 'CSI101 Week 4 实验课', start: '20
 assert.equal(isVagueTimetableWeek({ title: '实验课', start: '2026-10-07T14:00:00', end: '2026-10-07T16:00:00', allDay: false, evidence: 'Check your timetable' }), false);
 assert.equal(addDurationToDateTime('2026-10-07T14:00', 60), '2026-10-07T15:00');
 assert.equal(addDurationToDateTime('2026-10-07T23:30', 60), '2026-10-08T00:30');
-const editorStart = html.indexOf('function openEventEditor(');
-const editorEnd = html.indexOf('\nfunction addSchedule(', editorStart);
-const editorSource = html.slice(editorStart, editorEnd);
-assert.match(editorSource, /\['\+30分钟',30\],\['\+1小时',60\],\['\+2小时',120\]/, 'event editing offers the same end-time duration shortcuts');
-assert.match(editorSource, /start\.oninput=\(\)=>\{updateShortcuts\(\);if\(selectedDuration!==null\)end\.value=addDurationToDateTime\(start\.value,selectedDuration\)\}/, 'a chosen duration follows later start-time edits');
+const editorSource = require('./ui_source').functions('openEventEditor').replace(/\s+/g, '');
+assert.ok(editorSource.includes("['+30分钟',30],['+1小时',60],['+2小时',120]"), 'end-time duration shortcuts remain available');
+assert.ok(editorSource.includes('if(selectedDuration!==null)end.value=addDurationToDateTime(start.value,selectedDuration)'), 'chosen duration follows start edits');
 
 const sorted = sortDeadlineItems([
   deadline('2026-10-04T23:59:00'),

@@ -1,0 +1,480 @@
+// Mailbox, AI, calendar and account settings.
+
+function connectionBadge(group, ready) {
+  const button = $(group + '-save');
+  const connected = ready && !['未保存', '失败'].includes(connectionStates[group]);
+  button.textContent = connectionStates[group] === '连接中' ? '连接中…' : connected ? '✓ 已连接' : '连接并保存';
+  let status = connectionStates[group] || (ready ? '已保存' : '未设置');
+  let e = $(group + '-ready');
+  e.textContent = status === '已保存' ? '✓ 已保存' : status === '✓ 成功' ? '✓ 连接成功' : status;
+  e.className = 'connection-state' + (['✓ 成功', '已保存'].includes(status) ? ' success' : status === '失败' ? ' error' : '');
+}
+
+function connectionEdited(group) {
+  connectionStates[group] = '未保存';
+  connectionBadge(group, false);
+  $(group + '-feedback').textContent = '';
+  renderFieldStatuses(state);
+}
+
+function modelOptions(models, current = '') {
+  $('model-choice').replaceChildren();
+  let blank = element('option', models.length ? '请选择模型' : '先获取模型列表');
+  blank.value = '';
+  $('model-choice').append(blank);
+  for (let id of models) {
+    let o = element('option', id);
+    o.value = id;
+    $('model-choice').append(o);
+  }
+  let manual = element('option', '手动输入模型 ID');
+  manual.value = '__manual__';
+  $('model-choice').append(manual);
+  $('model-choice').value = models.includes(current) ? current : current ? '__manual__' : '';
+  $('model').value = current;
+  modelChoiceChanged();
+}
+
+function modelChoiceChanged() {
+  let v = $('model-choice').value;
+  $('manual-model').hidden = v !== '__manual__';
+  if (v !== '__manual__') $('model').value = v;
+  aiRevision++;
+}
+
+function renderProviderHelp() {
+  const p = providers[$('provider').value];
+  const link = $('api-key-help');
+  link.hidden = !p?.key_url;
+  link.textContent = p?.key_url ? `前往 ${p.key_label || p.name} 获取 ↗` : '';
+  if (p?.key_url) link.href = p.key_url;else link.removeAttribute('href');
+  $('api-key-help-note').hidden = !!p?.key_url;
+}
+
+function providerChanged() {
+  connectionEdited('ai');
+  aiRevision++;
+  let p = providers[$('provider').value];
+  $('base').value = p?.base || '';
+  $('key').value = '';
+  $('key').readOnly = false;
+  $('key').dataset.editing = '1';
+  $('key').dataset.saved = '';
+  modelOptions([]);
+  $('provider-hint').textContent = p?.hint || '';
+  renderProviderHelp();
+  $('ai-advanced').open = false;
+  $('ai-feedback').textContent = '请填写对应 API Key';
+}
+
+function editSecret(id) {
+  let e = $(id);
+  if (e.dataset.saved === 'yes') {
+    e.value = '';
+    e.dataset.saved = '';
+  }
+  e.readOnly = false;
+}
+
+function savedSecret(id, saved) {
+  let e = $(id);
+  if (e.dataset.editing || e.value && e.dataset.saved !== 'yes') return;
+  e.readOnly = false;
+  e.dataset.saved = saved ? 'yes' : '';
+  e.value = '';
+  e.placeholder = saved ? '••••••••' : id === 'password' ? '填写邮箱客户端授权码' : '填写当前服务商的 API Key';
+}
+
+function draft(group) {
+  let keys = group === 'mail' ? ['account', 'mail_provider', 'school_sender', 'password'] : ['provider', 'base', 'model', 'key'];
+  return Object.fromEntries(keys.map(k => [k, $(k).dataset.saved === 'yes' ? '' : $(k).value.trim()]));
+}
+
+function renderMailProvider() {
+  const provider = $('mail_provider').value,
+    selected = provider === 'qq' || provider === 'netease',
+    status = $('mail-provider-status');
+  $('mail-provider-fields').hidden = !selected;
+  status.textContent = selected ? '✓' : '○';
+  status.className = 'field-status' + (selected ? ' success' : '');
+  status.title = selected ? '已选择邮箱服务商' : '请选择邮箱服务商';
+  $('mail-save').disabled = !selected;
+  $('account-label').textContent = provider === 'qq' ? 'QQ 邮箱' : provider === 'netease' ? '网易邮箱' : '接收邮箱';
+  $('account').placeholder = provider === 'qq' ? '完整 QQ 邮箱地址' : provider === 'netease' ? '完整网易邮箱地址（163.com 或 126.com）' : '完整邮箱地址';
+  $('password-mail-label').textContent = provider === 'qq' ? 'QQ 邮箱授权码' : provider === 'netease' ? '网易邮箱客户端授权码' : '邮箱客户端授权码';
+  $('mail-auth-guide').textContent = '如何获取 ↗';
+  $('mail-auth-guide').href = provider === 'netease' ? '/assets/guides/netease.html' : '/assets/guides/qq.html';
+  $('mail-auth-guide').onclick = event => {
+    event.preventDefault();
+    openSetupGuide(provider === 'netease' ? 'netease' : 'qq');
+  };
+  $('forwarding-title').textContent = '设置学校邮件自动转发';
+  $('confirm-forwarding').disabled = !$('school_sender').value.trim() || !$('account').value.trim();
+}
+
+function mailProviderChanged() {
+  const p = $('mail_provider').value,
+    address = $('account').value.trim().toLowerCase(),
+    valid = p === 'qq' ? address.endsWith('@qq.com') || address.endsWith('@foxmail.com') : p === 'netease' ? address.endsWith('@163.com') || address.endsWith('@126.com') : false;
+  if (!valid) {
+    $('account').value = '';
+    delete $('account').dataset.saved;
+  }
+  $('password').value = '';
+  delete $('password').dataset.saved;
+  delete $('password').dataset.editing;
+  connectionEdited('mail');
+  renderMailProvider();
+  renderSetupGuide(state);
+}
+
+function renderFieldStatuses(d) {
+  const providerSelected = !!$('provider').value;
+  const providerStatus = $('provider-status');
+  providerStatus.textContent = providerSelected ? '✓' : '○';
+  providerStatus.title = providerSelected ? '已选择服务商' : '请选择服务商';
+  providerStatus.className = 'field-status' + (providerSelected ? ' success' : '');
+  for (let group of ['mail', 'ai']) {
+    const ready = !!d?.ready?.[group] && connectionStates[group] !== '未保存' && connectionStates[group] !== '失败';
+    for (let id of group === 'mail' ? ['school_sender', 'account', 'password'] : ['key', 'model']) {
+      const el = $(id + '-status');
+      el.textContent = ready ? '✓' : '○';
+      el.title = ready ? '已连接' : '待验证';
+      el.className = 'field-status' + (ready ? ' success' : '');
+    }
+  }
+}
+
+async function connectionAction(group, action) {
+  let data = draft(group),
+    revision = aiRevision;
+  let controls = document.querySelectorAll('#' + group + '-settings button, #' + group + '-settings input, #' + group + '-settings select');
+  controls.forEach(x => x.disabled = true);
+  let box = $(group + '-feedback');
+  if (action === 'save') {
+    connectionStates[group] = '连接中';
+    connectionBadge(group, false);
+  }
+  box.textContent = action === 'models' ? '正在获取模型列表…' : action === 'test' ? '测试中…' : '正在保存…';
+  try {
+    if (action === 'save') {
+      box.textContent = '正在连接…';
+      let check = await fetch('/api/settings/' + group + '/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Token': token
+        },
+        body: JSON.stringify(data)
+      });
+      let checked = await check.json();
+      if (!check.ok) throw Error(checked.error || '连接失败');
+      if (group === 'ai' && revision !== aiRevision) throw Error('设置已变更，请重新操作。');
+    }
+    let path = '/api/settings/' + group + (action === 'save' ? '' : '/' + action);
+    let r = await fetch(path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Token': token
+      },
+      body: JSON.stringify(data)
+    });
+    let result = await r.json();
+    if (group === 'ai' && revision !== aiRevision) {
+      box.textContent = '设置已变更，请重新操作。';
+      return;
+    }
+    if (!r.ok) throw Error(result.error || '操作未完成');
+    if (action === 'models') {
+      modelOptions(result.models, data.model);
+      box.textContent = '已获取 ' + result.models.length + ' 个模型';
+    } else {
+      box.textContent = '';
+      connectionStates[group] = '✓ 成功';
+      connectionBadge(group, true);
+      if (action === 'save') {
+        let e = $(group === 'mail' ? 'password' : 'key');
+        e.value = '';
+        delete e.dataset.editing;
+      }
+      if (!(await refresh())) throw Error('操作已保存，但页面刷新失败，请刷新页面查看。');
+      if (action === 'save') {
+        box.textContent = '';
+        $(group + '-settings').open = false;
+        connectionBadge(group, true);
+      }
+    }
+  } catch (e) {
+    if (action !== 'models') {
+      connectionStates[group] = '失败';
+      connectionBadge(group, false);
+      renderFieldStatuses(state);
+    }
+    if (action !== 'models') $(group + '-settings').open = true;
+    box.textContent = e.message + (action === 'models' ? ' 可手动输入模型 ID。' : '');
+  } finally {
+    controls.forEach(x => x.disabled = false);
+  }
+}
+
+function calendarHelp() {
+  calendarEditing = true;
+  renderCalendarSettings(calendarConfig, calendarUrl);
+  $('calendar-feedback').textContent = '';
+}
+
+function renderCalendarSettings(cfg, url) {
+  calendarConfig = cfg;
+  calendarUrl = url;
+  const p = cfg.calendar_provider || '';
+  const confirmed = cfg.calendar_subscription_confirmed === 'yes' && cfg.calendar_method === 'subscribe';
+  if (!calendarEditing) $('calendar_provider').value = p;
+  const configured = !!p && cfg.calendar_method === 'subscribe' && !calendarEditing;
+  const button = $('calendar-connect');
+  button.hidden = false;
+  button.disabled = !$('calendar_provider').value;
+  button.textContent = configured && confirmed ? '✓ 已订阅' : '确认订阅';
+  button.setAttribute('aria-pressed', String(configured && confirmed));
+  button.title = configured && confirmed ? '已确认订阅，点击取消确认' : '在日历应用中完成订阅后，点击确认';
+  $('calendar-show-guide').hidden = !$('calendar_provider').value;
+  $('calendar-confirm').hidden = false;
+  $('calendar-confirm').textContent = configured && confirmed ? '✓' : '○';
+  $('calendar-confirm').className = 'field-status' + (configured && confirmed ? ' success' : '');
+  $('calendar-confirm').title = configured && confirmed ? '已确认订阅' : '待确认订阅';
+  $('calendar-subscription').hidden = !url || !configured;
+  $('calendar-url').value = url || '';
+}
+
+function changeCalendar() {
+  calendarEditing = true;
+  renderCalendarSettings(calendarConfig, calendarUrl);
+  $('calendar_provider').focus();
+}
+
+function showCalendarGuide() {
+  setupGuideRevision++;
+  const dialog = $('setup-guide-dialog'),
+    content = $('setup-guide-content');
+  $('setup-guide-title').textContent = '订阅' + ($('calendar_provider').value === 'outlook' ? ' Outlook' : ' Apple') + ' 日历';
+  const steps = $('calendar_provider').value === 'outlook' ? '在 Outlook 网页版打开日历 → 添加日历 → 从 Web 订阅，粘贴订阅链接并导入。' : 'Mac：日历 → 文件 → 新建日历订阅，粘贴订阅链接。iPhone：日历 → 添加日历 → 添加订阅日历。';
+  content.replaceChildren(element('p', steps), element('p', '只同步你确认加入的日程。订阅日历只读，更新可能延迟；请勿分享链接。', 'meta'));
+  if (calendarUrl && /^http:\/\/(127\.0\.0\.1|localhost)(:|\/)/.test(calendarUrl)) content.append(element('p', '本机预览：此链接仅限本机使用。iPhone 和 Outlook 网页版需等网站上线后再连接。', 'meta'));
+  if (!dialog.open) dialog.showModal();
+  dialog.scrollTop = 0;
+}
+
+async function calendarAction() {
+  if (calendarEditing || !calendarConfig.calendar_provider || calendarConfig.calendar_method !== 'subscribe') {
+    await saveCalendar();
+    return;
+  }
+  await confirmCalendar();
+}
+
+async function saveCalendar() {
+  const p = $('calendar_provider').value;
+  if (!p) return;
+  $('calendar-connect').disabled = true;
+  try {
+    let r = await fetch('/api/calendar/settings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Token': token
+      },
+      body: JSON.stringify({
+        calendar_method: 'subscribe',
+        calendar_provider: p
+      })
+    });
+    let d = await r.json();
+    if (!r.ok) throw Error(d.error);
+    r = await fetch('/api/calendar/subscription', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Token': token
+      },
+      body: '{}'
+    });
+    d = await r.json();
+    if (!r.ok) throw Error(d.error);
+    calendarEditing = false;
+    $('calendar-feedback').textContent = '';
+    if (!(await refresh())) throw Error('日历设置已保存，请刷新页面查看订阅链接。');
+    showCalendarGuide();
+  } catch (e) {
+    $('calendar-feedback').textContent = e.message;
+  } finally {
+    $('calendar-connect').disabled = false;
+  }
+}
+
+async function confirmCalendar() {
+  const confirmed = calendarConfig.calendar_subscription_confirmed === 'yes';
+  const button = $('calendar-connect');
+  button.disabled = true;
+  try {
+    if (await call('/api/calendar/settings', {
+      calendar_method: 'subscribe',
+      calendar_provider: calendarConfig.calendar_provider,
+      calendar_subscription_confirmed: confirmed ? 'no' : 'yes'
+    })) {
+      renderCalendarSettings(calendarConfig, calendarUrl);
+      $('calendar-feedback').textContent = '';
+      $('calendar-settings').open = true;
+    }
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function copyCalendarUrl() {
+  try {
+    await navigator.clipboard.writeText($('calendar-url').value);
+    $('calendar-feedback').textContent = '链接已复制。';
+  } catch (e) {
+    $('calendar-url').select();
+    $('calendar-feedback').textContent = '请复制选中的链接。';
+  }
+}
+
+function chooseCalendar() {
+  $('calendar-dialog').close();
+  showPage('settings');
+  $('calendar-settings').open = true;
+  $('calendar-heading').scrollIntoView({
+    behavior: 'smooth'
+  });
+  changeCalendar();
+}
+
+async function exportCalendar(data) {
+  try {
+    let r = await fetch('/api/calendar/export', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Token': token
+      },
+      body: JSON.stringify(data)
+    });
+    let d = await r.json();
+    if (!r.ok) throw Error(d.error);
+    const url = URL.createObjectURL(new Blob([d.ics], {
+      type: 'text/calendar;charset=utf-8'
+    }));
+    let link = document.createElement('a');
+    link.href = url;
+    link.download = '审核后的日程.ics';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    notify('请打开日历文件，确认导入。');
+    $('calendar-dialog').close();
+  } catch (e) {
+    $('status').textContent = e.message;
+  }
+}
+
+function forwardingKey() {
+  return 'mail-forwarding-confirmed:' + ($('account').value || '').trim().toLowerCase() + ':' + ($('school_sender').value || '').trim().toLowerCase();
+}
+
+async function loadSetupGuide(url) {
+  if (!setupGuideCache.has(url)) setupGuideCache.set(url, fetch(url).then(async response => {
+    if (!response.ok) throw Error('教程加载失败，请重试。');
+    return response.text();
+  }).catch(error => {
+    setupGuideCache.delete(url);
+    throw error;
+  }));
+  return setupGuideCache.get(url);
+}
+
+function closeSetupGuide() {
+  setupGuideRevision++;
+  $('setup-guide-dialog').close();
+}
+
+async function openSetupGuide(kind) {
+  const guides = {
+    outlook: {
+      title: '设置学校邮件自动转发至接收邮箱',
+      url: '/assets/guides/outlook.html',
+      links: []
+    },
+    qq: {
+      title: '获取 QQ 邮箱授权码',
+      url: '/assets/guides/qq.html',
+      links: [['打开 QQ 邮箱 ↗', 'https://mail.qq.com/'], ['QQ 邮箱官方授权码说明 ↗', 'https://help.mail.qq.com/detail/106/985']]
+    },
+    netease: {
+      title: '获取网易邮箱客户端授权码',
+      url: '/assets/guides/netease.html',
+      links: [['打开网易邮箱 ↗', 'https://mail.163.com/'], ['网易邮箱官方帮助 ↗', 'https://help.mail.126.com/faqDetail.do?code=d7a5dc8471cd0c0e8b4b8f4f8e49998b374173cfe9171305fa1ce630d7f67ac286624f309a1a7089']]
+    }
+  };
+  const guide = guides[kind];
+  if (!guide) return;
+  const revision = ++setupGuideRevision,
+    dialog = $('setup-guide-dialog'),
+    content = $('setup-guide-content'),
+    links = $('setup-guide-links');
+  $('setup-guide-title').textContent = guide.title;
+  links.replaceChildren(...guide.links.map(([label, url]) => {
+    const a = element('a', label);
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    return a;
+  }));
+  links.hidden = !guide.links.length;
+  content.textContent = '正在加载教程…';
+  if (!dialog.open) dialog.showModal();
+  dialog.scrollTop = 0;
+  try {
+    const doc = new DOMParser().parseFromString(await loadSetupGuide(guide.url), 'text/html'),
+      main = doc.querySelector('main');
+    if (!main) throw Error('教程内容暂不可用。');
+    main.querySelectorAll('script,style,h1').forEach(node => node.remove());
+    main.querySelectorAll('a').forEach(link => {
+      if (link.getAttribute('href')?.startsWith('/assets/')) link.replaceWith(...link.childNodes);
+    });
+    if (revision === setupGuideRevision && dialog.open) content.replaceChildren(...Array.from(main.childNodes));
+  } catch (error) {
+    if (revision === setupGuideRevision && dialog.open) content.textContent = error.message;
+  }
+}
+
+function confirmForwarding() {
+  const key = forwardingKey();
+  if (localStorage.getItem(key) === 'yes') localStorage.removeItem(key);else localStorage.setItem(key, 'yes');
+  renderSetupGuide(state);
+}
+
+function renderSetupGuide(d) {
+  if (!d?.config) return;
+  const forwarded = localStorage.getItem(forwardingKey()) === 'yes';
+  const button = $('confirm-forwarding');
+  button.textContent = forwarded ? '✓ 已确认' : '○ 未确认';
+  button.className = 'forwarding-status' + (forwarded ? ' success' : '');
+  button.disabled = !$('school_sender').value.trim() || !$('account').value.trim();
+  button.setAttribute('aria-pressed', String(forwarded));
+  button.title = forwarded ? '已确认设置转发，点击取消确认' : '点击确认已设置转发';
+  button.setAttribute('aria-label', button.title);
+}
+
+async function accountRequest(action, data) {
+  let r = await fetch('/api/auth/' + action, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Token': token
+    },
+    body: JSON.stringify(data)
+  });
+  let d = await r.json();
+  if (!r.ok) throw Error(d.error || '操作未完成');
+  return d;
+}

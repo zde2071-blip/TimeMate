@@ -1,7 +1,7 @@
 // Browser regression: requires Playwright and a local Chromium executable.
 // Run from the repository root; CHROMIUM_PATH overrides the macOS default.
 const {chromium}=require('playwright'),fs=require('fs'),assert=require('node:assert/strict');
-const js=fs.readFileSync('web/main.js','utf8'),fn=js.slice(js.indexOf('async function openSource('),js.indexOf('\nfunction formatEventTime('));
+const fn=require('./ui_source').functions('openSource');
 (async()=>{
 const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
 for(const width of [1200,390]){
@@ -9,7 +9,7 @@ const page=await browser.newPage({viewport:{width,height:900}});page.on('pageerr
 await page.route('http://mail.test/**',async r=>{
 const url=r.request().url();if(url.endsWith('/api/source'))return r.fulfill({json:{html:'<p>Original content <a href="https://example.test">Register</a></p>',external:[]}});
 if(url.endsWith('/api/source/translate')){calls++;await new Promise(resolve=>setTimeout(resolve,delay));return r.fulfill({status:fail?500:200,json:fail?{error:'测试失败'}:{html:'<p>中文正文 <a href="https://example.test">报名</a></p>',subject:'中文标题',cached,elapsedMs:12}})}
-return r.fulfill({contentType:'text/html',headers:{'Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-src 'self' about:; frame-ancestors 'none'"},body:`<!doctype html><html><head><meta charset="utf-8"><style>${fs.readFileSync('web/styles.css','utf8')}</style></head><body><button id="open" onclick="openSource({id:'test',subject:'Original title'})">打开</button><dialog id="source-dialog"><h2>原邮件</h2><div id="source-content"></div><button id="close" onclick="document.querySelector('dialog').close()">关闭</button></dialog><script>const token='fixture',$=id=>document.getElementById(id);function element(tag,text,cls){let e=document.createElement(tag);e.textContent=text||'';if(cls)e.className=cls;return e};${fn}</script></body></html>`})});
+return r.fulfill({contentType:'text/html',headers:{'Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-src 'self' about:; frame-ancestors 'none'"},body:`<!doctype html><html><head><meta charset="utf-8"><style>${fs.readFileSync('web/styles.css','utf8')}</style></head><body><button id="open" onclick="openSource({id:'test',subject:'Original title'})">打开</button><dialog id="source-dialog"><h2>原邮件</h2><div id="source-content"></div><button id="close" onclick="document.querySelector('dialog').close()">关闭</button></dialog><script>const getMailDetail=async m=>m;const token='fixture',$=id=>document.getElementById(id);function element(tag,text,cls){let e=document.createElement(tag);e.textContent=text||'';if(cls)e.className=cls;return e};${fn}</script></body></html>`})});
 await page.goto('http://mail.test');await page.locator('#open').click();const frames=page.locator('iframe');
 await page.frameLocator('iframe').first().getByText('Original content',{exact:false}).waitFor({state:'visible'});
 await page.locator('.source-mode').nth(1).click();await page.frameLocator('iframe').nth(1).getByText('中文正文',{exact:false}).waitFor({state:'visible'});

@@ -1,339 +1,333 @@
-function localDateKey(date){return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0')}
-const categories=['课程与教学','活动与机会','学籍与行政','校园服务','其他'];let selected='全部',selectedCourse='全部课程',state=null,importantView='all',selectedDeadlineKey='',calendarMonth=new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarSelected='';let activeMailId=null,mailSearchQuery='',mailSelectionMode=false,selectedMailIds=new Set(),lastSelectedMailIndex=null;
-const nativeFetch=window.fetch.bind(window);window.fetch=async(...args)=>{const response=await nativeFetch(...args);if(response.status===401)location.href='/login';return response};const token=document.querySelector('meta[name="csrf-token"]').content;let enabled=false,last='',initialized=false,calendarMethod='unset',refreshIssued=0,refreshApplied=0;const $=id=>document.getElementById(id);
-async function call(path,data){try{let r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify(data)});let d=await r.json();if(!r.ok)throw Error(d.error);if(!await refresh())throw Error('操作已保存，但页面刷新失败，请刷新页面查看。');return true}catch(e){notify(e.message);return false}}
-let providers={},aiRevision=0,settingsFoldsInitialized=false;const connectionStates={mail:'',ai:''};
-function connectionBadge(group,ready){const button=$(group+'-save');const connected=ready&&!['未保存','失败'].includes(connectionStates[group]);button.textContent=connectionStates[group]==='连接中'?'连接中…':connected?'✓ 已连接':'连接并保存';let status=connectionStates[group]||(ready?'已保存':'未设置');let e=$(group+'-ready');e.textContent=status==='已保存'?'✓ 已保存':status==='✓ 成功'?'✓ 连接成功':status;e.className='connection-state'+(['✓ 成功','已保存'].includes(status)?' success':status==='失败'?' error':'')}
-function connectionEdited(group){connectionStates[group]='未保存';connectionBadge(group,false);$(group+'-feedback').textContent='';renderFieldStatuses(state)}
-function modelOptions(models,current=''){$('model-choice').replaceChildren();let blank=element('option',models.length?'请选择模型':'先获取模型列表');blank.value='';$('model-choice').append(blank);for(let id of models){let o=element('option',id);o.value=id;$('model-choice').append(o)}let manual=element('option','手动输入模型 ID');manual.value='__manual__';$('model-choice').append(manual);$('model-choice').value=models.includes(current)?current:current?'__manual__':'';$('model').value=current;modelChoiceChanged()}
-function modelChoiceChanged(){let v=$('model-choice').value;$('manual-model').hidden=v!=='__manual__';if(v!=='__manual__')$('model').value=v;aiRevision++}
-function renderProviderHelp(){const p=providers[$('provider').value];const link=$('api-key-help');link.hidden=!p?.key_url;link.textContent=p?.key_url?`前往 ${p.key_label||p.name} 获取 ↗`:'';if(p?.key_url)link.href=p.key_url;else link.removeAttribute('href');$('api-key-help-note').hidden=!!p?.key_url}
-function providerChanged(){connectionEdited('ai');aiRevision++;let p=providers[$('provider').value];$('base').value=p?.base||'';$('key').value='';$('key').readOnly=false;$('key').dataset.editing='1';$('key').dataset.saved='';modelOptions([]);$('provider-hint').textContent=p?.hint||'';renderProviderHelp();$('ai-advanced').open=false;$('ai-feedback').textContent='请填写对应 API Key'}
-function editSecret(id){let e=$(id);if(e.dataset.saved==='yes'){e.value='';e.dataset.saved='';}e.readOnly=false}
-function savedSecret(id,saved){let e=$(id);if(e.dataset.editing||e.value&&e.dataset.saved!=='yes')return;e.readOnly=false;e.dataset.saved=saved?'yes':'';e.value='';e.placeholder=saved?'••••••••':id==='password'?'填写邮箱客户端授权码':'填写当前服务商的 API Key'}
-function draft(group){let keys=group==='mail'?['account','mail_provider','school_sender','password']:['provider','base','model','key'];return Object.fromEntries(keys.map(k=>[k,$(k).dataset.saved==='yes'?'':$(k).value.trim()]))}
-function renderMailProvider(){const provider=$('mail_provider').value,selected=provider==='qq'||provider==='netease',status=$('mail-provider-status');$('mail-provider-fields').hidden=!selected;status.textContent=selected?'✓':'○';status.className='field-status'+(selected?' success':'');status.title=selected?'已选择邮箱服务商':'请选择邮箱服务商';$('mail-save').disabled=!selected;$('account-label').textContent=provider==='qq'?'QQ 邮箱':provider==='netease'?'网易邮箱':'接收邮箱';$('account').placeholder=provider==='qq'?'完整 QQ 邮箱地址':provider==='netease'?'完整网易邮箱地址（163.com 或 126.com）':'完整邮箱地址';$('password-mail-label').textContent=provider==='qq'?'QQ 邮箱授权码':provider==='netease'?'网易邮箱客户端授权码':'邮箱客户端授权码';$('mail-auth-guide').textContent='如何获取 ↗';$('mail-auth-guide').href=provider==='netease'?'/assets/guides/netease.html':'/assets/guides/qq.html';$('mail-auth-guide').onclick=event=>{event.preventDefault();openSetupGuide(provider==='netease'?'netease':'qq')};$('forwarding-title').textContent='设置学校邮件自动转发';$('confirm-forwarding').disabled=!$('school_sender').value.trim()||!$('account').value.trim()}
-function mailProviderChanged(){const p=$('mail_provider').value,address=$('account').value.trim().toLowerCase(),valid=p==='qq'?address.endsWith('@qq.com')||address.endsWith('@foxmail.com'):p==='netease'?address.endsWith('@163.com')||address.endsWith('@126.com'):false;if(!valid){$('account').value='';delete $('account').dataset.saved}$('password').value='';delete $('password').dataset.saved;delete $('password').dataset.editing;connectionEdited('mail');renderMailProvider();renderSetupGuide(state)}
-function renderFieldStatuses(d){const providerSelected=!!$('provider').value;const providerStatus=$('provider-status');providerStatus.textContent=providerSelected?'✓':'○';providerStatus.title=providerSelected?'已选择服务商':'请选择服务商';providerStatus.className='field-status'+(providerSelected?' success':'');for(let group of ['mail','ai']){const ready=!!d?.ready?.[group]&&connectionStates[group]!=='未保存'&&connectionStates[group]!=='失败';for(let id of group==='mail'?['school_sender','account','password']:['key','model']){const el=$(id+'-status');el.textContent=ready?'✓':'○';el.title=ready?'已连接':'待验证';el.className='field-status'+(ready?' success':'')}}}
-async function connectionAction(group,action){let data=draft(group),revision=aiRevision;let controls=document.querySelectorAll('#'+group+'-settings button, #'+group+'-settings input, #'+group+'-settings select');controls.forEach(x=>x.disabled=true);let box=$(group+'-feedback');if(action==='save'){connectionStates[group]='连接中';connectionBadge(group,false);}box.textContent=action==='models'?'正在获取模型列表…':action==='test'?'测试中…':'正在保存…';try{if(action==='save'){box.textContent='正在连接…';let check=await fetch('/api/settings/'+group+'/test',{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify(data)});let checked=await check.json();if(!check.ok)throw Error(checked.error||'连接失败');if(group==='ai'&&revision!==aiRevision)throw Error('设置已变更，请重新操作。');}let path='/api/settings/'+group+(action==='save'?'':'/'+action);let r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify(data)});let result=await r.json();if(group==='ai'&&revision!==aiRevision){box.textContent='设置已变更，请重新操作。';return}if(!r.ok)throw Error(result.error||'操作未完成');if(action==='models'){modelOptions(result.models,data.model);box.textContent='已获取 '+result.models.length+' 个模型'}else{box.textContent='';connectionStates[group]='✓ 成功';connectionBadge(group,true);if(action==='save'){let e=$(group==='mail'?'password':'key');e.value='';delete e.dataset.editing;}if(!await refresh())throw Error('操作已保存，但页面刷新失败，请刷新页面查看。');if(action==='save'){box.textContent='';$(group+'-settings').open=false;connectionBadge(group,true);}}}catch(e){if(action!=='models'){connectionStates[group]='失败';connectionBadge(group,false);renderFieldStatuses(state)}if(action!=='models')$(group+'-settings').open=true;box.textContent=e.message+(action==='models'?' 可手动输入模型 ID。':'')}finally{controls.forEach(x=>x.disabled=false)}}
-let calendarEditing=false,calendarConfig={},calendarUrl=null;
-function calendarHelp(){calendarEditing=true;renderCalendarSettings(calendarConfig,calendarUrl);$('calendar-feedback').textContent=''}
-function renderCalendarSettings(cfg,url){calendarConfig=cfg;calendarUrl=url;const p=cfg.calendar_provider||'';const confirmed=cfg.calendar_subscription_confirmed==='yes'&&cfg.calendar_method==='subscribe';if(!calendarEditing)$('calendar_provider').value=p;const configured=!!p&&cfg.calendar_method==='subscribe'&&!calendarEditing;const button=$('calendar-connect');button.hidden=false;button.disabled=!$('calendar_provider').value;button.textContent=configured&&confirmed?'✓ 已订阅':'确认订阅';button.setAttribute('aria-pressed',String(configured&&confirmed));button.title=configured&&confirmed?'已确认订阅，点击取消确认':'在日历应用中完成订阅后，点击确认';$('calendar-show-guide').hidden=!$('calendar_provider').value;$('calendar-confirm').hidden=false;$('calendar-confirm').textContent=configured&&confirmed?'✓':'○';$('calendar-confirm').className='field-status'+(configured&&confirmed?' success':'');$('calendar-confirm').title=configured&&confirmed?'已确认订阅':'待确认订阅';$('calendar-subscription').hidden=!url||!configured;$('calendar-url').value=url||''}
-function changeCalendar(){calendarEditing=true;renderCalendarSettings(calendarConfig,calendarUrl);$('calendar_provider').focus()}
-function showCalendarGuide(){setupGuideRevision++;const dialog=$('setup-guide-dialog'),content=$('setup-guide-content');$('setup-guide-title').textContent='订阅'+($('calendar_provider').value==='outlook'?' Outlook':' Apple')+' 日历';const steps=$('calendar_provider').value==='outlook'?'在 Outlook 网页版打开日历 → 添加日历 → 从 Web 订阅，粘贴订阅链接并导入。':'Mac：日历 → 文件 → 新建日历订阅，粘贴订阅链接。iPhone：日历 → 添加日历 → 添加订阅日历。';content.replaceChildren(element('p',steps),element('p','只同步你确认加入的日程。订阅日历只读，更新可能延迟；请勿分享链接。','meta'));if(calendarUrl&&/^http:\/\/(127\.0\.0\.1|localhost)(:|\/)/.test(calendarUrl))content.append(element('p','本机预览：此链接仅限本机使用。iPhone 和 Outlook 网页版需等网站上线后再连接。','meta'));if(!dialog.open)dialog.showModal();dialog.scrollTop=0}
-async function calendarAction(){if(calendarEditing||!calendarConfig.calendar_provider||calendarConfig.calendar_method!=='subscribe'){await saveCalendar();return}await confirmCalendar()}
-async function saveCalendar(){const p=$('calendar_provider').value;if(!p)return;$('calendar-connect').disabled=true;try{let r=await fetch('/api/calendar/settings',{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify({calendar_method:'subscribe',calendar_provider:p})});let d=await r.json();if(!r.ok)throw Error(d.error);r=await fetch('/api/calendar/subscription',{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:'{}'});d=await r.json();if(!r.ok)throw Error(d.error);calendarEditing=false;$('calendar-feedback').textContent='';if(!await refresh())throw Error('日历设置已保存，请刷新页面查看订阅链接。');showCalendarGuide()}catch(e){$('calendar-feedback').textContent=e.message}finally{$('calendar-connect').disabled=false}}
-async function confirmCalendar(){const confirmed=calendarConfig.calendar_subscription_confirmed==='yes';const button=$('calendar-connect');button.disabled=true;try{if(await call('/api/calendar/settings',{calendar_method:'subscribe',calendar_provider:calendarConfig.calendar_provider,calendar_subscription_confirmed:confirmed?'no':'yes'})){renderCalendarSettings(calendarConfig,calendarUrl);$('calendar-feedback').textContent='';$('calendar-settings').open=true}}finally{button.disabled=false}}
-async function copyCalendarUrl(){try{await navigator.clipboard.writeText($('calendar-url').value);$('calendar-feedback').textContent='链接已复制。'}catch(e){$('calendar-url').select();$('calendar-feedback').textContent='请复制选中的链接。'}}
+// Application startup and lightweight update polling. All DOM listeners are registered here.
 
-function chooseCalendar(){$('calendar-dialog').close();showPage('settings');$('calendar-settings').open=true;$('calendar-heading').scrollIntoView({behavior:'smooth'});changeCalendar()}
-async function exportCalendar(data){try{let r=await fetch('/api/calendar/export',{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify(data)});let d=await r.json();if(!r.ok)throw Error(d.error);const url=URL.createObjectURL(new Blob([d.ics],{type:'text/calendar;charset=utf-8'}));let link=document.createElement('a');link.href=url;link.download='审核后的日程.ics';link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);notify('请打开日历文件，确认导入。');$('calendar-dialog').close()}catch(e){$('status').textContent=e.message}}
-let manualMailCheck=false;
-async function checkMail(){manualMailCheck=true;if(!await call('/api/fetch',{}))manualMailCheck=false}
-async function toggleAuto(){let starting=!enabled;if(await call('/api/auto',{enabled:starting})){eventActionFeedback(starting?'自动检查已开启，每分钟检查新邮件。':'自动检查已关闭。')}}
-function element(tag,text,cls){let e=document.createElement(tag);e.textContent=text;if(cls)e.className=cls;return e}
-function field(label,value,type){let wrap=element('label',label);let input=document.createElement('input');input.type=type||'text';input.value=value||'';wrap.append(input);return [wrap,input]}
-function cleanFeedbackText(text){return String(text??'').trim().replace(/[。.]+$/u,'')}
-function notify(text){text=cleanFeedbackText(text);if(!$('mail-page').hidden){eventActionFeedback(text);return}$('notice').hidden=false;$('notice').textContent=text;let target=$('settings-page').hidden?$('notice'):$('settings-status');if(target)target.textContent=text}
-function showSetup(){showPage('settings');if(!state?.ready?.mail)$('mail-settings').open=true;if(!state?.ready?.ai)$('ai-settings').open=true}
-function forwardingKey(){return 'mail-forwarding-confirmed:'+($('account').value||'').trim().toLowerCase()+':'+($('school_sender').value||'').trim().toLowerCase()}
-let setupGuideRevision=0;
-const setupGuideCache=new Map();
-async function loadSetupGuide(url){if(!setupGuideCache.has(url))setupGuideCache.set(url,fetch(url).then(async response=>{if(!response.ok)throw Error('教程加载失败，请重试。');return response.text()}).catch(error=>{setupGuideCache.delete(url);throw error}));return setupGuideCache.get(url)}
-function closeSetupGuide(){setupGuideRevision++;$('setup-guide-dialog').close()}
-async function openSetupGuide(kind){const guides={outlook:{title:'设置学校邮件自动转发至接收邮箱',url:'/assets/guides/outlook.html',links:[]},qq:{title:'获取 QQ 邮箱授权码',url:'/assets/guides/qq.html',links:[['打开 QQ 邮箱 ↗','https://mail.qq.com/'],['QQ 邮箱官方授权码说明 ↗','https://help.mail.qq.com/detail/106/985']]},netease:{title:'获取网易邮箱客户端授权码',url:'/assets/guides/netease.html',links:[['打开网易邮箱 ↗','https://mail.163.com/'],['网易邮箱官方帮助 ↗','https://help.mail.126.com/faqDetail.do?code=d7a5dc8471cd0c0e8b4b8f4f8e49998b374173cfe9171305fa1ce630d7f67ac286624f309a1a7089']]}};const guide=guides[kind];if(!guide)return;const revision=++setupGuideRevision,dialog=$('setup-guide-dialog'),content=$('setup-guide-content'),links=$('setup-guide-links');$('setup-guide-title').textContent=guide.title;links.replaceChildren(...guide.links.map(([label,url])=>{const a=element('a',label);a.href=url;a.target='_blank';a.rel='noopener noreferrer';return a}));links.hidden=!guide.links.length;content.textContent='正在加载教程…';if(!dialog.open)dialog.showModal();dialog.scrollTop=0;try{const doc=new DOMParser().parseFromString(await loadSetupGuide(guide.url),'text/html'),main=doc.querySelector('main');if(!main)throw Error('教程内容暂不可用。');main.querySelectorAll('script,style,h1').forEach(node=>node.remove());main.querySelectorAll('a').forEach(link=>{if(link.getAttribute('href')?.startsWith('/assets/'))link.replaceWith(...link.childNodes)});if(revision===setupGuideRevision&&dialog.open)content.replaceChildren(...Array.from(main.childNodes))}catch(error){if(revision===setupGuideRevision&&dialog.open)content.textContent=error.message}}
-function confirmForwarding(){const key=forwardingKey();if(localStorage.getItem(key)==='yes')localStorage.removeItem(key);else localStorage.setItem(key,'yes');renderSetupGuide(state)}
-function renderSetupGuide(d){if(!d?.config)return;const forwarded=localStorage.getItem(forwardingKey())==='yes';const button=$('confirm-forwarding');button.textContent=forwarded?'✓ 已确认':'○ 未确认';button.className='forwarding-status'+(forwarded?' success':'');button.disabled=!$('school_sender').value.trim()||!$('account').value.trim();button.setAttribute('aria-pressed',String(forwarded));button.title=forwarded?'已确认设置转发，点击取消确认':'点击确认已设置转发';button.setAttribute('aria-label',button.title)}
-function showPage(name){for(let page of ['important','mail','settings']){$(page+'-page').hidden=page!==name;$('nav-'+page).className=page===name?'':'secondary';$('nav-'+page).setAttribute('aria-current',page===name?'page':'false')}const titles={important:'重要事项',mail:'邮件处理',settings:'账户设置'},title=titles[name]||'TimeMate';document.title=title+' - TimeMate';document.body.classList.toggle('mail-layout',name==='mail');$('header-mail-feedback').hidden=name!=='mail';closeMailSettingsMenu();window.scrollTo(0,0);requestAnimationFrame(updateMailWorkspaceHeight)}
-function value(text){return !text||/^(未说明|此封邮件暂无|无)$/.test(text)?'此封邮件暂无':text}
-function closeSource(){$('source-dialog').close()}
-function closeSourceOnBackdrop(event){const dialog=$('source-dialog');if(event.target!==dialog)return;const box=dialog.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)closeSource()}
-async function openSource(m){
- const box=$('source-content'),dialog=$('source-dialog'),heading=element('h3',m.subject);
- const status=element('p','加载原文…','meta'),toolbar=element('div','','source-toolbar');
- const originalButton=element('button','原文','source-mode active'),chineseButton=element('button','中文','source-mode secondary');
- const hint=element('p','点击“中文”后才会调用 AI；完整正文会翻译并缓存。','meta');
- const translated=element('div','','source-translation');
- function makeFrame(title){
-  const frame=document.createElement('iframe');frame.title=title;
-  frame.setAttribute('sandbox','allow-popups allow-popups-to-escape-sandbox');
-  frame.referrerPolicy='no-referrer';frame.className='original-frame';frame.hidden=true;
-  // Chromium can leave a navigated sandboxed frame outside the modal's painted
-  // top layer. Re-enter it after loading without changing focus or scroll.
-  frame.onload=()=>{
-   if(!dialog.open||!box.contains(frame)||frame.hidden)return;
-   const focus=document.activeElement,scroll=dialog.scrollTop;
-   dialog.close();dialog.showModal();dialog.scrollTop=scroll;
-   if(focus&&dialog.contains(focus))focus.focus({preventScroll:true});
-  };
-  return frame;
- }
- // Attach both browsing contexts before opening the modal. Switching modes never
- // navigates the other frame or replaces a frame inside an already open dialog.
- const originalFrame=makeFrame('原邮件正文'),chineseFrame=makeFrame('中文译文正文');
- translated.hidden=true;toolbar.append(originalButton,chineseButton);toolbar.hidden=true;hint.hidden=true;
- box.replaceChildren(heading,status,toolbar,hint,originalFrame,chineseFrame,translated);
- if(!dialog.open)dialog.showModal();
- let data=null,chineseData=null,sourceMode='original',externalLoaded=false;
- const current=()=>dialog.open&&box.contains(originalFrame);
- function display(frame,markup){
-  let content=markup;
-  if(externalLoaded)content=content.replace(/data-external="(\d+)"/g,(_,i)=>'src="'+String(data.external[Number(i)]||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')+'"');
-  frame.srcdoc=`<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${externalLoaded?'https:':''}; style-src 'unsafe-inline'"><style>body{font:15px -apple-system,sans-serif;line-height:1.7;overflow-wrap:anywhere;margin:12px}img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}a{color:#235b4b}</style></head><body>${content}</body></html>`;
- }
- function showMode(mode){
-  sourceMode=mode;const zh=mode==='zh';
-  originalFrame.hidden=zh||!data;chineseFrame.hidden=!zh||!chineseData;translated.hidden=!zh||!!chineseData;
-  heading.textContent=zh&&chineseData?chineseData.subject:m.subject;
-  originalButton.className='source-mode'+(zh?' secondary':' active');chineseButton.className='source-mode'+(zh?' active':' secondary');
- }
- originalButton.onclick=()=>showMode('original');
- chineseButton.onclick=async()=>{
-  showMode('zh');if(chineseData||chineseButton.disabled||!data)return;
-  chineseButton.disabled=true;const started=performance.now();translated.textContent='正在翻译这封邮件… 0 秒';
-  const timer=setInterval(()=>{if(current()&&!chineseData)translated.textContent='正在翻译这封邮件… '+Math.floor((performance.now()-started)/1000)+' 秒'},500);
-  try{
-   const response=await fetch('/api/source/translate',{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify({id:m.id})});const result=await response.json();
-   if(!current())return;if(!response.ok)throw Error(result.error);
-   if(typeof result.html!=='string'||!result.html.trim())throw Error('译文内容为空，请重试。');
-   chineseData=result;display(chineseFrame,result.html);translated.replaceChildren();showMode(sourceMode);
-   hint.textContent=result.cached?'已使用缓存译文；本次无需调用 AI。':'翻译完成，用时 '+(result.elapsedMs/1000).toFixed(1)+' 秒；译文已缓存，之后切换不会再次调用 AI。';
-  }catch(error){if(current()){translated.textContent='翻译失败：'+error.message;translated.append(element('p','你可以稍后重试；原文仍可切换查看。','meta'))}}
-  finally{clearInterval(timer);chineseButton.disabled=false}
- };
- try{
-  const response=await fetch('/api/source',{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify({id:m.id})});const result=await response.json();
-  if(!current())return;if(!response.ok)throw Error(result.error);data=result;status.remove();toolbar.hidden=false;hint.hidden=false;
-  display(originalFrame,data.html);showMode('original');
-  if(data.external.length){const load=element('button','加载外部图片','secondary');load.onclick=()=>{externalLoaded=true;display(originalFrame,data.html);if(chineseData)display(chineseFrame,chineseData.html);load.remove()};toolbar.append(load)}
- }catch(error){if(current()){status.textContent=error.message;box.append(element('p',m.body,'body'))}}
+window.fetch = async (...args) => {
+  const response = await nativeFetch(...args);
+  if (response.status === 401) location.href = '/login';
+  return response;
+};
+
+initEventMenus();
+
+$('mail-settings-toggle').onclick = () => {
+  let menu = $('mail-settings-menu'),
+    open = menu.hidden;
+  menu.hidden = !open;
+  $('mail-settings-toggle').setAttribute('aria-expanded', String(open));
+  if (!open) {
+    $('mail-check-submenu').hidden = true;
+    $('mail-check-toggle').setAttribute('aria-expanded', 'false');
+  }
+};
+
+$('mail-check-toggle').onclick = event => {
+  event.stopPropagation();
+  $('mail-check-submenu').hidden = false;
+  $('mail-check-toggle').setAttribute('aria-expanded', 'true');
+};
+
+$('mail-check-toggle').parentElement.onmouseenter = () => {
+  $('mail-check-submenu').hidden = false;
+  $('mail-check-toggle').setAttribute('aria-expanded', 'true');
+};
+
+$('mail-check-toggle').parentElement.onmouseleave = () => {
+  $('mail-check-submenu').hidden = true;
+  $('mail-check-toggle').setAttribute('aria-expanded', 'false');
+};
+
+$('mark-filtered-read').onclick = markFilteredMailRead;
+
+$('enable-mail-selection').onclick = () => {
+  closeMailSettingsMenu();
+  mailSelectionMode = true;
+  selectedMailIds.clear();
+  lastSelectedMailIndex = null;
+  render();
+};
+
+document.addEventListener('click', event => {
+  if (!event.target.closest('.mail-tools')) closeMailSettingsMenu();
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') closeMailSettingsMenu();
+});
+
+initMailSearch();
+
+async function refresh() {
+  let revision = ++refreshIssued;
+  try {
+    let r = await fetch('/api/state', {
+      headers: {
+        'X-Token': token
+      }
+    });
+    if (!r.ok) throw Error('无法连接');
+    let d = await r.json();
+    if (revision < refreshApplied) return true;
+    if (!initialized && d.config) {
+      providers = d.providers || {};
+      for (let [id, p] of Object.entries(providers)) {
+        let o = element('option', p.name);
+        o.value = id;
+        $('provider').append(o);
+      }
+      for (let k of ['school_sender', 'account', 'base']) $(k).value = d.config[k] || '';
+      $('mail_provider').value = d.config.mail_provider || ((d.config.account || '').toLowerCase().endsWith('@163.com') || (d.config.account || '').toLowerCase().endsWith('@126.com') ? 'netease' : d.config.account ? 'qq' : '');
+      $('provider').value = d.config.provider || 'custom';
+      $('provider-hint').textContent = providers[$('provider').value]?.hint || '';
+      renderProviderHelp();
+      modelOptions(d.config.model ? [d.config.model] : [], d.config.model || '');
+      renderMailProvider();
+      initialized = true;
+    }
+    savedSecret('password', d.ready?.mail && $('account').value === d.config.account);
+    savedSecret('key', d.ready?.ai && $('provider').value === d.config.provider && $('base').value === d.config.base);
+    connectionBadge('mail', d.ready?.mail);
+    connectionBadge('ai', d.ready?.ai);
+    if (!settingsFoldsInitialized) {
+      $('mail-settings').open = !d.ready?.mail;
+      $('ai-settings').open = !d.ready?.ai;
+      $('calendar-settings').open = d.config.calendar_subscription_confirmed !== 'yes';
+      settingsFoldsInitialized = true;
+    }
+    calendarMethod = d.config.calendar_method || 'unset';
+    renderCalendarSettings(d.config, d.calendarSubscriptionUrl);
+    enabled = d.status.auto;
+    renderMailControls(d);
+    document.querySelectorAll('.task').forEach(x => x.disabled = d.status.busy);
+    const previousRevision = state?.revision;
+    state = d;
+    if (mailSearchQuery.trim() && previousRevision !== d.revision) resolveMailSearch();
+    renderSetupGuide(d);
+    renderFieldStatuses(d);
+    let signature = JSON.stringify([d.mails, d.eventSourceMails, d.calendarEvents, d.pins, d.eventOverrides, d.eventLinks, d.courseCodes, calendarMethod, Math.floor(Date.now() / 60000)]);
+    if (signature !== last) {
+      render();
+      last = signature;
+    }
+    refreshApplied = revision;
+    return true;
+  } catch (e) {
+    if (revision >= refreshApplied) {
+      $('mail-sync-status').textContent = '连接中断，正在重试';
+      $('mail-sync-status').className = 'mail-sync-status attention';
+      console.error('邮件助手页面刷新失败', e);
+    }
+    return false;
+  }
 }
 
-function formatEventTime(start,end,allDay){
- let begin=String(start||''),finish=String(end||'');if(!begin)return '时间待确认';
- if(allDay){let first=begin.slice(0,10),last=finish.slice(0,10);if(last>first&&finish.slice(11,16)==='00:00'){let date=new Date(last+'T00:00:00Z');date.setUTCDate(date.getUTCDate()-1);last=date.toISOString().slice(0,10)}return first+(last&&last>first?'–'+last:'')+'（全天）'}
- let first=begin.slice(0,16).replace('T',' ');if(!finish)return first+' · 结束时间待补充';return first+'–'+(finish.slice(0,10)===begin.slice(0,10)?finish.slice(11,16):finish.slice(0,16).replace('T',' '))
-}
-function eventContent(event,action,locationFallback='待确认',deadlineReminder=null,titleControl=null){
- let copy=element('div','','event-copy'),title=element('strong',titleControl?'':event.title||'事项');if(titleControl)title.append(titleControl);if(deadlineReminder){let badge=element('span',deadlineReminder.label,'deadline-badge');badge.style.cssText='display:inline-flex;vertical-align:middle;margin-left:9px;padding:2px 8px;border-radius:999px;font-size:12px;line-height:1.5;font-weight:600;white-space:nowrap;background:'+deadlineReminder.background+';color:'+deadlineReminder.color;title.append(badge)}copy.append(title);
- if(action&&action!==event.title)copy.append(element('p','待办：'+action,'meta'));
- if(event.kind==='截止')copy.append(element('p','截止时间：'+(event.allDay?String(event.start||'').slice(0,10):String(event.start||'').slice(0,16).replace('T',' ')),'meta'));
- else copy.append(element('p','时间：'+formatEventTime(event.start,event.end,event.allDay),'meta'));
- let location=event.location||locationFallback;if(location)copy.append(element('p','地点：'+location,'meta'));
- return copy
-}
-function eventTarget(d,id,index){let link=(d?.eventLinks||[]).find(x=>x.mail_id===id&&x.event_index===index);return link?{id:link.target_mail_id,index:link.target_index}:{id,index}}
-function eventOverrideData(d,id,index){({id,index}=eventTarget(d,id,index));let row=(d?.eventOverrides||[]).find(x=>x.mail_id===id&&x.event_index===index);if(!row)return {fields:{},state:'active'};try{return {fields:typeof row.fields==='string'?JSON.parse(row.fields||'{}'):(row.fields||{}),state:row.state||'active'}}catch{return {fields:{},state:row.state||'active'}}}
-function applyEventOverride(d,id,index,event){return {...event,...eventOverrideData(d,id,index).fields}}
-function mailEventForDisplay(d,m,index,event,written){let target=eventTarget(d,m.id,index),source=d.mails.find(x=>x.id===target.id);if(source?.result&&(target.id!==m.id||target.index!==index)){try{event=JSON.parse(source.result).events[target.index]||event}catch{}}let base={...event},saved=written.get(target.id+':'+target.index);if(event.kind==='活动'&&saved&&saved.status==='subscribed'){try{let detail=typeof saved.detail==='string'?JSON.parse(saved.detail||'{}'):(saved.detail||{});base={...base,title:detail.title||base.title,start:detail.start||base.start,end:detail.end||base.end,location:detail.location??base.location,allDay:detail.allDay??base.allDay}}catch{}}return applyEventOverride(d,target.id,target.index,base)}
-function editEventMenu(item){let menu=element('details','','event-manage'),summary=element('summary','编辑'),options=element('div','','event-manage-options');menu.append(summary);let edit=element('button','修改信息','secondary');edit.type='button';edit.onclick=()=>{menu.open=false;openEventEditor(item)};options.append(edit);if(item.kind==='deadline'){let completed=item.state==='completed',toggle=element('button',completed?'恢复':'标记完成','secondary');toggle.type='button';toggle.onclick=()=>performEventAction(menu,item,completed?'restore':'complete');options.append(toggle)}let remove=element('button','移除','secondary');remove.type='button';remove.onclick=()=>performEventAction(menu,item,'remove');options.append(remove);menu.append(options);menu.addEventListener('toggle',()=>{if(menu.open)closeEventMenus(menu)});return menu}
-let eventFeedbackTimer=null;
-function eventActionFeedback(text){let box=document.getElementById('event-action-feedback');if(!box){box=element('div','','event-action-feedback');box.id='event-action-feedback';box.setAttribute('role','status');box.setAttribute('aria-live','polite');document.body.append(box)}box.textContent=cleanFeedbackText(text);box.hidden=false;clearTimeout(eventFeedbackTimer);eventFeedbackTimer=setTimeout(()=>{box.hidden=true},3500)}
-async function performEventAction(menu,item,action){menu.open=false;if(await call('/api/event/manage',{id:item.mail_id,index:item.index,action}))eventActionFeedback({complete:'已标记完成',remove:'已移除',restore:'已恢复'}[action])}
-function closeEventMenus(except=null){document.querySelectorAll('.event-manage[open]').forEach(menu=>{if(menu!==except)menu.open=false})}
-document.addEventListener('click',event=>{document.querySelectorAll('.event-manage[open]').forEach(menu=>{if(!menu.contains(event.target))menu.open=false})});
-document.addEventListener('keydown',event=>{if(event.key==='Escape')closeEventMenus()});
-function openEventEditor(item){
- let dialog=$('event-edit-dialog'),form=$('event-edit-form'),event=item.event;form.replaceChildren();let message=element('p','','edit-event-message');message.hidden=true;
- let [titleWrap,title]=field('事项主题',event.title);title.maxLength=160;let actionWrap=element('label','待办'),actionArea=document.createElement('textarea');actionArea.value=item.action||event.action||'';actionArea.maxLength=1000;actionWrap.append(actionArea);
- let allDay=event.allDay===true;let dayLabel=element('label','','edit-all-day'),dayInput=document.createElement('input');dayInput.type='checkbox';dayInput.checked=allDay;dayLabel.append(dayInput,document.createTextNode(' 全天'));
- let startWrap,start,endWrap,end;[startWrap,start]=field(item.kind==='deadline'?'截止时间':'开始时间','');[endWrap,end]=field('结束时间','');
- let selectedDuration=null,durationShortcuts=element('div','','calendar-duration-shortcuts');for(let [label,minutes] of [['+30分钟',30],['+1小时',60],['+2小时',120]]){let button=element('button',label,'secondary');button.type='button';button.onclick=()=>{selectedDuration=minutes;end.value=addDurationToDateTime(start.value,minutes)};durationShortcuts.append(button)}
- let locationWrap,location;[locationWrap,location]=field('地点',event.location||'');location.maxLength=300;
- function editValue(value,day){if(!value)return '';if(day)return value.slice(0,10);return value.slice(0,16)}
- function inclusiveEnd(value,day){if(!day||!value)return editValue(value,false);let d=value.slice(0,10);if(value.slice(11,16)==='00:00'){let date=new Date(d+'T00:00:00');date.setDate(date.getDate()-1);return localDateKey(date)}return d}
- start.value=editValue(event.start,allDay);if(item.kind==='schedule')end.value=inclusiveEnd(event.end,allDay);start.type=allDay?'date':'datetime-local';if(item.kind==='schedule')end.type=allDay?'date':'datetime-local';
- if(item.kind==='schedule'){let endGroup=element('div','','calendar-end-group');endGroup.append(endWrap,durationShortcuts);form.append(titleWrap,actionWrap,startWrap,endGroup,dayLabel)}else form.append(titleWrap,actionWrap,startWrap);
- if(item.kind==='schedule'){durationShortcuts.hidden=allDay;let updateShortcuts=()=>{for(let button of durationShortcuts.children)button.disabled=allDay||!start.value};start.oninput=()=>{updateShortcuts();if(selectedDuration!==null)end.value=addDurationToDateTime(start.value,selectedDuration)};end.oninput=()=>{selectedDuration=null};updateShortcuts();dayInput.onchange=()=>{let was=allDay;allDay=dayInput.checked;selectedDuration=null;start.value=editValue(start.value+(was?'T00:00':''),allDay);if(was&&!allDay&&end.value){let next=new Date(end.value+'T00:00:00');next.setDate(next.getDate()+1);end.value=localDateKey(next)+'T00:00'}else end.value=editValue(end.value,allDay);start.type=allDay?'date':'datetime-local';end.type=allDay?'date':'datetime-local';durationShortcuts.hidden=allDay;updateShortcuts()}}
- form.append(locationWrap,message);
- let footer=element('div','','calendar-form-actions'),cancel=element('button','取消','secondary'),save=element('button','保存修改');cancel.type=save.type='button';cancel.onclick=()=>dialog.close();save.onclick=async()=>{let startValue=start.value,endValue=item.kind==='schedule'?end.value:'';if(allDay){startValue=startValue+'T00:00';if(endValue){let next=new Date(endValue+'T00:00:00');next.setDate(next.getDate()+1);endValue=localDateKey(next)+'T00:00'}}let fields={title:title.value,action:actionArea.value,start:startValue,end:endValue,location:location.value,allDay};save.disabled=true;let ok=await call('/api/event/manage',{id:item.mail_id,index:item.index,action:'edit',fields});save.disabled=false;if(ok)dialog.close()};footer.append(cancel,save);form.append(footer);dialog.showModal()
-}
-async function joinEvent(data,submit){
- try{
-  const response=await fetch('/api/event/check',{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify(data)}),check=await response.json();if(!response.ok)throw Error(check.error);
-  const candidates=check.candidates||[];
-  const linked=(candidate,mode='link',selectedFields=[])=>call('/api/event/link',{...data,targetId:candidate.id,targetIndex:candidate.index,expected:candidate.event,mode,selectedFields});
-  if(!candidates.length)return submit(data);
-  if(candidates.length===1&&candidates[0].exact){const done=await linked(candidates[0]);if(done){notify('已关联到已有事项，没有重复添加。');focusImportantEvent(candidates[0].id,candidates[0].index)}return done}
-  return await new Promise(resolve=>{
-   let dialog=$('event-join-dialog'),box=$('event-join-content');box.replaceChildren();
-   box.append(element('p','勾选要采用的新内容，未勾选的字段保持原样。','event-join-intro'));let saveError=element('p','','event-join-error');saveError.hidden=true;saveError.setAttribute('role','alert');box.append(saveError);
-   let controls=[],singleActions=[],busy=false;
-   const finish=async (operation,target)=>{if(busy)return;busy=true;saveError.hidden=true;for(let button of controls)button.disabled=true;try{if(await operation()){dialog.close();if(target)focusImportantEvent(target.id,target.index);resolve(true)}else{saveError.textContent=$('notice').textContent||'保存失败，请重试。';saveError.hidden=false}}catch(error){saveError.textContent=error.message||'保存失败，请重试。';saveError.hidden=false}finally{busy=false;for(let button of controls)button.disabled=false}};
-   const displayValue=(field,value)=>{if(field==='allDay')return value?'全天':'具体时间';if(!value)return '未填写';if(['start','end'].includes(field))return String(value).replace('T',' ').slice(0,16);return String(value)};
-   for(let [candidateIndex,candidate] of candidates.entries()){let section=element('section','','event-join-candidate');section.append(element('h3',candidate.event.title));if(candidate.confidence==='uncertain')section.append(element('p','主题相似，请确认是同一件事后再合并。','meta'));let checks=[];
-    for(let change of candidate.changes){let row=element('div','','event-join-diff'),input=document.createElement('input'),body=element('div'),heading=element('div','','event-join-field');input.type='checkbox';input.id='join-field-'+candidateIndex+'-'+change.field;input.checked=!change.edited;checks.push({input,field:change.field});let name=change.field==='start'?(check.kind==='截止'?'截止时间':'开始时间'):change.field==='allDay'?'时间类型':change.label,label=element('label',name);label.htmlFor=input.id;input.setAttribute('aria-label','采用新邮件的'+name);heading.append(label);if(change.edited)heading.append(element('span','你修改过，默认保留','event-join-edited'));body.append(heading);let values=element('div','','event-join-values');for(let [title,value,cls] of [['当前内容',change.before,''],['新邮件内容',change.after,' new']]){let cell=element('div','','event-join-value'+cls);cell.append(element('small',title),element('p',displayValue(change.field,value)));values.append(cell)}body.append(values);row.append(input,body);section.append(row)}
-    if(!candidate.changes.length)section.append(element('p','内容一致，合并后保留已有事项。','meta'));
-    let actions=element('div','','event-join-candidate-actions'),merge=element('button',candidate.changes.length?'更新并合并':'合并到已有事项');merge.type='button';const updateLabel=()=>{if(candidate.changes.length)merge.textContent=checks.some(x=>x.input.checked)?'更新并合并':'保留原始'};for(let {input} of checks)input.onchange=updateLabel;updateLabel();merge.onclick=()=>{let fields=checks.filter(x=>x.input.checked).map(x=>x.field);finish(()=>linked(candidate,fields.length?'update':'link',fields),candidate)};controls.push(merge);if(candidate.changes.length){let keep=element('button','保留原始','secondary');keep.type='button';keep.onclick=()=>finish(()=>linked(candidate),candidate);controls.push(keep);actions.append(keep)}actions.append(merge);if(candidates.length===1)singleActions=[...actions.children];else section.append(actions);box.append(section)
-   }
-   let footer=element('div','','calendar-form-actions'),cancel=element('button','取消','secondary'),separate=element('button','另建事项','secondary');cancel.onclick=()=>{if(!busy){dialog.close();resolve(false)}};separate.onclick=()=>finish(()=>submit({...data,joinDecision:'new'}));controls.push(cancel,separate);footer.append(cancel,separate,...singleActions);box.append(footer);dialog.oncancel=event=>{if(busy)event.preventDefault();else resolve(false)};dialog.showModal()
-  });
- }catch(error){notify(error.message);return false}
-}
-function focusImportantEvent(id,index){importantView='all';calendarSelected='';renderImportant(state);showPage('important');requestAnimationFrame(()=>{let card=$('important-'+id+'-'+index);if(!card)return;let folded=card.closest('details');if(folded)folded.open=true;card.scrollIntoView({behavior:'smooth',block:'center'});card.tabIndex=-1;card.focus({preventScroll:true})})}
-function addSchedule(m,event,index){openCalendar(m,event,index)}
-function addDurationToDateTime(value,minutes){if(!value)return '';let date=new Date(value);if(Number.isNaN(date.getTime()))return '';date.setMinutes(date.getMinutes()+minutes);return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0')+'T'+String(date.getHours()).padStart(2,'0')+':'+String(date.getMinutes()).padStart(2,'0')}
-function isVagueTimetableWeek(event){let evidence=String(event.evidence||''),title=String(event.title||''),action=String(event.action||''),allText=(evidence+' '+title+' '+action).toLowerCase(),start=new Date(event.start||''),end=new Date(event.end||'');if(!event.allDay||Number.isNaN(start.getTime())||Number.isNaN(end.getTime()))return false;let span=(end-start)/86400000;return span>=2&&span<=14&&/(week\s*\d*|this week|本周|第\s*\d+\s*周)/i.test(allText)&&/(timetable|check your schedule|课表|查看.*安排|开始本周)/i.test(allText)}
-function openCalendar(m,event,index){let box=$('calendar-form'),message=$('calendar-message');box.replaceChildren();message.textContent='';message.hidden=true;let vagueWeek=isVagueTimetableWeek(event),allDay=event.allDay===true&&!vagueWeek;
- let [tw,title]=field('标题',event.title),titleInput=title;tw.className='calendar-title-field';
- let timeGroup=element('fieldset','','calendar-time-group'),timeHead=element('div','','calendar-time-heading'),timeLabel=element('strong','时间');let dayLabel=element('label','全天','calendar-all-day');let day=document.createElement('input');day.type='checkbox';day.checked=allDay;dayLabel.append(day);timeHead.append(timeLabel,dayLabel);timeGroup.append(timeHead);
- let [sw,start]=field('开始',event.start?(allDay?event.start.slice(0,10):event.start.slice(0,16)):'',allDay?'date':'datetime-local'),[ew,end]=field('结束',event.end?(allDay?(()=>{let date=new Date(event.end);if(date.getHours()===0&&date.getMinutes()===0&&date>new Date(event.start))date.setDate(date.getDate()-1);return localDateKey(date)})():event.end.slice(0,16)):'',allDay?'date':'datetime-local');sw.className='calendar-time-field';ew.className='calendar-time-field';let durationShortcuts=element('div','','calendar-duration-shortcuts');for(let [label,minutes] of [['+30分钟',30],['+1小时',60],['+2小时',120]]){let shortcut=element('button',label,'secondary');shortcut.type='button';shortcut.disabled=allDay||!start.value;shortcut.onclick=()=>{if(!start.value){message.textContent='请先填写开始时间。';message.hidden=false;return}selectedDuration=minutes;end.value=addDurationToDateTime(start.value,minutes);message.hidden=true};durationShortcuts.append(shortcut)}let endGroup=element('div','','calendar-end-group');endGroup.append(ew,durationShortcuts);let timeFields=element('div','','calendar-time-fields');timeFields.append(sw,endGroup);timeGroup.append(timeFields);let selectedDuration=null;
- let [lw,place]=field('地点',event.location==='地点待确认'?'':event.location);lw.className='calendar-location-field';let fields=element('div','','calendar-fields');fields.append(tw,timeGroup,lw);box.append(fields,message);
- start.oninput=()=>{for(let button of durationShortcuts.children)button.disabled=day.checked||!start.value;if(selectedDuration!==null)end.value=addDurationToDateTime(start.value,selectedDuration)};end.oninput=()=>{selectedDuration=null};day.onchange=()=>{selectedDuration=null;let toDate=day.checked;for(let input of [start,end]){if(toDate){input.value=input.value.slice(0,10);input.type='date'}else{let date=input.value.slice(0,10);input.type='datetime-local';input.value=date?date+'T00:00':''}}for(let button of durationShortcuts.children)button.disabled=toDate||!start.value;durationShortcuts.hidden=toDate};durationShortcuts.hidden=allDay;
- if(vagueWeek){message.textContent='邮件只提到教学周，未提供你的具体课次时间。请按个人课表填写。';message.hidden=false}
- let footer=element('div','','calendar-form-actions'),cancel=element('button','取消','secondary');cancel.type='button';cancel.onclick=()=>$('calendar-dialog').close();let b=element('button',calendarMethod==='unset'?'连接日历':calendarMethod==='ics'?'确认并下载':'确认添加');b.type='button';b.onclick=async()=>{if(calendarMethod==='unset'){chooseCalendar();return}let startValue=start.value,endValue=end.value;if(day.checked){if(!startValue||!endValue){message.textContent='请填写开始和结束日期。';message.hidden=false;return}let exclusiveEnd=new Date(endValue+'T00:00:00');exclusiveEnd.setDate(exclusiveEnd.getDate()+1);startValue+='T00:00';endValue=localDateKey(exclusiveEnd)+'T00:00'}if(!titleInput.value.trim()||!startValue||!endValue||endValue<=startValue){message.textContent='请填写有效的标题和开始、结束时间。';message.hidden=false;return}message.hidden=true;let data={id:m.id,index,title:titleInput.value,start:startValue,end:endValue,location:place.value,action:event.action||'',allDay:day.checked,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone};b.disabled=true;try{await joinEvent(data,async approved=>{if(calendarMethod==='ics'){await exportCalendar(approved);return true}return call('/api/calendar/approve',approved)}).then(done=>{if(done)$('calendar-dialog').close()})}finally{b.disabled=false}};footer.append(cancel,b);box.append(footer);$('calendar-dialog').showModal()
-}
-function jumpMail(id){let m=state.mails.find(x=>x.id===id);if(!m)return;mailSearchQuery='';$('mail-search-input').value='';selected=m.category;selectedCourse='全部课程';activeMailId=id;showPage('mail');render();let card=document.getElementById('mail-'+id);card?.scrollIntoView({behavior:'smooth',block:'nearest'});card?.classList.add('highlight')}
-function importantTime(pin,event,now=new Date()){
- let start=new Date(pin.due),limit=new Date(start);if(event?.allDay)limit.setHours(23,59,59,999);
- let ms=limit-now,days=Math.ceil(ms/86400000),relative=ms<0?(event?.kind==='截止'?'已过截止时间':'已过活动时间'):ms<3600000?'不足 1 小时':ms<86400000?'还剩 '+Math.ceil(ms/3600000)+' 小时':'还剩 '+days+' 天';
- let date=event?.allDay?pin.due.slice(0,10):pin.due.slice(0,16).replace('T',' ');
- if(event?.kind==='截止')date+=' 截止';else if(event?.end&&!event.allDay)date+=' – '+event.end.slice(0,16).replace('T',' ');
- return {date,relative,expired:ms<0};
-}
-function selectCalendarDate(key){selectedDeadlineKey='';calendarSelected=key;let [year,month]=key.split('-').map(Number);calendarMonth=new Date(year,month-1,1);renderImportant(state)}
-function calendarDayDifference(dateKey){let [y,m,d]=dateKey.split('-').map(Number),now=new Date(),today=Date.UTC(now.getFullYear(),now.getMonth(),now.getDate()),due=Date.UTC(y,m-1,d);return Math.round((due-today)/86400000)}
-function deadlineRemainingMs(item,now=new Date()){let value=item?.event?.start||item?.start||'';if(!value)return NaN;let due=new Date(value);if(Number.isNaN(due.getTime()))return NaN;if(item.event?.allDay)due.setHours(23,59,59,999);return due.getTime()-now.getTime()}
-function deadlineReminder(item,now=new Date()){let remaining=deadlineRemainingMs(item,now);if(!Number.isFinite(remaining))return null;if(remaining<=0)return {label:'已截止',color:'#9f3d32',background:'#f7e8e5'};if(remaining<=86400000)return {label:'1天内截止',color:'#a63f31',background:'#fae9e5'};if(remaining<=3*86400000)return {label:'3天内截止',color:'#936014',background:'#fbf1dc'};if(remaining<=7*86400000)return {label:'7天内截止',color:'#526b80',background:'#edf2f6'};return null}
-function compareDeadlineItems(a,b,now=new Date()){let da=deadlineRemainingMs(a,now),db=deadlineRemainingMs(b,now),pa=da<=0,pb=db<=0;if(pa!==pb)return pa?1:-1;if(Number.isFinite(da)&&Number.isFinite(db)&&da!==db)return da-db;return String(a.start||a.event?.start||'').localeCompare(String(b.start||b.event?.start||''))}
-function sortDeadlineItems(items,now=new Date()){return [...items].sort((a,b)=>compareDeadlineItems(a,b,now))}
-function renderImportantCard(item,d){
- let row=element('article','','calendar-entry '+item.kind);row.id='important-'+item.mail_id+'-'+item.index;let titleControl=null;
- let sources=item.m?[item.m,...(d.eventLinks||[]).filter(x=>x.target_mail_id===item.mail_id&&x.target_index===item.index).map(x=>d.mails.find(m=>m.id===x.mail_id)).filter(Boolean)]:[];sources=[...new Map(sources.map(m=>[m.id,m])).values()];
- if(sources.length){let label=item.event.title||'事项';if(sources.length===1){titleControl=element('button',label,'important-source-title');titleControl.type='button';titleControl.title='查看来源邮件';titleControl.setAttribute('aria-label',(item.event.title||'事项')+'，查看来源邮件');titleControl.onclick=()=>jumpMail(sources[0].id)}else{titleControl=element('details','','important-source-group');let summary=element('summary',label,'important-source-title');summary.title='选择来源邮件（'+sources.length+'封）';titleControl.append(summary);let options=element('div','','important-source-options');for(let mail of sources){let source=element('button',displaySubject(mail.subject)+' · '+mailDateLabel(mail),'secondary');source.onclick=()=>jumpMail(mail.id);options.append(source)}titleControl.append(options)}let sourceIcon=element('span','','source-mail-icon');sourceIcon.setAttribute('aria-hidden','true');(sources.length===1?titleControl:titleControl.children[0]).append(sourceIcon)}
- row.append(eventContent(item.event,item.action,item.kind==='schedule'?'待确认':'',item.kind==='deadline'&&item.state!=='completed'?deadlineReminder(item):null,titleControl));let actions=element('div','','important-actions');actions.append(editEventMenu(item));row.append(actions);return row
-}
-function moveCalendarMonth(step){calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+step,1);calendarSelected='';selectedDeadlineKey='';renderImportant(state)}
-function goCalendarToday(){let now=new Date();calendarMonth=new Date(now.getFullYear(),now.getMonth(),1);calendarSelected=calendarSelected===localDateKey(now)?'':localDateKey(now);selectedDeadlineKey='';renderImportant(state)}
-function openCalendarMonthPicker(){let dialog=$('calendar-month-dialog'),form=$('calendar-month-form'),year=$('calendar-year-input'),month=$('calendar-month-input');year.value=calendarMonth.getFullYear();month.value=calendarMonth.getMonth()+1;form.onsubmit=e=>{e.preventDefault();let y=Number(year.value),m=Number(month.value);if(!Number.isInteger(y)||y<1||y>9999||!Number.isInteger(m)||m<1||m>12)return;calendarMonth=new Date(0);calendarMonth.setFullYear(y,m-1,1);calendarMonth.setHours(0,0,0,0);calendarSelected='';selectedDeadlineKey='';dialog.close();renderImportant(state)};dialog.showModal()}
-function renderMonthCalendar(items,completed=[],d){
- let box=$('calendar-view'),listBox=$('important-list-view'),panel=element('section','','calendar-month'),head=element('div','','calendar-month-head'),title=element('button',calendarMonth.getFullYear()+'年'+(calendarMonth.getMonth()+1)+'月','calendar-month-picker');title.type='button';title.setAttribute('aria-label','选择年月');title.setAttribute('aria-haspopup','dialog');title.onclick=openCalendarMonthPicker;let chevrons=element('span','','calendar-picker-chevrons');chevrons.setAttribute('aria-hidden','true');chevrons.append(element('span','','picker-chevron-up'),element('span','','picker-chevron-down'));title.append(chevrons);head.append(title);panel.append(head);
- let legend=element('div','','calendar-legend');for(let [kind,label] of [['schedule','日程'],['deadline','截止']]){let entry=element('span','','calendar-legend-entry'),icon=element('span',kind==='deadline'?'→':'','calendar-day-marker '+kind);icon.setAttribute('aria-hidden','true');entry.append(icon,element('span',label));legend.append(entry)}panel.append(legend);
- let grid=element('div','','calendar-grid');grid.setAttribute('role','grid');for(let day of ['一','二','三','四','五','六','日']){let label=element('div',day,'calendar-weekday');label.setAttribute('role','columnheader');grid.append(label)}
- let monthStart=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth(),1),offset=(monthStart.getDay()+6)%7,days=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+1,0).getDate(),todayKey=localDateKey(new Date()),byDate=new Map();for(let item of items){let key=item.date;if(!key)continue;if(!byDate.has(key))byDate.set(key,[]);byDate.get(key).push(item)}
- for(let blank=0;blank<offset;blank++){let cell=element('div');cell.setAttribute('role','gridcell');grid.append(cell)}
- for(let day=1;day<=days;day++){let key=localDateKey(new Date(calendarMonth.getFullYear(),calendarMonth.getMonth(),day)),matches=byDate.get(key)||[],button=element('button','','calendar-day'+(matches.length?' has-events':'')+(key===calendarSelected?' selected':'')+(key===todayKey?' today':''));button.setAttribute('role','gridcell');button.setAttribute('aria-pressed',String(key===calendarSelected));button.setAttribute('aria-label',key+(key===todayKey?'，今天':'')+(matches.length?'，'+matches.length+'项事项':''));button.append(element('span',String(day),'calendar-day-number'));let marks=element('span','','calendar-day-markers');for(let kind of ['schedule','deadline']){if(!matches.some(item=>item.kind===kind))continue;let mark=element('span',kind==='deadline'?'→':'','calendar-day-marker '+kind);mark.title=kind==='deadline'?'当天有截止事项':'当天有日程安排';mark.setAttribute('aria-hidden','true');marks.append(mark)}button.append(marks);button.onclick=()=>selectCalendarDate(key);grid.append(button)}
- panel.append(grid);let controls=element('div','','calendar-month-nav');let previous=element('button','','secondary'),today=element('button','今天','secondary'),next=element('button','','secondary');previous.append(element('span','','month-nav-chevron previous'));next.append(element('span','','month-nav-chevron next'));previous.setAttribute('aria-label','上个月');next.setAttribute('aria-label','下个月');previous.onclick=()=>moveCalendarMonth(-1);next.onclick=()=>moveCalendarMonth(1);today.onclick=goCalendarToday;today.setAttribute('aria-pressed',String(calendarSelected===todayKey));controls.append(previous,today,next);panel.append(controls);box.append(panel);
- let chosen=items.filter(item=>!calendarSelected||item.date===calendarSelected).sort((a,b)=>{if(a.kind!==b.kind)return importantView==='deadline'?0:a.kind==='deadline'?1:-1;if(a.kind==='deadline')return compareDeadlineItems(a,b);let da=calendarDayDifference(a.date),db=calendarDayDifference(b.date);if((da>=0)!==(db>=0))return da>=0?-1:1;return (da>=0?da-db:db-da)||String(a.start||'').localeCompare(String(b.start||''))});let heading=importantView==='schedule'?'日程安排':importantView==='deadline'?'截止事项':'全部事项';let listHead=element('div','','calendar-list-head');listHead.append(element('h3',(calendarSelected?calendarSelected.replace(/-/g,' / ')+' · ':'')+heading+'（'+chosen.length+'）','calendar-selected-title'));if(calendarSelected){let reset=element('button','查看全部','secondary');reset.onclick=()=>{calendarSelected='';renderImportant(state)};listHead.append(reset)}listBox.append(listHead);let list=element('div','','calendar-day-events');if(!chosen.length)list.append(element('div',calendarSelected?'当天暂无已加入的事项。':'暂无已加入的事项。','calendar-empty'));
- for(let item of chosen)list.append(renderImportantCard(item,d));listBox.append(list);let shownCompleted=completed.filter(item=>!calendarSelected||item.date===calendarSelected);if(shownCompleted.length){let folded=element('details','','calendar-completed');folded.append(element('summary','已完成截止事项（'+shownCompleted.length+'）'));for(let item of shownCompleted)folded.append(renderImportantCard(item,d));listBox.append(folded)}
-}
-function setImportantView(view){importantView=view;selectedDeadlineKey='';renderImportant(state)}
-function renderImportant(d){
- if(!d)return;
- for(let [id,view] of [['view-all','all'],['view-schedule','schedule'],['view-deadline','deadline']]){$(id).className=importantView===view?'active':'secondary';$(id).setAttribute('aria-pressed',String(importantView===view))}
- $('calendar-view').replaceChildren();$('important-list-view').replaceChildren();
- let pins=[...(d.pins||[])].sort((a,b)=>new Date(a.due)-new Date(b.due)||a.title.localeCompare(b.title));let items=[],completed=[];
- for(let item of d.calendarEvents||[]){if(item.status!=='subscribed')continue;let detail={};try{detail=typeof item.detail==='string'?JSON.parse(item.detail||'{}'):(item.detail||{})}catch{}let m=d.mails.find(x=>x.id===item.mail_id),result=m&&m.result?JSON.parse(m.result):{},event=result.events?.[item.event_index],start=detail.start||event?.start||'',date=start.slice(0,10);if(!date||eventOverrideData(d,item.mail_id,item.event_index).state==='removed')continue;if(importantView==='deadline')continue;let savedEvent=applyEventOverride(d,item.mail_id,item.event_index,{...(event||{}),kind:'活动',title:detail.title||event?.title||'日程安排',start,end:detail.end||event?.end||'',location:detail.location||event?.location||'',allDay:detail.allDay===true||(detail.allDay===undefined&&event?.allDay===true)});items.push({key:item.mail_id+':'+item.event_index,mail_id:item.mail_id,kind:'schedule',date,m,index:item.event_index,title:savedEvent.title,event:savedEvent,result,status:item.status})}
- // Cards are linked only by the user's explicit join decision.
- for(let item of items)item.action=eventAction(item.event,item.result);
- for(let pin of pins){if(importantView==='schedule')continue;let m=d.mails.find(x=>x.id===pin.mail_id);if(!m||!m.result)continue;let result=JSON.parse(m.result),raw=result.events?.[pin.event_index];if(raw?.kind!=='截止')continue;let event=applyEventOverride(d,pin.mail_id,pin.event_index,raw);let date=String(pin.due||event.start||'').slice(0,10);if(!date)continue;let savedEvent={...event,title:pin.title||event.title,start:pin.due||event.start};let item={key:pin.mail_id+':'+pin.event_index,mail_id:pin.mail_id,index:pin.event_index,kind:'deadline',date,m,title:savedEvent.title,start:savedEvent.start,location:savedEvent.location||'',allDay:savedEvent.allDay===true,action:eventAction(savedEvent,result),event:savedEvent,state:pin.state};if(pin.state==='completed')completed.push(item);else if(pin.state==='active')items.push(item)}
- if(importantView==='schedule')items=items.filter(x=>x.kind==='schedule');if(importantView==='deadline')items=items.filter(x=>x.kind==='deadline');
- if(!items.some(x=>x.kind==='deadline')&&importantView!=='schedule')selectedDeadlineKey='';renderMonthCalendar(items,completed,d)
-}
-function displaySubject(subject){return String(subject||'').replace(/^(?:\s*(?:转发|轉發|fw|fwd)\s*[:：]\s*)+/i,'').trim()||'无主题'}
-function courseCodes(m){
- const codes=Array.isArray(m.course_codes)?m.course_codes:Array.from([m.subject,m.body,m.source_body].join('\n').matchAll(/(?:^|[^A-Za-z0-9])([A-Za-z]{3})[ \t]*(\d{3})(?![A-Za-z0-9])/g),x=>x[1].toUpperCase()+x[2]);
- return [...new Set(codes.map(x=>String(x).replace(/\s+/g,'').toUpperCase().replace(/([A-Z]{3})(\d{3})/,'$1 $2')))];
-}
-function renderCourses(d){let box=$('course-filters');box.replaceChildren();box.hidden=selected!=='课程与教学';if(box.hidden)return;let items=d.mails.filter(m=>m.category==='课程与教学'&&matchesMailSearch(m)),codes=[...new Set([...items.flatMap(courseCodes),...(d.courseCodes||[]).map(code=>code.replace(/([A-Z]{3})(\d{3})/,'$1 $2'))])].sort();if(items.some(m=>!courseCodes(m).length))codes.push('未识别课程');if(selectedCourse!=='全部课程'&&!codes.includes(selectedCourse))selectedCourse='全部课程';for(let code of ['全部课程',...codes]){let count=items.filter(m=>matchesCourse(m,code)).length;let b=element('button',code,code===selectedCourse?'active':'');b.append(countLabel(count));b.setAttribute('aria-label',code+'，'+count+' 封邮件');b.setAttribute('aria-pressed',String(code===selectedCourse));b.onclick=()=>{selectedCourse=code;render()};box.append(b)}let add=element('button','＋ 手工添加');add.onclick=()=>{$('course-code-input').value='';$('course-add-error').hidden=true;$('course-add-dialog').showModal();$('course-code-input').focus()};box.append(add)}
-async function saveMailCategory(m,category){if(category===m.category)return;let ok=await call('/api/mail/category',{id:m.id,category});if(ok){selected=category;selectedCourse='全部课程';activeMailId=m.id;render();notify('已修改分类')}return ok}
-function mailCategoryPicker(m){let label=element('label','','mail-category-picker');label.setAttribute('aria-label','修改邮件分类');let select=element('select');select.setAttribute('aria-label','修改邮件分类');for(let category of categories){let option=element('option',category);option.value=category;select.append(option)}select.value=m.category;select.onchange=async()=>{select.disabled=true;let ok=await saveMailCategory(m,select.value);if(!ok)select.value=m.category;select.disabled=false};label.append(select);return label}
+$('account-email').textContent = loginEmail;
 
-function matchesCourse(m,code){let codes=courseCodes(m);return code==='全部课程'||(code==='未识别课程'?!codes.length:codes.includes(code))}
-function genericHelpSuggestion(line){return /(?:如有|如遇|如果遇到|若遇到|遇到).{0,24}(?:困难|问题|疑问).{0,20}(?:向.{0,10}(?:求助|咨询)|联系|求助|咨询)/i.test(line)||/(?:if|should you).{0,60}(?:questions?|difficult(?:y|ies)|issues?).{0,40}(?:contact|reach out|ask|seek help)|please feel free to (?:contact|reach out|ask)/i.test(line)}
-function eventAction(event,result){let action=String(event?.action||'').trim();if(action&&!genericHelpSuggestion(action))return action;if((result?.events||[]).length!==1)return '';let legacy=String(result?.action||'').trim();return legacy&&!genericHelpSuggestion(legacy)?legacy:''}
-function normalizeEventLabel(value){return String(value||'').toLocaleLowerCase().replace(/^\s*(?:活动邀请|邀请|活动)\s*[|｜:：\-—]?\s*/,'').replace(/[\s\p{P}\p{S}_]+/gu,'')}
-function sameScheduledEvent(a,b){
- let x=a?.event||a,y=b?.event||b;if(!x?.title||!y?.title||!x?.start||!y?.start)return false;
- if(normalizeEventLabel(x.title)!==normalizeEventLabel(y.title)||String(x.start).slice(0,16)!==String(y.start).slice(0,16))return false;
- let lx=normalizeEventLabel(x.location),ly=normalizeEventLabel(y.location);return !lx||!ly||lx===ly
+if (domain === 'qq.com') {
+  providerMark = 'QQ';
+  providerClass = 'provider-qq';
+} else if (['163.com', '126.com', 'yeah.net', '188.com'].includes(domain)) {
+  providerMark = '网易';
+  providerClass = 'provider-netease';
+} else if (['gmail.com', 'googlemail.com'].includes(domain)) {
+  providerMark = 'M';
+  providerClass = 'provider-gmail';
+} else if (['outlook.com', 'hotmail.com', 'live.com', 'msn.com'].includes(domain)) {
+  providerMark = 'O';
+  providerClass = 'provider-outlook';
+} else if (domain === 'xjtlu.edu.cn' || domain.endsWith('.xjtlu.edu.cn')) {
+  providerMark = 'XJ';
+  providerClass = 'provider-school';
 }
-function mergeScheduleDuplicates(items,mails){
- let groups=[];for(let item of items){let group=groups.find(entries=>sameScheduledEvent(entries[0],item));if(group)group.push(item);else groups.push([item])}
- return groups.map(group=>{
-  let canonical=[...group].sort((a,b)=>Date.parse(b.m?.sent_date||b.m?.date||'')-Date.parse(a.m?.sent_date||a.m?.date||''))[0],ends=[...new Set(group.map(x=>String(x.event.end||'').slice(0,16)).filter(Boolean))];
-  let event={...canonical.event};if(ends.length>1)event.end='';else if(!event.end&&ends.length===1)event.end=ends[0];
-  if(!event.location)event.location=group.find(x=>x.event.location)?.event.location||'';
-  let actions=[...new Set(group.flatMap(x=>relatedEventAction(x.event,x.result,mails).split('；').map(s=>s.trim()).filter(Boolean)))];
-  return {...canonical,event,title:event.title,action:actions.join('；')}
- })
-}
-function relatedEventAction(event,result,mails){
- let actions=[];let direct=eventAction(event,result);if(direct)actions.push(direct);if(!event?.title||!event?.start)return [...new Set(actions)].join('；');
- for(let mail of mails||[]){if(!mail.result)continue;let other;try{other=JSON.parse(mail.result)}catch{continue}for(let candidate of other.events||[]){if(!sameScheduledEvent({event},{event:candidate}))continue;let action=eventAction(candidate,other);if(action)actions.push(action)}}
- return [...new Set(actions)].join('；')
-}
-function mailDateLabel(m){let source=m.sent_date||m.date,date=new Date(source);return Number.isNaN(date.getTime())?source:date.toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})}
-function mailActionIcon(action){let svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('width','18');svg.setAttribute('height','18');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.8');svg.setAttribute('stroke-linecap','round');svg.setAttribute('stroke-linejoin','round');svg.setAttribute('aria-hidden','true');let paths=action==='delete'?['M3 6h18','M8 6V4h8v2','M19 6l-1 14H6L5 6','M10 11v5','M14 11v5']:action==='read'?['M3 9 12 15 21 9','M5 7 12 3l7 4','M3 9v10h18V9','M3 9l6 5','M21 9l-6 5']:['M3 6.5A2.5 2.5 0 0 1 5.5 4h13A2.5 2.5 0 0 1 21 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z','m4 6 8 6 8-6'];for(let d of paths){let path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',d);svg.append(path)}return svg}
-function renderMailSelection(d){let pane=$('mail-detail-pane');pane.replaceChildren();let card=element('div','','mail-detail-card mail-selection-card'),heading=element('header','','mail-detail-heading');heading.append(element('h2','选择处理的信息','mail-title'));card.append(heading);let visibleIds=new Set(d.mails.filter(m=>selectedMailIds.has(m.id)&&!m.is_deleted).map(m=>m.id));selectedMailIds=visibleIds;let count=element('p',`已选择 ${selectedMailIds.size} 封邮件`,'mail-selection-count');card.append(count);if(!selectedMailIds.size)card.append(element('p','从左侧邮件列表勾选邮件','mail-detail-empty'));let actions=element('div','','mail-bulk-actions');for(let [action,label] of [['read','标已读'],['unread','标未读'],['delete','删除']]){let button=element('button','','mail-bulk-action'+(action==='delete'?' destructive':''));let mark=element('span','','mail-bulk-icon');mark.append(mailActionIcon(action));button.append(mark,element('span',label));button.disabled=!selectedMailIds.size;button.onclick=()=>bulkMailAction(action);actions.append(button)}card.append(actions);let footer=element('div','','mail-selection-footer');footer.append(document.createElement('hr'));let cancel=element('button','取消','text-button');cancel.onclick=()=>{mailSelectionMode=false;selectedMailIds.clear();lastSelectedMailIndex=null;render()};footer.append(cancel);card.append(footer);pane.append(card)}
-function renderMailDetail(m,d,written){let pane=$('mail-detail-pane');pane.replaceChildren();if(mailSelectionMode){renderMailSelection(d);return}if(!m){pane.append(element('div','选择左侧邮件以查看内容','mail-detail-empty'));return}let card=element('div','','mail-detail-card'),heading=element('header','','mail-detail-heading');heading.append(mailCategoryPicker(m),element('h2',displaySubject(m.subject),'mail-title'),element('div',mailDateLabel(m),'meta'));let actions=element('div','','mail-detail-actions'),read=element('button',m.is_read?'标记未读':'标记已读','secondary');read.onclick=()=>call('/api/mail',{id:m.id,action:m.is_read?'unread':'read'});let remove=element('button','删除','secondary');remove.onclick=()=>{if(confirm('从邮件助手删除这封邮件？原邮箱中的邮件和已同步的日程不会受影响。'))call('/api/mail',{id:m.id,action:'delete'})};actions.append(read,remove);heading.append(actions);card.append(heading);let a=element('div','','mail-detail'),v=m.result?JSON.parse(m.result):null;
- if(v){a.append(element('h4','智能摘要','summary-heading'),element('p',value(v.summary),'summary-text'));let events=(v.events||[]).map((event,index)=>({event,index})).filter(({event})=>(event.kind==='活动'||event.kind==='截止')&&typeof event.start==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(event.start)),hasItems=events.length;if(hasItems)a.append(element('hr','','todo-divider'),element('h4','待处理事项','summary-heading todo-heading'));let overflow=events.length>3?element('details','','event-overflow'):null;if(overflow)overflow.append(element('summary','展开其余 '+(events.length-3)+' 项'));
-  for(let [visibleIndex,item] of events.entries()){let i=item.index,event=mailEventForDisplay(d,m,i,item.event,written),row=element('div','','event-row'),isDeadline=event.kind==='截止';let itemAction=eventAction(event,v);let copy=eventContent(event,itemAction,event.location||(events.length===1&&v.location&&v.location!=='未说明'?v.location:'待确认'));row.append(copy);let target=eventTarget(d,m.id,i),saved=written.get(target.id+':'+target.index);if(isDeadline){let pin=d.pins.find(p=>p.mail_id===target.id&&p.event_index===target.index&&['active','completed'].includes(p.state));let b=element('button',pin?'取消加入截止事项':'加入截止事项','secondary');b.onclick=()=>pin?call('/api/pin',{id:target.id,index:target.index,action:'remove'}):joinEvent({id:m.id,index:i},data=>call('/api/pin',{...data,action:'pin'}));let controls=element('div','','event-row-controls');controls.append(b);row.append(controls)}else{if(saved&&saved.status==='subscribed'){let cancel=element('button','取消同步日历','secondary');cancel.onclick=()=>call('/api/calendar/cancel',{id:target.id,index:target.index});row.append(cancel)}else{let b=element('button','加入日程安排','secondary task');b.disabled=d.status.busy;b.onclick=()=>addSchedule(m,event,i);row.append(b)}}(visibleIndex<3?a:overflow).append(row)}if(overflow)a.append(overflow);
-  if(!Object.hasOwn(v,'events')){let b=element('button','提取日程与截止日期','secondary task');b.disabled=d.status.busy;b.onclick=()=>call('/api/events/extract',{id:m.id});a.append(b)}
- }else{if(m.analysis_error){a.append(element('p',m.analysis_error,'meta'));a.append(element('p',d.status.auto?'后续检查会自动重试；也可以立即重试。':'下次点击“立即检查”会重试；也可以单独重试。','meta'))}let b=element('button',m.analysis_error?'重试分析':'分析邮件','task');b.disabled=d.status.busy;b.onclick=()=>call('/api/analyze',{id:m.id});a.append(b)}let original=element('button','查看原邮件','secondary');original.onclick=()=>openSource(m);a.append(original);card.append(a);pane.append(card)}
-function visibleMails(d){return d.mails.filter(m=>matchesMailSearch(m)&&(selected==='全部'||m.category===selected)&&(selected!=='课程与教学'||matchesCourse(m,selectedCourse)))}
-function selectMailInList(id,index,shift,visible,checked=null){if(shift&&lastSelectedMailIndex!==null&&checked!==false){let start=Math.min(lastSelectedMailIndex,index),end=Math.max(lastSelectedMailIndex,index);for(let i=start;i<=end;i++)selectedMailIds.add(visible[i].id)}else if(typeof checked==='boolean'){if(checked)selectedMailIds.add(id);else selectedMailIds.delete(id)}else if(selectedMailIds.has(id))selectedMailIds.delete(id);else selectedMailIds.add(id);lastSelectedMailIndex=index;render()}
-async function bulkMailAction(action){let ids=[...selectedMailIds];if(!ids.length)return;if(action==='delete'&&!confirm(`从邮件助手删除选中的 ${ids.length} 封邮件？原邮箱中的邮件和已同步的日程不会受影响。`))return;let labels={read:'已标为已读',unread:'已标为未读',delete:'已删除'};if(await call('/api/mail/batch',{ids,action})){selectedMailIds.clear();lastSelectedMailIndex=null;render();eventActionFeedback(`${labels[action]}（${ids.length} 封）`)}}
-async function markFilteredMailRead(){closeMailSettingsMenu();if(!state)return;let ids=visibleMails(state).filter(m=>!m.is_read).map(m=>m.id);if(!ids.length){eventActionFeedback('当前筛选邮件均已读。');return}if(!confirm(`将当前筛选的 ${ids.length} 封未读邮件标为已读？`))return;if(await call('/api/mail/batch',{ids,action:'read'}))eventActionFeedback(`已将 ${ids.length} 封邮件标为已读`)}
-function closeMailSettingsMenu(){$('mail-settings-menu').hidden=true;$('mail-settings-toggle').setAttribute('aria-expanded','false');$('mail-check-submenu').hidden=true;$('mail-check-toggle').setAttribute('aria-expanded','false')}
-$('mail-settings-toggle').onclick=()=>{let menu=$('mail-settings-menu'),open=menu.hidden;menu.hidden=!open;$('mail-settings-toggle').setAttribute('aria-expanded',String(open));if(!open){$('mail-check-submenu').hidden=true;$('mail-check-toggle').setAttribute('aria-expanded','false')}};$('mail-check-toggle').onclick=event=>{event.stopPropagation();$('mail-check-submenu').hidden=false;$('mail-check-toggle').setAttribute('aria-expanded','true')};$('mail-check-toggle').parentElement.onmouseenter=()=>{$('mail-check-submenu').hidden=false;$('mail-check-toggle').setAttribute('aria-expanded','true')};$('mail-check-toggle').parentElement.onmouseleave=()=>{$('mail-check-submenu').hidden=true;$('mail-check-toggle').setAttribute('aria-expanded','false')};$('mark-filtered-read').onclick=markFilteredMailRead;$('enable-mail-selection').onclick=()=>{closeMailSettingsMenu();mailSelectionMode=true;selectedMailIds.clear();lastSelectedMailIndex=null;render()};document.addEventListener('click',event=>{if(!event.target.closest('.mail-tools'))closeMailSettingsMenu()});document.addEventListener('keydown',event=>{if(event.key==='Escape')closeMailSettingsMenu()});
-function countLabel(count){let label=element('span','('+count+')','filter-count');label.setAttribute('aria-hidden','true');return label}
-function mailListTitle(m){return m.display_title||displaySubject(m.subject)}
-function matchesMailSearch(m){let words=mailSearchQuery.normalize('NFKC').toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);if(!words.length)return true;let text=[m.display_title,m.subject,m.sender,m.body,m.source_body];try{let result=typeof m.result==='string'?JSON.parse(m.result):m.result;let collect=value=>{if(typeof value==='string')text.push(value);else if(Array.isArray(value))value.forEach(collect);else if(value&&typeof value==='object')Object.values(value).forEach(collect)};collect(result)}catch{}let haystack=text.filter(Boolean).join('\n').normalize('NFKC').toLocaleLowerCase();return words.every(word=>haystack.includes(word))}
-function setMailSearch(value){mailSearchQuery=value;selected='全部';selectedCourse='全部课程';render()}
-$('mail-search-input').oninput=e=>setMailSearch(e.target.value);
-$('mail-search-input').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();let row=$('mails').children[0];if(row?.onclick){row.onclick();$('mails').children[0]?.focus();$('mail-detail-pane').scrollTop=0}}};
-$('mail-search-clear').onclick=()=>{$('mail-search-input').value='';setMailSearch('');$('mail-search-input').focus()};
-function render(){if(!state)return;if(typeof requestAnimationFrame==='function')requestAnimationFrame(updateMailWorkspaceHeight);let d=state;$('filters').replaceChildren();for(let cat of ['全部',...categories]){let count=d.mails.filter(m=>(cat==='全部'||m.category===cat)&&matchesMailSearch(m)).length;let b=element('button',cat,selected===cat?'active':'');b.append(countLabel(count));b.setAttribute('aria-label',cat+'，'+count+' 封邮件');b.onclick=()=>{selected=cat;selectedCourse='全部课程';render()};$('filters').append(b)}
- renderImportant(d);renderCourses(d);$('mails').replaceChildren();let mails=d.mails.filter(m=>matchesMailSearch(m)&&(selected==='全部'||m.category===selected)&&(selected!=='课程与教学'||matchesCourse(m,selectedCourse)));let searching=!!mailSearchQuery.trim();$('mail-search-clear').hidden=!mailSearchQuery;$('mail-search-status').hidden=!searching;$('mail-search-status').textContent='找到 '+mails.length+' 封邮件'+(selected==='全部'?'':'（'+selected+'）')+'；点击结果查看，按回车打开第一封。';if(!mails.length){$('mails').append(element('section',searching?'没有匹配的邮件，请更换关键词或分类。':'暂无邮件'));activeMailId=null;renderMailDetail(null,d,new Map());return}if(!mails.some(m=>m.id===activeMailId))activeMailId=mails[0].id;
- let written=new Map((d.calendarEvents||[]).map(x=>[x.mail_id+':'+x.event_index,x]));for(let [index,m] of mails.entries()){let row=element('article','','mail-list-item'+((typeof mailSelectionMode!=='undefined'&&mailSelectionMode)?' multi-select-mode':'')+(m.is_read?'':' unread')+(!(typeof mailSelectionMode!=='undefined'&&mailSelectionMode)&&m.id===activeMailId?' selected':'')+((typeof selectedMailIds!=='undefined'&&selectedMailIds.has(m.id))?' multi-selected':''));row.id='mail-'+m.id;row.tabIndex=0;row.setAttribute('role',typeof mailSelectionMode!=='undefined'&&mailSelectionMode?'group':'button');row.setAttribute('aria-current',String(!(typeof mailSelectionMode!=='undefined'&&mailSelectionMode)&&m.id===activeMailId));row.title=displaySubject(m.subject);row.setAttribute('aria-label',m.category+'，'+displaySubject(m.subject)+'，'+mailDateLabel(m));if(typeof mailSelectionMode!=='undefined'&&mailSelectionMode){let checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.className='mail-select-checkbox';checkbox.checked=selectedMailIds.has(m.id);checkbox.setAttribute('aria-label','选择邮件：'+displaySubject(m.subject));checkbox.onclick=e=>{e.stopPropagation();checkbox.dataset.shift=String(e.shiftKey)};checkbox.onchange=e=>{e.stopPropagation();selectMailInList(m.id,index,checkbox.dataset.shift==='true',mails,checkbox.checked)};checkbox.onkeydown=e=>e.stopPropagation();row.append(checkbox)}let content=element('div','','mail-list-content');content.append(element('div',m.category,'mail-list-category'),element('div',mailListTitle(m),'mail-list-title'),element('div',mailDateLabel(m),'mail-list-date'));row.append(content);let selectMail=e=>{if(typeof mailSelectionMode!=='undefined'&&mailSelectionMode){selectMailInList(m.id,index,e?.shiftKey,mails);return}activeMailId=m.id;if(!m.is_read)call('/api/mail',{id:m.id,action:'read'});render();$('mail-detail-pane').scrollTop=0};row.onclick=selectMail;row.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&e.target===row){e.preventDefault();selectMail(e)}};$('mails').append(row)}renderMailDetail(mails.find(m=>m.id===activeMailId),d,written)}
-function updateMailWorkspaceHeight(){let workspace=document.querySelector('.mail-workspace');if(!workspace||$('mail-page').hidden||window.innerWidth<=650)return;let nav=document.querySelector('.tabs'),bottom=(nav?nav.getBoundingClientRect().height:65)+12;let top=Math.max(12,workspace.getBoundingClientRect().top);workspace.style.setProperty('--mail-reading-height',Math.max(160,window.innerHeight-top-bottom)+'px')}
-let mailStatusMessage='',mailStatusChangedAt=0,lastMailToastMessage='';
-function compactMailStatus(status){if(status.phase==='checking')return '正在检查新邮件…';if(status.phase==='analyzing')return '正在分析 '+(status.completed||0)+'/'+(status.total||0);if(status.busy)return '正在处理…';if(status.phase==='complete'){if(status.kind!=='check')return status.message||'';let text=status.added||status.success?'新增 '+(status.added||0)+' 封，已分析 '+(status.success||0)+' 封':'没有新邮件';if(status.failed)text+='；'+status.failed+' 封分析失败，将自动重试';if(status.deferred)text+='；'+status.deferred+' 封等待重试';return text}return status.phase==='error'?status.message||'操作未完成，请重试。':''}
-function renderMailControls(d){$('auto').setAttribute('aria-checked',String(!!d.status.auto));$('auto').setAttribute('aria-label',d.status.auto?'关闭自动检查':'开启自动检查');let ready=!!(d.ready?.mail&&d.ready?.ai);$('setup-link').hidden=ready;$('header-mail-feedback').hidden=ready||$('mail-page').hidden;let message=ready?compactMailStatus(d.status):'请先连接邮箱和 AI 服务。';if(message!==mailStatusMessage){mailStatusMessage=message;mailStatusChangedAt=Date.now()}$('status').hidden=true;$('status').textContent=message;$('status').title=d.status.message||'';if(manualMailCheck&&!d.status.busy&&d.status.phase==='complete'&&d.status.kind==='check'){eventActionFeedback(message||'检查完成。');manualMailCheck=false}else if(d.status.phase==='error'&&message&&message!==lastMailToastMessage){eventActionFeedback(message);lastMailToastMessage=message;if(manualMailCheck)manualMailCheck=false}else if(d.status.phase!=='error')lastMailToastMessage=''}
-async function refresh(){let revision=++refreshIssued;try{let r=await fetch('/api/state',{headers:{'X-Token':token}});if(!r.ok)throw Error('无法连接');let d=await r.json();if(revision<refreshApplied)return true;
-  if(!initialized&&d.config){providers=d.providers||{};for(let [id,p] of Object.entries(providers)){let o=element('option',p.name);o.value=id;$('provider').append(o)}for(let k of ['school_sender','account','base'])$(k).value=d.config[k]||'';$('mail_provider').value=d.config.mail_provider||((d.config.account||'').toLowerCase().endsWith('@163.com')||(d.config.account||'').toLowerCase().endsWith('@126.com')?'netease':d.config.account?'qq':'');$('provider').value=d.config.provider||'custom';$('provider-hint').textContent=providers[$('provider').value]?.hint||'';renderProviderHelp();modelOptions(d.config.model?[d.config.model]:[],d.config.model||'');renderMailProvider();initialized=true}
-  savedSecret('password',d.ready?.mail&&$('account').value===d.config.account);savedSecret('key',d.ready?.ai&&$('provider').value===d.config.provider&&$('base').value===d.config.base);
-  connectionBadge('mail',d.ready?.mail);connectionBadge('ai',d.ready?.ai);if(!settingsFoldsInitialized){$('mail-settings').open=!d.ready?.mail;$('ai-settings').open=!d.ready?.ai;$('calendar-settings').open=d.config.calendar_subscription_confirmed!=='yes';settingsFoldsInitialized=true}calendarMethod=d.config.calendar_method||'unset';renderCalendarSettings(d.config,d.calendarSubscriptionUrl);enabled=d.status.auto;renderMailControls(d);document.querySelectorAll('.task').forEach(x=>x.disabled=d.status.busy);
-  state=d;renderSetupGuide(d);renderFieldStatuses(d);let signature=JSON.stringify([d.mails,d.calendarEvents,d.pins,d.eventOverrides,d.eventLinks,d.courseCodes,calendarMethod,Math.floor(Date.now()/60000)]);if(signature!==last){render();last=signature}refreshApplied=revision;return true;
-}catch(e){if(revision>=refreshApplied){$('status').hidden=false;$('status').textContent='页面刷新失败，请重新刷新页面。';console.error('邮件助手页面刷新失败',e)}return false}}
-async function accountRequest(action,data){let r=await fetch('/api/auth/'+action,{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify(data)});let d=await r.json();if(!r.ok)throw Error(d.error||'操作未完成');return d}
-const loginEmail=document.querySelector('meta[name="account-email"]').content;
-$('account-email').textContent=loginEmail;
-const providerLogo=$('account-provider-logo'),domain=(loginEmail.split('@')[1]||'').toLowerCase();
-let providerMark='✉',providerClass='';
-if(domain==='qq.com'){providerMark='QQ';providerClass='provider-qq'}
-else if(['163.com','126.com','yeah.net','188.com'].includes(domain)){providerMark='网易';providerClass='provider-netease'}
-else if(['gmail.com','googlemail.com'].includes(domain)){providerMark='M';providerClass='provider-gmail'}
-else if(['outlook.com','hotmail.com','live.com','msn.com'].includes(domain)){providerMark='O';providerClass='provider-outlook'}
-else if(domain==='xjtlu.edu.cn'||domain.endsWith('.xjtlu.edu.cn')){providerMark='XJ';providerClass='provider-school'}
-providerLogo.textContent=providerMark;
+
+providerLogo.textContent = providerMark;
+
 providerLogo.classList.add(...providerClass.split(' ').filter(Boolean));
-providerLogo.setAttribute('aria-label',providerMark==='网易'?'网易邮箱':providerMark==='QQ'?'QQ 邮箱':providerMark==='M'?'Gmail':providerMark==='O'?'Outlook':providerMark==='XJ'?'学校邮箱':'邮箱');
-$('account-avatar').onclick=()=>{const menu=$('account-menu'),open=menu.hidden;menu.hidden=!open;$('account-avatar').setAttribute('aria-expanded',String(open))};
-document.addEventListener('pointerdown',event=>{if(!event.target.closest('.account-menu-wrap')){$('account-menu').hidden=true;$('account-avatar').setAttribute('aria-expanded','false')}});
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('account-menu').hidden){$('account-menu').hidden=true;$('account-avatar').setAttribute('aria-expanded','false');$('account-avatar').focus()}});
-$('open-password-settings').onclick=()=>{$('account-menu').hidden=true;$('account-avatar').setAttribute('aria-expanded','false');$('password-dialog').showModal();$('old-password').focus()};
-$('account-form').onsubmit=async e=>{e.preventDefault();let button=e.submitter;button.disabled=true;try{await accountRequest('password',{old:$('old-password').value,password:$('new-password').value});$('password-dialog').close();$('account-form').reset();$('account-feedback').textContent='';notify('密码已更新')}catch(err){$('account-feedback').textContent=err.message;button.disabled=false}};
-$('logout').onclick=async()=>{try{await accountRequest('logout',{});location.href='/login'}catch(err){$('account-feedback').textContent=err.message}};
-if(location.hash==='#settings')showPage('settings')
-$('account').addEventListener('input',()=>{if($('password').dataset.saved==='yes')editSecret('password')});$('base').addEventListener('input',()=>{if($('key').dataset.saved==='yes')editSecret('key')});
-for(let id of ['password','key'])$(id).addEventListener('input',()=>{$(id).dataset.saved='';$(id).dataset.editing='1'});
-for(let id of ['school_sender','account'])$(id).addEventListener('input',()=>renderSetupGuide(state));$('mail_provider').addEventListener('change',mailProviderChanged);
-for(let id of ['key','base','model'])$(id).addEventListener('input',()=>{aiRevision++;$('ai-feedback').textContent='未保存'});
-for(let group of ['mail','ai'])document.querySelectorAll('#'+group+'-settings input, #'+group+'-settings select').forEach(e=>e.addEventListener('input',()=>connectionEdited(group)));
-$('course-add-form').onsubmit=async event=>{event.preventDefault();let error=$('course-add-error'),form=$('course-add-form'),button=form.querySelector('button[type=submit]');button.disabled=true;try{let response=await fetch('/api/courses/add',{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify({code:$('course-code-input').value})}),data=await response.json();if(!response.ok)throw Error(data.error);if(!await refresh())throw Error('课程已保存，但页面刷新失败，请刷新页面查看。');$('course-add-dialog').close();notify('课程已添加')}catch(e){error.textContent=e.message;error.hidden=false}finally{button.disabled=false}};
-window.addEventListener('resize',updateMailWorkspaceHeight);window.addEventListener('scroll',updateMailWorkspaceHeight,{passive:true});
-if(typeof ResizeObserver==='function'){let readingObserver=new ResizeObserver(updateMailWorkspaceHeight);for(let id of ['filters','course-filters','header-mail-feedback'])readingObserver.observe($(id))}
-// State includes the user's full mail list. Keep polling sequential, and pause
-// background tabs so slow responses cannot pile up in the server request queue.
-let statePollTimer=null,statePollInFlight=false;
-function scheduleStatePoll(delay=5000){clearTimeout(statePollTimer);if(!document.hidden)statePollTimer=setTimeout(pollState,delay)}
-async function pollState(){if(document.hidden||statePollInFlight)return;statePollInFlight=true;try{await refresh()}finally{statePollInFlight=false;scheduleStatePoll(5000)}}
-refresh();scheduleStatePoll(5000);
-document.addEventListener('visibilitychange',()=>{clearTimeout(statePollTimer);if(!document.hidden)scheduleStatePoll(0)});
 
-$('setup-guide-dialog').addEventListener('click',event=>{if(event.target!==$('setup-guide-dialog'))return;const box=event.target.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)closeSetupGuide()});
-$('setup-guide-dialog').addEventListener('cancel',()=>{setupGuideRevision++});
+providerLogo.setAttribute('aria-label', providerMark === '网易' ? '网易邮箱' : providerMark === 'QQ' ? 'QQ 邮箱' : providerMark === 'M' ? 'Gmail' : providerMark === 'O' ? 'Outlook' : providerMark === 'XJ' ? '学校邮箱' : '邮箱');
 
-$('source-dialog').addEventListener('click',closeSourceOnBackdrop);
+$('account-avatar').onclick = () => {
+  const menu = $('account-menu'),
+    open = menu.hidden;
+  menu.hidden = !open;
+  $('account-avatar').setAttribute('aria-expanded', String(open));
+};
+
+document.addEventListener('pointerdown', event => {
+  if (!event.target.closest('.account-menu-wrap')) {
+    $('account-menu').hidden = true;
+    $('account-avatar').setAttribute('aria-expanded', 'false');
+  }
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !$('account-menu').hidden) {
+    $('account-menu').hidden = true;
+    $('account-avatar').setAttribute('aria-expanded', 'false');
+    $('account-avatar').focus();
+  }
+});
+
+$('open-password-settings').onclick = () => {
+  $('account-menu').hidden = true;
+  $('account-avatar').setAttribute('aria-expanded', 'false');
+  $('password-dialog').showModal();
+  $('old-password').focus();
+};
+
+$('account-form').onsubmit = async e => {
+  e.preventDefault();
+  let button = e.submitter;
+  button.disabled = true;
+  try {
+    await accountRequest('password', {
+      old: $('old-password').value,
+      password: $('new-password').value
+    });
+    $('password-dialog').close();
+    $('account-form').reset();
+    $('account-feedback').textContent = '';
+    notify('密码已更新');
+  } catch (err) {
+    $('account-feedback').textContent = err.message;
+  } finally {
+    button.disabled = false;
+  }
+};
+
+$('logout').onclick = async () => {
+  try {
+    await accountRequest('logout', {});
+    location.href = '/login';
+  } catch (err) {
+    $('account-feedback').textContent = err.message;
+  }
+};
+
+if (location.hash === '#settings') showPage('settings');
+
+$('account').addEventListener('input', () => {
+  if ($('password').dataset.saved === 'yes') editSecret('password');
+});
+
+$('base').addEventListener('input', () => {
+  if ($('key').dataset.saved === 'yes') editSecret('key');
+});
+
+for (let id of ['password', 'key']) $(id).addEventListener('input', () => {
+  $(id).dataset.saved = '';
+  $(id).dataset.editing = '1';
+});
+
+for (let id of ['school_sender', 'account']) $(id).addEventListener('input', () => renderSetupGuide(state));
+
+$('mail_provider').addEventListener('change', mailProviderChanged);
+
+for (let id of ['key', 'base', 'model']) $(id).addEventListener('input', () => {
+  aiRevision++;
+  $('ai-feedback').textContent = '未保存';
+});
+
+for (let group of ['mail', 'ai']) document.querySelectorAll('#' + group + '-settings input, #' + group + '-settings select').forEach(e => e.addEventListener('input', () => connectionEdited(group)));
+
+$('course-add-form').onsubmit = async event => {
+  event.preventDefault();
+  let error = $('course-add-error'),
+    form = $('course-add-form'),
+    button = form.querySelector('button[type=submit]');
+  button.disabled = true;
+  try {
+    let response = await fetch('/api/courses/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Token': token
+        },
+        body: JSON.stringify({
+          code: $('course-code-input').value
+        })
+      }),
+      data = await response.json();
+    if (!response.ok) throw Error(data.error);
+    if (!(await refresh())) throw Error('课程已保存，但页面刷新失败，请刷新页面查看。');
+    $('course-add-dialog').close();
+    notify('课程已添加');
+  } catch (e) {
+    error.textContent = e.message;
+    error.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+};
+
+window.addEventListener('resize', updateMailWorkspaceHeight);
+
+window.addEventListener('scroll', updateMailWorkspaceHeight, {
+  passive: true
+});
+
+if (typeof ResizeObserver === 'function') {
+  let readingObserver = new ResizeObserver(updateMailWorkspaceHeight);
+  for (let id of ['filters', 'course-filters', 'header-mail-feedback']) readingObserver.observe($(id));
+}
+
+function scheduleStatePoll(delay = 5000) {
+  clearTimeout(statePollTimer);
+  if (!document.hidden) statePollTimer = setTimeout(pollState, delay);
+}
+
+async function pollState() {
+  if (document.hidden || statePollInFlight) return;
+  statePollInFlight = true;
+  try {
+    const response = await fetch('/api/updates', {
+      headers: {
+        'X-Token': token
+      }
+    });
+    if (!response.ok) throw Error('无法连接');
+    const update = await response.json();
+    if (!state || update.revision !== state.revision) await refresh();else {
+      Object.assign(state, {
+        status: update.status,
+        pendingCount: update.pendingCount,
+        failedCount: update.failedCount
+      });
+      enabled = !!state.status.auto;
+      renderMailControls(state);
+      document.querySelectorAll('.task').forEach(button => {
+        button.disabled = !!state.status.busy;
+      });
+      const minute = Math.floor(Date.now() / 60000);
+      if (minute !== lastCalendarMinute) {
+        lastCalendarMinute = minute;
+        renderImportant(state);
+      }
+    }
+  } catch (error) {
+    $('mail-sync-status').textContent = '连接中断，正在重试';
+    $('mail-sync-status').className = 'mail-sync-status attention';
+  } finally {
+    statePollInFlight = false;
+    scheduleStatePoll(5000);
+  }
+}
+
+refresh();
+
+scheduleStatePoll(5000);
+
+document.addEventListener('visibilitychange', () => {
+  clearTimeout(statePollTimer);
+  if (!document.hidden) scheduleStatePoll(0);
+});
+
+$('setup-guide-dialog').addEventListener('click', event => {
+  if (event.target !== $('setup-guide-dialog')) return;
+  const box = event.target.getBoundingClientRect();
+  if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) closeSetupGuide();
+});
+
+$('setup-guide-dialog').addEventListener('cancel', () => {
+  setupGuideRevision++;
+});
+
+$('source-dialog').addEventListener('click', closeSourceOnBackdrop);
