@@ -2751,12 +2751,12 @@ body.settings-view .settings-layout { min-height: 100dvh; border: 0; border-radi
 body.mail-layout main { padding:0; background:#fff; }
 /* Three calm neutral surfaces, ordered darker to lighter from left to right. */
 body.mail-layout main { background:#fff; }
-body.mail-layout .app-rail { background:#e1e2e3; border-right:1px solid #d5d7d9; }
-body.mail-layout .app-rail .rail-item:hover,body.mail-layout .app-rail .account-avatar:hover { background:#d7d9db; }
-body.mail-layout .app-rail .rail-item.is-active { background:#cfd2d4; }
+body.mail-layout .app-rail { background:#f1f2f3; border-right:1px solid #e7e8ea; }
+body.mail-layout .app-rail .rail-item:hover,body.mail-layout .app-rail .account-avatar:hover { background:#e9ebed; }
+body.mail-layout .app-rail .rail-item.is-active { background:#e5e7e9; }
 body.mail-layout .mail-workspace { grid-template-columns: minmax(260px,28%) minmax(0,1fr); gap:0; margin:0; height:100%; }
-body.mail-layout .mail-list-pane { display:flex; flex-direction:column; min-height:0; min-width:0; border-right:1px solid #e7e8ea; background:#f3f4f5; }
-body.mail-layout .mail-list-header { flex:0 0 auto; padding:16px 14px 12px; border-bottom:1px solid #e7e8ea; background:#f3f4f5; }
+body.mail-layout .mail-list-pane { display:flex; flex-direction:column; min-height:0; min-width:0; border-right:1px solid #e8e9eb; background:#f7f7f8; }
+body.mail-layout .mail-list-header { flex:0 0 auto; padding:16px 14px 12px; border-bottom:1px solid #e8e9eb; background:#f7f7f8; }
 body.mail-layout .mail-search { margin:0; }
 body.mail-layout .mail-search-controls { display:flex; flex-wrap:nowrap; align-items:center; gap:8px; border:1px solid #e0e2e4; background:#f8f8f9; border-radius:9px; padding:0 10px; }
 body.mail-layout .mail-search-controls input { width:100%; min-width:0; margin:0; padding:10px 0; border:0; border-radius:0; background:transparent; font-size:14px; box-shadow:none; order:0; }
@@ -2777,8 +2777,8 @@ body.mail-layout #course-filters button { margin:0; padding:5px 6px; border:0; b
 body.mail-layout #course-filters button.active { background:#f0f2f3; color:#29333b; }
 body.mail-layout .mail-workspace #mails { flex:1 1 auto; height:auto; min-height:0; gap:0; padding:0; }
 body.mail-layout .mail-list-item { flex:0 0 auto; padding:16px 14px; border:0; border-bottom:1px solid #e7e8ea; border-radius:0; box-shadow:none; background:transparent; }
-body.mail-layout .mail-list-item:hover { background:#eceef0; }
-body.mail-layout .mail-list-item.selected,body.mail-layout .mail-list-item.multi-selected { background:#e5e7e9; }
+body.mail-layout .mail-list-item:hover { background:#f0f1f2; }
+body.mail-layout .mail-list-item.selected,body.mail-layout .mail-list-item.multi-selected { background:#eceef0; }
 body.mail-layout .mail-list-sender-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; color:#7a8791; font-size:12px; }
 body.mail-layout .mail-list-sender { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 body.mail-layout .mail-list-item.unread { box-shadow:inset 3px 0 #8a9298; }
