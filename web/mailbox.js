@@ -172,10 +172,10 @@ function renderMailDetail(m, d, written) {
     heading = element('header', '', 'mail-detail-heading');
   const top = element('div', '', 'mail-detail-top');
   top.append(mailCategoryPicker(m));
-  heading.append(top, element('h2', displaySubject(m.subject), 'mail-title'), element('div', mailSenderLabel(m) + '  ' + mailDateLabel(m), 'meta'));
+  heading.append(top, element('h2', displaySubject(m.subject), 'mail-title'), element('time', mailDateLabel(m), 'meta'));
   let actions = element('div', '', 'mail-detail-actions'),
     read = element('button', '', 'mail-icon-action');
-  read.setAttribute('aria-label', m.is_read ? '标记未读' : '标记已读');
+  read.setAttribute('aria-label', m.is_read ? '标为未读' : '标为已读');
   read.title = read.getAttribute('aria-label');
   read.append(mailActionIcon(m.is_read ? 'unread' : 'read'));
   read.onclick = () => call('/api/mail', {
@@ -439,13 +439,10 @@ function render() {
       row.append(checkbox);
     }
     let content = element('div', '', 'mail-list-content');
-    const senderRow = element('div', '', 'mail-list-sender-row');
-    const sender = element('span', mailSenderLabel(m), 'mail-list-sender');
-    senderRow.append(sender, element('time', mailListDateLabel(m), 'mail-list-date'));
     const categoryRow = element('div', '', 'mail-list-category-row');
     if (row.querySelector('input')) categoryRow.append(row.querySelector('input'));
-    categoryRow.append(element('span', m.category, 'mail-list-category'));
-    content.append(senderRow, element('div', mailListTitle(m), 'mail-list-title'), categoryRow);
+    categoryRow.append(element('span', m.category, 'mail-list-category'), element('time', mailListDateLabel(m), 'mail-list-date'));
+    content.append(categoryRow, element('div', mailListTitle(m), 'mail-list-title'));
     row.append(content);
     let selectMail = e => {
       if (typeof mailSelectionMode !== 'undefined' && mailSelectionMode) {
