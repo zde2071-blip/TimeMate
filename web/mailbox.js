@@ -176,7 +176,7 @@ function renderMailDetail(m, d, written) {
   let actions = element('div', '', 'mail-detail-actions'),
     read = element('button', '', 'mail-icon-action');
   read.setAttribute('aria-label', m.is_read ? '标为未读' : '标为已读');
-  read.title = read.getAttribute('aria-label');
+  read.dataset.tooltip = read.getAttribute('aria-label');
   read.append(mailActionIcon(m.is_read ? 'unread' : 'read'));
   read.onclick = () => call('/api/mail', {
     id: m.id,
@@ -184,7 +184,7 @@ function renderMailDetail(m, d, written) {
   });
   let remove = element('button', '', 'mail-icon-action');
   remove.setAttribute('aria-label', '删除');
-  remove.title = '删除';
+  remove.dataset.tooltip = '删除';
   remove.append(mailActionIcon('delete'));
   remove.onclick = () => deleteMails([m.id]);
   actions.append(read, remove);
