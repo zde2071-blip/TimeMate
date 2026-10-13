@@ -4,6 +4,13 @@ function connectionBadge(group, ready) {
   const button = $(group + '-save');
   const connected = ready && !['未保存', '失败'].includes(connectionStates[group]);
   button.textContent = connectionStates[group] === '连接中' ? '连接中…' : connected ? '✓ 已连接' : '连接并保存';
+  const summary = $(group + '-summary-status');
+  if (summary) {
+    summary.textContent = connectionStates[group] === '连接中' ? '连接中' :
+      connectionStates[group] === '失败' ? '连接失败' :
+      connectionStates[group] === '未保存' ? '待保存' : connected ? '已连接' : '未连接';
+    summary.className = 'settings-summary-status' + (connected ? ' is-connected' : '');
+  }
   let status = connectionStates[group] || (ready ? '已保存' : '未设置');
   let e = $(group + '-ready');
   e.textContent = status === '已保存' ? '✓ 已保存' : status === '✓ 成功' ? '✓ 连接成功' : status;
@@ -55,6 +62,7 @@ function providerChanged() {
   connectionEdited('ai');
   aiRevision++;
   let p = providers[$('provider').value];
+  $('ai-summary-provider').textContent = p?.name || $('provider').selectedOptions?.[0]?.textContent || '尚未设置';
   $('base').value = p?.base || '';
   $('key').value = '';
   $('key').readOnly = false;
@@ -102,6 +110,7 @@ function renderMailProvider() {
   $('account-label').textContent = provider === 'qq' ? 'QQ 邮箱' : provider === 'netease' ? '网易邮箱' : '接收邮箱';
   $('account').placeholder = provider === 'qq' ? '完整 QQ 邮箱地址' : provider === 'netease' ? '完整网易邮箱地址（163.com 或 126.com）' : '完整邮箱地址';
   $('password-mail-label').textContent = provider === 'qq' ? 'QQ 邮箱授权码' : provider === 'netease' ? '网易邮箱客户端授权码' : '邮箱客户端授权码';
+  $('mail-summary-provider').textContent = provider === 'qq' ? 'QQ 邮箱' : provider === 'netease' ? '网易邮箱' : '尚未设置';
   $('mail-auth-guide').textContent = '如何获取 ↗';
   $('mail-auth-guide').href = provider === 'netease' ? '/assets/guides/netease.html' : '/assets/guides/qq.html';
   $('mail-auth-guide').onclick = event => {
@@ -231,6 +240,9 @@ function renderCalendarSettings(cfg, url) {
   const confirmed = cfg.calendar_subscription_confirmed === 'yes' && cfg.calendar_method === 'subscribe';
   if (!calendarEditing) $('calendar_provider').value = p;
   const configured = !!p && cfg.calendar_method === 'subscribe' && !calendarEditing;
+  $('calendar-summary-provider').textContent = p === 'apple' ? 'Apple 日历' : p === 'outlook' ? 'Outlook 日历' : '日程与截止事项';
+  $('calendar-summary-status').textContent = confirmed ? '已订阅' : configured ? '待确认' : '未订阅';
+  $('calendar-summary-status').className = 'settings-summary-status' + (confirmed ? ' is-connected' : '');
   const button = $('calendar-connect');
   button.hidden = false;
   button.disabled = !$('calendar_provider').value;

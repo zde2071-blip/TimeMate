@@ -1000,6 +1000,180 @@ footer p {
   margin-top: 18px;
 }
 
+/* Connection settings: a quiet list on the parent page and one focused child page. */
+#settings-page > .settings-section-title {
+  margin: 24px 0 14px;
+  color: #252b30;
+  font-size: 21px;
+}
+
+#settings-page > .settings-panel {
+  margin: 9px 0;
+  padding: 0;
+  border-color: #e1e4e7;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgb(25 33 38 / 3%);
+  transition: border-color .15s, box-shadow .15s;
+}
+
+#settings-page > .settings-panel:hover {
+  border-color: #cfd4d8;
+  box-shadow: 0 3px 10px rgb(25 33 38 / 5%);
+}
+
+.settings-panel > summary {
+  min-height: 76px;
+  padding: 12px 18px;
+  gap: 14px;
+}
+
+.settings-panel > summary::before,
+.settings-panel[open] > summary::before {
+  content: none;
+}
+
+.settings-panel > summary .settings-icon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #f3f4f5;
+  color: #596168;
+}
+
+.settings-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.settings-summary-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-summary-copy strong {
+  color: #2c3237;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.settings-summary-copy small {
+  color: #7a8288;
+  font-size: 12px;
+}
+
+.settings-summary-status {
+  color: #777f85;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.settings-summary-status.is-connected {
+  color: #535d63;
+}
+
+.settings-chevron {
+  color: #8c9499;
+  font-size: 22px;
+  line-height: 1;
+}
+
+#settings-page[data-setting-open="mail"] > .settings-section-title,
+#settings-page[data-setting-open="ai"] > .settings-section-title,
+#settings-page[data-setting-open="calendar"] > .settings-section-title {
+  display: none;
+}
+
+#settings-page[data-setting-open="mail"] > .settings-panel:not(#mail-settings),
+#settings-page[data-setting-open="ai"] > .settings-panel:not(#ai-settings),
+#settings-page[data-setting-open="calendar"] > .settings-panel:not(#calendar-settings) {
+  display: none;
+}
+
+#settings-page > .settings-panel[open] {
+  margin-top: 0;
+  padding: 20px 24px 24px;
+  border-color: #e1e4e7;
+  box-shadow: none;
+}
+
+#settings-page > .settings-panel[open] > summary {
+  min-height: 54px;
+  margin: 0 0 10px;
+  padding: 0 0 13px;
+  border-bottom: 1px solid #e8eaec;
+}
+
+.settings-subpage-nav {
+  margin: 0 0 17px;
+}
+
+.settings-subpage-nav button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: #656d73;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.settings-subpage-nav button:hover {
+  color: #252b30;
+}
+
+.settings-subpage-nav button span {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 16px;
+}
+
+#settings-page .settings-panel .settings-save {
+  background: #3c4449;
+  color: #fff;
+}
+
+#settings-page .settings-panel .settings-save:hover:not(:disabled) {
+  background: #2d3439;
+}
+
+#settings-page > .settings-panel[open] .settings-summary-copy small {
+  color: #858c92;
+}
+
+@media(max-width:650px) {
+  #settings-page > .settings-panel[open] {
+    padding: 17px;
+  }
+
+  .settings-panel > summary {
+    min-height: 70px;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .settings-summary-status {
+    font-size: 11px;
+  }
+}
+
 @media(max-width:650px) {
   .settings-panel {
     padding: 18px;

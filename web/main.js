@@ -8,6 +8,25 @@ window.fetch = async (...args) => {
 
 initEventMenus();
 
+const connectionPanels = [
+  ['mail-settings', 'mail'],
+  ['ai-settings', 'ai'],
+  ['calendar-settings', 'calendar']
+];
+for (const [id, group] of connectionPanels) {
+  $(id).addEventListener('toggle', () => {
+    const panel = $(id);
+    if (panel.open) {
+      for (const [otherId] of connectionPanels) {
+        if (otherId !== id) $(otherId).open = false;
+      }
+      $('settings-page').dataset.settingOpen = group;
+    } else if ($('settings-page').dataset.settingOpen === group) {
+      $('settings-page').removeAttribute('data-setting-open');
+    }
+  });
+}
+
 $('mail-settings-toggle').onclick = () => {
   let menu = $('mail-settings-menu'),
     open = menu.hidden;
@@ -87,11 +106,12 @@ async function refresh() {
     connectionBadge('mail', d.ready?.mail);
     connectionBadge('ai', d.ready?.ai);
     if (!settingsFoldsInitialized) {
-      $('mail-settings').open = !d.ready?.mail;
-      $('ai-settings').open = !d.ready?.ai;
-      $('calendar-settings').open = d.config.calendar_subscription_confirmed !== 'yes';
+      $('mail-settings').open = false;
+      $('ai-settings').open = false;
+      $('calendar-settings').open = false;
       settingsFoldsInitialized = true;
     }
+    $('ai-summary-provider').textContent = $('provider').selectedOptions?.[0]?.textContent || '尚未设置';
     calendarMethod = d.config.calendar_method || 'unset';
     renderCalendarSettings(d.config, d.calendarSubscriptionUrl);
     enabled = d.status.auto;

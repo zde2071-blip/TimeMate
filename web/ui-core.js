@@ -117,7 +117,8 @@ function notify(text) {
 function showSetup() {
   showPage('settings');
   if (!state?.ready?.mail) $('mail-settings').open = true;
-  if (!state?.ready?.ai) $('ai-settings').open = true;
+  else if (!state?.ready?.ai) $('ai-settings').open = true;
+  else if (state?.config?.calendar_subscription_confirmed !== 'yes') $('calendar-settings').open = true;
 }
 
 let setupGuideRevision = 0;
@@ -125,6 +126,10 @@ let setupGuideRevision = 0;
 const setupGuideCache = new Map();
 
 function showPage(name) {
+  if (name === 'settings') {
+    for (const id of ['mail-settings', 'ai-settings', 'calendar-settings']) $(id).open = false;
+    $('settings-page').removeAttribute('data-setting-open');
+  }
   for (let page of ['important', 'mail', 'settings']) {
     $(page + '-page').hidden = page !== name;
     $('nav-' + page).className = page === name ? '' : 'secondary';
@@ -142,6 +147,14 @@ function showPage(name) {
   closeMailSettingsMenu();
   window.scrollTo(0, 0);
   requestAnimationFrame(updateMailWorkspaceHeight);
+}
+
+function closeConnectionSettings(group) {
+  const panel = $(group + '-settings');
+  if (!panel) return;
+  panel.open = false;
+  $('settings-page').removeAttribute('data-setting-open');
+  panel.querySelector('summary')?.focus();
 }
 
 function value(text) {
