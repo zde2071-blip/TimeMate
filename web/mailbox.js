@@ -1,3 +1,4 @@
+let mailReadingMode = "summary", mailReadingId = null;
 // Mail list, search, selection, actions and persistent synchronization status.
 
 async function checkMail() {
@@ -157,6 +158,7 @@ function renderMailSelection(d) {
 }
 function renderMailDetail(m, d, written) {
   let pane = $('mail-detail-pane');
+  const previousSource = pane.querySelector('.inline-mail-source');
   pane.replaceChildren();
   if (mailSelectionMode) {
     renderMailSelection(d);
@@ -168,17 +170,25 @@ function renderMailDetail(m, d, written) {
   }
   let card = element('div', '', 'mail-detail-card'),
     heading = element('header', '', 'mail-detail-heading');
-  heading.append(mailCategoryPicker(m), element('h2', displaySubject(m.subject), 'mail-title'), element('div', mailDateLabel(m), 'meta'));
+  const top = element('div', '', 'mail-detail-top');
+  top.append(mailCategoryPicker(m));
+  heading.append(top, element('h2', displaySubject(m.subject), 'mail-title'), element('div', mailSenderLabel(m) + '  ' + mailDateLabel(m), 'meta'));
   let actions = element('div', '', 'mail-detail-actions'),
-    read = element('button', m.is_read ? '标记未读' : '标记已读', 'secondary');
+    read = element('button', '', 'mail-icon-action');
+  read.setAttribute('aria-label', m.is_read ? '标记未读' : '标记已读');
+  read.title = read.getAttribute('aria-label');
+  read.append(mailActionIcon(m.is_read ? 'unread' : 'read'));
   read.onclick = () => call('/api/mail', {
     id: m.id,
     action: m.is_read ? 'unread' : 'read'
   });
-  let remove = element('button', '删除', 'secondary');
+  let remove = element('button', '', 'mail-icon-action');
+  remove.setAttribute('aria-label', '删除');
+  remove.title = '删除';
+  remove.append(mailActionIcon('delete'));
   remove.onclick = () => deleteMails([m.id]);
   actions.append(read, remove);
-  heading.append(actions);
+  top.append(actions);
   card.append(heading);
   let a = element('div', '', 'mail-detail'),
     v = m.result ? JSON.parse(m.result) : null;
@@ -259,11 +269,23 @@ function renderMailDetail(m, d, written) {
     });
     a.append(b);
   }
-  let original = element('button', '查看原邮件', 'secondary');
-  original.onclick = () => openSource(m);
-  a.append(original);
-  card.append(a);
+  if (mailReadingId !== m.id) { mailReadingId = m.id; mailReadingMode = 'summary'; }
+  const tabs = element('nav', '', 'mail-reading-tabs');
+  tabs.setAttribute('aria-label', '阅读模式');
+  const source = previousSource?.dataset.mailId === String(m.id) ? previousSource : element('div', '', 'inline-mail-source');
+  source.dataset.mailId = m.id;
+  for (const [mode, label] of [['summary', '摘要与事项'], ['original', '原邮件']]) {
+    const tab = element('button', label, mode === mailReadingMode ? 'active' : '');
+    tab.setAttribute('aria-pressed', String(mode === mailReadingMode));
+    tab.onclick = () => { mailReadingMode = mode; renderMailDetail(m, d, written); };
+    tabs.append(tab);
+  }
+  a.hidden = mailReadingMode !== 'summary';
+  source.hidden = mailReadingMode !== 'original';
+  card.append(tabs, a, source);
   pane.append(card);
+  if (mailReadingMode === 'original' && !source.childNodes.length) openSource(m, source);
+
 }
 function visibleMails(d) {
   return d.mails.filter(m => matchesMailSearch(m) && (selected === '全部' || m.category === selected) && (selected !== '课程与教学' || matchesCourse(m, selectedCourse)));
@@ -355,18 +377,17 @@ function render() {
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(updateMailWorkspaceHeight);
   let d = state;
   $('filters').replaceChildren();
-  for (let cat of ['全部', ...categories]) {
-    let count = d.mails.filter(m => (cat === '全部' || m.category === cat) && matchesMailSearch(m)).length;
-    let b = element('button', cat, selected === cat ? 'active' : '');
-    b.append(countLabel(count));
-    b.setAttribute('aria-label', cat + '，' + count + ' 封邮件');
-    b.onclick = () => {
-      selected = cat;
-      selectedCourse = '全部课程';
-      render();
-    };
-    $('filters').append(b);
+  const categorySelect = element('select');
+  categorySelect.setAttribute('aria-label', '邮件分类');
+  for (const cat of ['全部', ...categories]) {
+    const option = element('option', cat === '全部' ? '全部邮件' : cat);
+    option.value = cat;
+    categorySelect.append(option);
   }
+  categorySelect.value = selected;
+  categorySelect.onchange = () => { selected = categorySelect.value; selectedCourse = '全部课程'; render(); };
+  const count = d.mails.filter(m => matchesMailSearch(m) && (selected === '全部' || m.category === selected) && (selected !== '课程与教学' || matchesCourse(m, selectedCourse))).length;
+  $('filters').append(categorySelect, element('span', count + ' 封', 'mail-filter-total'));
   renderImportant(d);
   renderCourses(d);
   const listScroll = $('mails').scrollTop;
@@ -418,7 +439,13 @@ function render() {
       row.append(checkbox);
     }
     let content = element('div', '', 'mail-list-content');
-    content.append(element('div', m.category, 'mail-list-category'), element('div', mailListTitle(m), 'mail-list-title'), element('div', mailDateLabel(m), 'mail-list-date'));
+    const senderRow = element('div', '', 'mail-list-sender-row');
+    const sender = element('span', mailSenderLabel(m), 'mail-list-sender');
+    senderRow.append(sender, element('time', mailListDateLabel(m), 'mail-list-date'));
+    const categoryRow = element('div', '', 'mail-list-category-row');
+    if (row.querySelector('input')) categoryRow.append(row.querySelector('input'));
+    categoryRow.append(element('span', m.category, 'mail-list-category'));
+    content.append(senderRow, element('div', mailListTitle(m), 'mail-list-title'), categoryRow);
     row.append(content);
     let selectMail = e => {
       if (typeof mailSelectionMode !== 'undefined' && mailSelectionMode) {
@@ -657,4 +684,18 @@ async function mutateMailDeletion(ids, action, snapshots = []) {
     notify(error.message);
     return false;
   }
+}
+
+function mailSenderLabel(m) {
+  const sender = String(m.sender || '').trim();
+  const name = sender.match(/^([^<]+)\s*</)?.[1]?.trim().replace(/^"|"$/g, '');
+  return name || sender || '发件人未提供';
+}
+function mailListDateLabel(m) {
+  const date = new Date(m.sent_date || m.date), now = new Date();
+  if (Number.isNaN(date.getTime())) return m.sent_date || m.date || '';
+  if (date.toDateString() === now.toDateString()) return date.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit', hour12:false});
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return '昨天';
+  return date.toLocaleDateString('zh-CN', {month:'2-digit', day:'2-digit', ...(date.getFullYear() !== now.getFullYear() ? {year:'numeric'} : {})});
 }

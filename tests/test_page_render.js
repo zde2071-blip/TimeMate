@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const html=require('./ui_source').readUI();
 class Element{
  constructor(tag,text=''){this.tag=tag;this.textContent=text;this.children=[];}
- append(...nodes){this.children.push(...nodes);}
+ querySelector(){return null;}append(...nodes){this.children.push(...nodes);}
  replaceChildren(...nodes){this.children=[...nodes];}
  setAttribute(k,v){this[k]=v;}
  showModal(){this.open=true;}
@@ -16,7 +16,7 @@ function run(links,mailCount=23){
  const state={mails,calendarEvents:[{mail_id:mails[0].id,event_index:0,status:'subscribed',detail:JSON.stringify(event)},{mail_id:mails[2].id,event_index:0,status:'subscribed',detail:JSON.stringify({...event,start:'2026-10-20T10:00'})},{mail_id:mails[3].id,event_index:0,status:'removed',detail:JSON.stringify({...event,title:'已取消的活动',start:'2026-10-21T10:00'})}],pins:[],eventLinks:links?[{mail_id:mails[1].id,event_index:0,target_mail_id:mails[0].id,target_index:0}]:[]};
  const context=vm.createContext({mailSearchIds:null,mailSearchResolvedQuery:'',mailSearchPending:false,mailSearchError:'',mailSearchTimer:null,mailRenderFilter:'',mailRenderLimit:50,lastSelectedMailIndex:null,clearTimeout(){},setTimeout(){},resolveMailSearch(){},state,$,categories:['课程与教学','活动与机会'],mailSearchQuery:'',selected:'全部',selectedCourse:'全部课程',activeMailId:null,importantView:'all',calendarMonth:new Date('2026-10-01'),calendarSelected:'',selectedDeadlineKey:'',element:(tag,text,cls)=>{let node=new Element(tag,text);node.className=cls;return node},document:{createElement:tag=>new Element(tag)},localDateKey:d=>d.toISOString().slice(0,10),calendarDayDifference:()=>1,eventContent:(e,a,l,b,title)=>{let copy=new Element('div',e.title);if(title)copy.append(title);return copy},eventOverrideData:()=>({}),applyEventOverride:(d,id,i,e)=>e,eventAction:e=>e.action,editEventMenu:()=>new Element('button','编辑'),renderCourses:()=>{},mailDateLabel:m=>m.date,jumpMail:()=>{},renderMailDetail:m=>$('mail-detail-pane').replaceChildren(new Element('h2',m?.subject||'暂无邮件'))});
  vm.runInContext(require('./ui_source').functions("allEventMails", "renderImportantCard", "moveCalendarMonth", "goCalendarToday", "openCalendarMonthPicker", "renderMonthCalendar", "setImportantView", "renderImportant", "displaySubject"),context);
- vm.runInContext(require('./ui_source').functions("initMailSearch", "countLabel", "mailListTitle", "matchesMailSearch", "setMailSearch", "render", "updateMailWorkspaceHeight", "compactMailStatus", "renderMailControls"),context);
+ vm.runInContext(require('./ui_source').functions("initMailSearch", "countLabel", "mailListTitle", "matchesMailSearch", "setMailSearch", "render", "mailSenderLabel", "mailListDateLabel", "updateMailWorkspaceHeight", "compactMailStatus", "renderMailControls"),context);
  context.render();
  assert.equal($('mails').children.length, Math.min(mailCount,50)+(mailCount>50?1:0),'mail cards are loaded in bounded chunks');
  if(mailCount>50){

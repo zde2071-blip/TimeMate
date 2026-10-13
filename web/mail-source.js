@@ -11,8 +11,8 @@ function closeSourceOnBackdrop(event) {
   if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) closeSource();
 }
 
-async function openSource(m) {
-  const box = $('source-content'),
+async function openSource(m, inlineBox = null) {
+  const box = inlineBox || $('source-content'),
     dialog = $('source-dialog'),
     heading = element('h3', m.subject);
   const status = element('p', '加载原文…', 'meta'),
@@ -31,7 +31,7 @@ async function openSource(m) {
     // Chromium can leave a navigated sandboxed frame outside the modal's painted
     // top layer. Re-enter it after loading without changing focus or scroll.
     frame.onload = () => {
-      if (!dialog.open || !box.contains(frame) || frame.hidden) return;
+      if (inlineBox || !dialog.open || !box.contains(frame) || frame.hidden) return;
       const focus = document.activeElement,
         scroll = dialog.scrollTop;
       dialog.close();
@@ -51,8 +51,8 @@ async function openSource(m) {
   toolbar.append(originalButton, chineseButton);
   toolbar.hidden = true;
   hint.hidden = true;
-  box.replaceChildren(heading, status, toolbar, hint, originalFrame, chineseFrame, translated);
-  if (!dialog.open) dialog.showModal();
+  box.replaceChildren(...(inlineBox ? [] : [heading]), status, toolbar, hint, originalFrame, chineseFrame, translated);
+  if (!inlineBox && !dialog.open) dialog.showModal();
   try {
     m = await getMailDetail(m);
   } catch {}
@@ -60,7 +60,7 @@ async function openSource(m) {
     chineseData = null,
     sourceMode = 'original',
     externalLoaded = false;
-  const current = () => dialog.open && box.contains(originalFrame);
+  const current = () => (inlineBox ? box.isConnected : dialog.open) && box.contains(originalFrame);
   function display(frame, markup) {
     let content = markup;
     if (externalLoaded) content = content.replace(/data-external="(\d+)"/g, (_, i) => 'src="' + String(data.external[Number(i)] || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;') + '"');

@@ -1,10 +1,10 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const html=require('./ui_source').readUI();
-class Element{constructor(tag,text=''){this.tag=tag;this.textContent=text;this.children=[];}append(...n){this.children.push(...n)}replaceChildren(...n){this.children=[...n]}}
+class Element{constructor(tag,text=''){this.tag=tag;this.textContent=text;this.children=[];this.dataset={};}querySelector(){return null;}setAttribute(k,v){this[k]=v;}getAttribute(k){return this[k];}get childNodes(){return this.children;}append(...n){this.children.push(...n)}replaceChildren(...n){this.children=[...n]}}
 const flatten=node=>[node,...node.children.flatMap(flatten)];
 async function run(){
  const pane=new Element('section'),content=[];
- const context=vm.createContext({mailSelectionMode:false,$:()=>pane,element:(tag,text)=>new Element(tag,text),displaySubject:s=>s,mailCategoryPicker:()=>new Element('select'),mailDateLabel:()=>'',value:s=>s,eventAction:e=>e.action,eventContent:e=>{content.push(e);return new Element('div',e.title)},Object});
+ const context=vm.createContext({mailSelectionMode:false,mailReadingMode:"summary",mailReadingId:null,mailSenderLabel:()=>"",mailActionIcon:()=>new Element("svg"),$:()=>pane,element:(tag,text)=>new Element(tag,text),displaySubject:s=>s,mailCategoryPicker:()=>new Element('select'),mailDateLabel:()=>'',value:s=>s,eventAction:e=>e.action,eventContent:e=>{content.push(e);return new Element('div',e.title)},Object});
  vm.runInContext(require('./ui_source').functions("allEventMails", "eventTarget", "eventOverrideData", "applyEventOverride", "mailEventForDisplay"),context);
  vm.runInContext(require('./ui_source').functions("renderMailDetail", "visibleMails", "selectMailInList", "bulkMailAction", "markFilteredMailRead", "closeMailSettingsMenu", "countLabel", "mailListTitle", "matchesMailSearch", "setMailSearch"),context);
  const event={title:'项目截止',action:'提交主题',kind:'截止',start:'2026-10-11T00:00',end:'',allDay:true};
