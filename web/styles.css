@@ -2776,7 +2776,7 @@ body.mail-layout #course-filters { gap:4px; margin:6px 0 0; padding:0; border:0;
 body.mail-layout #course-filters button { margin:0; padding:5px 6px; border:0; background:transparent; color:#76838d; font-size:12px; }
 body.mail-layout #course-filters button.active { background:#f0f2f3; color:#29333b; }
 body.mail-layout .mail-workspace #mails { flex:1 1 auto; height:auto; min-height:0; gap:0; padding:0; }
-body.mail-layout .mail-list-item { flex:0 0 auto; padding:16px 14px; border:0; border-bottom:1px solid #e7e8ea; border-radius:0; box-shadow:none; background:transparent; }
+body.mail-layout .mail-list-item { align-self:stretch; width:100%; min-width:0; flex:0 0 auto; padding:16px 14px; border:0; border-bottom:1px solid #e7e8ea; border-radius:0; box-shadow:none; background:transparent; }
 body.mail-layout .mail-list-item:hover { background:#f7f8f9; }
 body.mail-layout .mail-list-item.selected,body.mail-layout .mail-list-item.multi-selected { background:#f1f2f3; }
 /* Keep mail panes clean at rest; briefly reveal their scrollbar while scrolling. */
