@@ -2645,8 +2645,8 @@ body.mail-layout .app-header { flex: 0 0 64px; margin: 0; }
 .settings-nav {
   align-self: stretch;
   padding: 16px 12px;
-  background: #eff0f2;
-  border-right: 1px solid #e0e3e6;
+  background: #fff;
+  border-right: 1px solid #eceef0;
 }
 .settings-nav-item {
   display: flex;
@@ -2662,8 +2662,8 @@ body.mail-layout .app-header { flex: 0 0 64px; margin: 0; }
   border-radius: 9px;
   cursor: pointer;
 }
-.settings-nav-item:hover { background: #e5e7ea; }
-.settings-nav-item[aria-current="page"] { background: #fff; color: #20282d; box-shadow: inset 3px 0 #596168; }
+.settings-nav-item:hover { background: #f6f7f8; }
+.settings-nav-item[aria-current="page"] { background: #f0f2f3; color: #20282d; }
 .settings-nav-item .settings-icon { background: transparent; color: #5d666c; }
 .settings-nav-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .settings-nav-copy strong { font-size: 14px; font-weight: 600; }
@@ -2695,7 +2695,7 @@ body > main { width: 100%; max-width: 1240px; margin: 0 auto; padding: 32px; }
 .app-rail {
   position: fixed; inset: 0 auto 0 0; z-index: 30;
   display: flex; flex-direction: column; justify-content: space-between;
-  width: 64px; padding: 18px 10px 14px; background: #fff;
+  width: 64px; padding: 18px 10px 14px; background: #f7f7f8;
   border-right: 1px solid #e4e6e8; transition: width .18s ease;
 }
 .app-rail:hover,.app-rail:has(button:focus-visible) { width: 208px; box-shadow: 8px 0 20px rgb(0 0 0 / 3%); }
