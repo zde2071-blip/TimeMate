@@ -116,9 +116,9 @@ function notify(text) {
 
 function showSetup() {
   showPage('settings');
-  if (!state?.ready?.mail) $('mail-settings').open = true;
-  else if (!state?.ready?.ai) $('ai-settings').open = true;
-  else if (state?.config?.calendar_subscription_confirmed !== 'yes') $('calendar-settings').open = true;
+  if (!state?.ready?.mail) selectConnectionSettings('mail');
+  else if (!state?.ready?.ai) selectConnectionSettings('ai');
+  else if (state?.config?.calendar_subscription_confirmed !== 'yes') selectConnectionSettings('calendar');
 }
 
 let setupGuideRevision = 0;
@@ -126,10 +126,7 @@ let setupGuideRevision = 0;
 const setupGuideCache = new Map();
 
 function showPage(name) {
-  if (name === 'settings') {
-    for (const id of ['mail-settings', 'ai-settings', 'calendar-settings']) $(id).open = false;
-    $('settings-page').removeAttribute('data-setting-open');
-  }
+  if (name === 'settings' && !document.querySelector('.settings-nav-item[aria-current="page"]')) selectConnectionSettings('mail');
   for (let page of ['important', 'mail', 'settings']) {
     $(page + '-page').hidden = page !== name;
     $('nav-' + page).className = page === name ? '' : 'secondary';
@@ -149,12 +146,25 @@ function showPage(name) {
   requestAnimationFrame(updateMailWorkspaceHeight);
 }
 
+function selectConnectionSettings(group) {
+  const labels = {
+    mail: ['邮箱', '设置学校邮件转发与接收邮箱'],
+    ai: ['AI 服务', '设置邮件分析使用的 AI 服务'],
+    calendar: ['日历', '设置日历订阅方式']
+  };
+  if (!labels[group]) return;
+  for (const key of Object.keys(labels)) {
+    const selected = key === group;
+    $('settings-nav-' + key)?.setAttribute('aria-current', selected ? 'page' : 'false');
+    $(key + '-settings').hidden = !selected;
+  }
+  $('settings-detail-title').textContent = labels[group][0];
+  $('settings-detail-description').textContent = labels[group][1];
+  $('settings-page').dataset.settingOpen = group;
+}
+
 function closeConnectionSettings(group) {
-  const panel = $(group + '-settings');
-  if (!panel) return;
-  panel.open = false;
-  $('settings-page').removeAttribute('data-setting-open');
-  panel.querySelector('summary')?.focus();
+  selectConnectionSettings(group);
 }
 
 function value(text) {

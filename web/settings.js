@@ -4,7 +4,7 @@ function connectionBadge(group, ready) {
   const button = $(group + '-save');
   const connected = ready && !['未保存', '失败'].includes(connectionStates[group]);
   button.textContent = connectionStates[group] === '连接中' ? '连接中…' : connected ? '✓ 已连接' : '连接并保存';
-  const summary = $(group + '-summary-status');
+  const summary = $(group + '-nav-status');
   if (summary) {
     summary.textContent = connectionStates[group] === '连接中' ? '连接中' :
       connectionStates[group] === '失败' ? '连接失败' :
@@ -62,7 +62,7 @@ function providerChanged() {
   connectionEdited('ai');
   aiRevision++;
   let p = providers[$('provider').value];
-  $('ai-summary-provider').textContent = p?.name || $('provider').selectedOptions?.[0]?.textContent || '尚未设置';
+  $('ai-nav-provider').textContent = p?.name || $('provider').selectedOptions?.[0]?.textContent || '尚未设置';
   $('base').value = p?.base || '';
   $('key').value = '';
   $('key').readOnly = false;
@@ -110,7 +110,7 @@ function renderMailProvider() {
   $('account-label').textContent = provider === 'qq' ? 'QQ 邮箱' : provider === 'netease' ? '网易邮箱' : '接收邮箱';
   $('account').placeholder = provider === 'qq' ? '完整 QQ 邮箱地址' : provider === 'netease' ? '完整网易邮箱地址（163.com 或 126.com）' : '完整邮箱地址';
   $('password-mail-label').textContent = provider === 'qq' ? 'QQ 邮箱授权码' : provider === 'netease' ? '网易邮箱客户端授权码' : '邮箱客户端授权码';
-  $('mail-summary-provider').textContent = provider === 'qq' ? 'QQ 邮箱' : provider === 'netease' ? '网易邮箱' : '尚未设置';
+  $('mail-nav-provider').textContent = provider === 'qq' ? 'QQ 邮箱' : provider === 'netease' ? '网易邮箱' : '尚未设置';
   $('mail-auth-guide').textContent = '如何获取 ↗';
   $('mail-auth-guide').href = provider === 'netease' ? '/assets/guides/netease.html' : '/assets/guides/qq.html';
   $('mail-auth-guide').onclick = event => {
@@ -210,7 +210,6 @@ async function connectionAction(group, action) {
       if (!(await refresh())) throw Error('操作已保存，但页面刷新失败，请刷新页面查看。');
       if (action === 'save') {
         box.textContent = '';
-        $(group + '-settings').open = false;
         connectionBadge(group, true);
       }
     }
@@ -220,7 +219,6 @@ async function connectionAction(group, action) {
       connectionBadge(group, false);
       renderFieldStatuses(state);
     }
-    if (action !== 'models') $(group + '-settings').open = true;
     box.textContent = e.message + (action === 'models' ? ' 可手动输入模型 ID。' : '');
   } finally {
     controls.forEach(x => x.disabled = false);
@@ -240,9 +238,9 @@ function renderCalendarSettings(cfg, url) {
   const confirmed = cfg.calendar_subscription_confirmed === 'yes' && cfg.calendar_method === 'subscribe';
   if (!calendarEditing) $('calendar_provider').value = p;
   const configured = !!p && cfg.calendar_method === 'subscribe' && !calendarEditing;
-  $('calendar-summary-provider').textContent = p === 'apple' ? 'Apple 日历' : p === 'outlook' ? 'Outlook 日历' : '日程与截止事项';
-  $('calendar-summary-status').textContent = confirmed ? '已订阅' : configured ? '待确认' : '未订阅';
-  $('calendar-summary-status').className = 'settings-summary-status' + (confirmed ? ' is-connected' : '');
+  $('calendar-nav-provider').textContent = p === 'apple' ? 'Apple 日历' : p === 'outlook' ? 'Outlook 日历' : '日程与截止事项';
+  $('calendar-nav-status').textContent = confirmed ? '已订阅' : configured ? '待确认' : '未订阅';
+  $('calendar-nav-status').className = 'settings-summary-status' + (confirmed ? ' is-connected' : '');
   const button = $('calendar-connect');
   button.hidden = false;
   button.disabled = !$('calendar_provider').value;
@@ -335,7 +333,6 @@ async function confirmCalendar() {
     })) {
       renderCalendarSettings(calendarConfig, calendarUrl);
       $('calendar-feedback').textContent = '';
-      $('calendar-settings').open = true;
     }
   } finally {
     button.disabled = false;
@@ -355,8 +352,8 @@ async function copyCalendarUrl() {
 function chooseCalendar() {
   $('calendar-dialog').close();
   showPage('settings');
-  $('calendar-settings').open = true;
-  $('calendar-heading').scrollIntoView({
+  selectConnectionSettings('calendar');
+  $('settings-detail-title').scrollIntoView({
     behavior: 'smooth'
   });
   changeCalendar();

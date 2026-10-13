@@ -8,24 +8,7 @@ window.fetch = async (...args) => {
 
 initEventMenus();
 
-const connectionPanels = [
-  ['mail-settings', 'mail'],
-  ['ai-settings', 'ai'],
-  ['calendar-settings', 'calendar']
-];
-for (const [id, group] of connectionPanels) {
-  $(id).addEventListener('toggle', () => {
-    const panel = $(id);
-    if (panel.open) {
-      for (const [otherId] of connectionPanels) {
-        if (otherId !== id) $(otherId).open = false;
-      }
-      $('settings-page').dataset.settingOpen = group;
-    } else if ($('settings-page').dataset.settingOpen === group) {
-      $('settings-page').removeAttribute('data-setting-open');
-    }
-  });
-}
+selectConnectionSettings('mail');
 
 $('mail-settings-toggle').onclick = () => {
   let menu = $('mail-settings-menu'),
@@ -106,12 +89,10 @@ async function refresh() {
     connectionBadge('mail', d.ready?.mail);
     connectionBadge('ai', d.ready?.ai);
     if (!settingsFoldsInitialized) {
-      $('mail-settings').open = false;
-      $('ai-settings').open = false;
-      $('calendar-settings').open = false;
+      selectConnectionSettings('mail');
       settingsFoldsInitialized = true;
     }
-    $('ai-summary-provider').textContent = $('provider').selectedOptions?.[0]?.textContent || '尚未设置';
+    $('ai-nav-provider').textContent = $('provider').selectedOptions?.[0]?.textContent || '尚未设置';
     calendarMethod = d.config.calendar_method || 'unset';
     renderCalendarSettings(d.config, d.calendarSubscriptionUrl);
     enabled = d.status.auto;
