@@ -141,6 +141,7 @@ function showPage(name) {
     title = titles[name] || 'TimeMate';
   document.title = title + ' - TimeMate';
   document.body.classList.toggle('mail-layout', name === 'mail');
+  document.body.classList.toggle('settings-view', name === 'settings');
   $('header-mail-feedback').hidden = name !== 'mail';
   closeMailSettingsMenu();
   window.scrollTo(0, 0);
