@@ -419,7 +419,6 @@ function render() {
     row.tabIndex = 0;
     row.setAttribute('role', typeof mailSelectionMode !== 'undefined' && mailSelectionMode ? 'group' : 'button');
     row.setAttribute('aria-current', String(!(typeof mailSelectionMode !== 'undefined' && mailSelectionMode) && m.id === activeMailId));
-    row.title = displaySubject(m.subject);
     row.setAttribute('aria-label', m.category + '，' + displaySubject(m.subject) + '，' + mailDateLabel(m));
     if (typeof mailSelectionMode !== 'undefined' && mailSelectionMode) {
       let checkbox = document.createElement('input');
@@ -665,11 +664,52 @@ function initMailSearch() {
 function initAutoHideMailScrollbars() {
   const hideTimers = new WeakMap();
   for (const pane of [$('mails'), $('mail-detail-pane')]) {
-    pane.addEventListener('scroll', () => {
-      pane.classList.add('is-scrolling');
+    const track = element('div', '', 'mail-scroll-overlay');
+    const thumb = element('div', '', 'mail-scroll-thumb');
+    track.setAttribute('aria-hidden', 'true');
+    track.append(thumb);
+    pane.parentElement.append(track);
+    const update = () => {
+      const box = pane.getBoundingClientRect();
+      const parentBox = pane.parentElement.getBoundingClientRect();
+      const height = Math.max(0, pane.clientHeight - 4);
+      const overflow = pane.scrollHeight - pane.clientHeight;
+      track.hidden = overflow <= 0 || !height;
+      track.style.top = (box.top - parentBox.top + 2) + 'px';
+      track.style.right = (parentBox.right - box.right + 2) + 'px';
+      track.style.height = height + 'px';
+      const thumbHeight = Math.min(height, Math.max(28, height * pane.clientHeight / Math.max(1, pane.scrollHeight)));
+      thumb.style.height = thumbHeight + 'px';
+      thumb.style.transform = 'translateY(' + ((height - thumbHeight) * Math.min(1, Math.max(0, pane.scrollTop / Math.max(1, overflow)))) + 'px)';
+    };
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(update).observe(pane);
+    let drag = null;
+    thumb.addEventListener('pointerdown', event => {
+      event.preventDefault();
+      update();
+      drag = { y: event.clientY, scroll: pane.scrollTop };
+      thumb.setPointerCapture(event.pointerId);
+      track.classList.add('is-scrolling');
       clearTimeout(hideTimers.get(pane));
-      hideTimers.set(pane, setTimeout(() => pane.classList.remove('is-scrolling'), 650));
+    });
+    thumb.addEventListener('pointermove', event => {
+      if (!drag) return;
+      const travel = track.clientHeight - thumb.clientHeight;
+      if (travel > 0) pane.scrollTop = drag.scroll + (event.clientY - drag.y) * (pane.scrollHeight - pane.clientHeight) / travel;
+    });
+    const endDrag = () => {
+      drag = null;
+      hideTimers.set(pane, setTimeout(() => track.classList.remove('is-scrolling'), 650));
+    };
+    thumb.addEventListener('pointerup', endDrag);
+    thumb.addEventListener('pointercancel', endDrag);
+    pane.addEventListener('scroll', () => {
+      update();
+      track.classList.add('is-scrolling');
+      clearTimeout(hideTimers.get(pane));
+      if (!drag) hideTimers.set(pane, setTimeout(() => track.classList.remove('is-scrolling'), 650));
     }, { passive: true });
+    update();
   }
 }
 
