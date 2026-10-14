@@ -64,7 +64,7 @@ async function openSource(m, inlineBox = null) {
   function display(frame, markup) {
     let content = markup;
     if (externalLoaded) content = content.replace(/data-external="(\d+)"/g, (_, i) => 'src="' + String(data.external[Number(i)] || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;') + '"');
-    frame.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${externalLoaded ? 'https:' : ''}; style-src 'unsafe-inline'"><style>body{font:15px -apple-system,sans-serif;line-height:1.7;overflow-wrap:anywhere;margin:12px}img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}a{color:#235b4b}</style></head><body>${content}</body></html>`;
+    frame.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${externalLoaded ? 'https:' : ''}; style-src 'unsafe-inline'"><style>body{font:15px -apple-system,sans-serif;line-height:1.7;overflow-wrap:anywhere;margin:12px}img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}a{color:#2f6654}</style></head><body>${content}</body></html>`;
   }
   function showMode(mode) {
     sourceMode = mode;
