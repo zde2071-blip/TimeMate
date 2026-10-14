@@ -1,6 +1,19 @@
 let mailReadingMode = "summary", mailReadingId = null;
 // Mail list, search, selection, actions and persistent synchronization status.
 
+function fitMailCategorySelect(select) {
+  const option = select.selectedOptions[0];
+  if (!option) return;
+  const style = getComputedStyle(select);
+  const canvas = fitMailCategorySelect.canvas || (fitMailCategorySelect.canvas = document.createElement('canvas'));
+  const context = canvas.getContext('2d');
+  context.font = style.font;
+  const letterSpacing = parseFloat(style.letterSpacing) || 0;
+  const textWidth = context.measureText(option.textContent).width + Math.max(0, option.textContent.length - 1) * letterSpacing;
+  const padding = select.classList.contains('mail-detail-category-select') ? 20 : 22;
+  select.style.width = Math.ceil(textWidth + padding) + 'px';
+}
+
 async function checkMail() {
   manualMailCheck = true;
   if (!(await call('/api/fetch', {}))) manualMailCheck = false;
@@ -82,6 +95,7 @@ function mailCategoryPicker(m) {
     if (!ok) select.value = m.category;
     select.disabled = false;
   };
+  select.classList.add('mail-detail-category-select');
   label.append(select);
   return label;
 }
@@ -284,6 +298,7 @@ function renderMailDetail(m, d, written) {
   source.hidden = mailReadingMode !== 'original';
   card.append(tabs, a, source);
   pane.append(card);
+  fitMailCategorySelect(heading.querySelector('.mail-detail-category-select'));
   if (mailReadingMode === 'original' && !source.childNodes.length) openSource(m, source);
 
 }
@@ -386,8 +401,8 @@ function render() {
   }
   categorySelect.value = selected;
   categorySelect.onchange = () => { selected = categorySelect.value; selectedCourse = '全部课程'; render(); };
-  const count = d.mails.filter(m => matchesMailSearch(m) && (selected === '全部' || m.category === selected) && (selected !== '课程与教学' || matchesCourse(m, selectedCourse))).length;
-  $('filters').append(categorySelect, element('span', count + ' 封', 'mail-filter-total'));
+  $('filters').append(categorySelect);
+  fitMailCategorySelect(categorySelect);
   renderImportant(d);
   renderCourses(d);
   const listScroll = $('mails').scrollTop;
