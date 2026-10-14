@@ -127,7 +127,7 @@ const setupGuideCache = new Map();
 
 function showPage(name) {
   if (name === 'settings' && !document.querySelector('.settings-nav-item[aria-current="page"]')) selectConnectionSettings('mail');
-  for (let page of ['important', 'mail', 'settings']) {
+  for (let page of ['important', 'mail', 'chat', 'settings']) {
     $(page + '-page').hidden = page !== name;
     $('nav-' + page).classList.toggle('is-active', page === name);
     $('nav-' + page).setAttribute('aria-current', page === name ? 'page' : 'false');
@@ -136,16 +136,19 @@ function showPage(name) {
   const titles = {
       important: '重要事项',
       mail: '邮件处理',
+      chat: 'AI 对话',
       settings: '账户设置'
     },
     title = titles[name] || 'TimeMate';
   document.title = title + ' - TimeMate';
   document.body.classList.toggle('mail-layout', name === 'mail');
+  document.body.classList.toggle('chat-layout-page', name === 'chat');
   document.body.classList.toggle('settings-view', name === 'settings');
   $('header-mail-feedback').hidden = name !== 'mail';
   closeMailSettingsMenu();
   window.scrollTo(0, 0);
   requestAnimationFrame(updateMailWorkspaceHeight);
+  if (name === 'chat') loadChatConversations();
 }
 
 function selectConnectionSettings(group) {

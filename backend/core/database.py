@@ -4,7 +4,7 @@ import sqlite3
 import threading
 from backend.mail import titles as mail_titles
 from backend.mail import dates as mail_dates
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 MAIL_COLUMNS = {
     'original': 'TEXT', 'source_links': 'TEXT',
     'source': "TEXT NOT NULL DEFAULT 'manual'",
@@ -68,6 +68,11 @@ def initialize(connection):
             for table in ('mails', 'pins', 'calendar_events', 'event_overrides', 'event_links', 'courses'):
                 for action in ('INSERT', 'UPDATE', 'DELETE'):
                     connection.execute(f"CREATE TRIGGER IF NOT EXISTS revision_{table}_{action.lower()} AFTER {action} ON {table} BEGIN UPDATE state_revision SET revision=revision+1 WHERE id=1; END")
+        if version < 5:
+            connection.execute('CREATE TABLE IF NOT EXISTS chat_conversations (id TEXT PRIMARY KEY, title TEXT NOT NULL, created REAL NOT NULL, updated REAL NOT NULL)')
+            connection.execute("CREATE TABLE IF NOT EXISTS chat_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, conversation_id TEXT NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE, role TEXT NOT NULL CHECK(role IN ('user','assistant')), content TEXT NOT NULL, sources TEXT NOT NULL DEFAULT '[]', created REAL NOT NULL)")
+            connection.execute('CREATE INDEX IF NOT EXISTS chat_messages_conversation ON chat_messages(conversation_id,id)')
+            connection.execute('CREATE INDEX IF NOT EXISTS chat_conversations_updated ON chat_conversations(updated DESC)')
         connection.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
         connection.commit()
     except Exception:

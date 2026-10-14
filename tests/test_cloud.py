@@ -72,11 +72,23 @@ class CloudTests(unittest.TestCase):
   policy=self.a.get('/').headers['Content-Security-Policy']
   directives={part.strip().split()[0]:part.strip().split()[1:] for part in policy.split(';') if part.strip()}
   self.assertIn("'self'",directives['style-src'], 'The actual page policy must allow its external stylesheet')
+ def test_mail_chat_routes_are_authenticated_isolated_and_rate_limited(self):
+  engine=self.app.store.engine(self.ua)
+  engine.CFG.update({'key':'configured-test-key','model':'test-model'})
+  with patch.object(engine.ai_services,'complete',return_value={'reply':'本周邮件已整理。','source_ids':[]}):
+   response=self.post(self.a,'/api/chat',{'message':'总结本周邮件','scope':'week','fromDate':'2026-10-12','toDate':'2026-10-18'},self.ta)
+  self.assertEqual(response.status_code,200)
+  ident=response.json['conversationId']
+  self.assertEqual(self.a.get('/api/chat/conversations',headers={'X-Token':self.ta}).json['conversations'][0]['id'],ident)
+  self.assertEqual(self.b.get('/api/chat/conversations',headers={'X-Token':self.tb}).json['conversations'],[])
+  with patch.object(self.app.store,'limited',return_value=True):
+   blocked=self.post(self.a,'/api/chat',{'message':'再问一次','scope':'week','fromDate':'2026-10-12','toDate':'2026-10-18'},self.ta)
+  self.assertEqual(blocked.status_code,429)
  def test_external_javascript_and_page_token(self):
   response=self.anon.get('/main.js')
   self.assertEqual(response.status_code,200)
   self.assertIn('text/javascript',response.content_type)
-  for script in ['ui-core','settings','mail-source','events','mailbox']:
+  for script in ['ui-core','settings','mail-source','events','mailbox','chat']:
    module=self.anon.get('/'+script+'.js')
    self.assertEqual(module.status_code,200)
    self.assertIn('text/javascript',module.content_type)

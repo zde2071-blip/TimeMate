@@ -406,6 +406,8 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         except ValueError as e: return jsonify(error=str(e)),400
     @app.route('/api/<path:path>',methods=['GET','POST'])
     def api(path):
+        if path == 'chat' and request.method == 'POST' and store.limited('chat:'+g.auth['user_id'],20):
+            return jsonify(error='对话请求过于频繁，请 15 分钟后再试。'),429
         engine=store.engine(g.auth['user_id'])
         if request.method=='POST' and not isinstance(request.get_json(silent=True),dict): return jsonify(error='请求格式不正确。'),400
         if path=='calendar/subscription' and request.method=='POST':

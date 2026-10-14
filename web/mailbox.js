@@ -486,6 +486,29 @@ function updateMailWorkspaceHeight() {
   let top = Math.max(12, workspace.getBoundingClientRect().top);
   workspace.style.setProperty('--mail-reading-height', Math.max(160, window.innerHeight - top - bottom) + 'px');
 }
+
+function openMailById(id) {
+  if (!state?.mails?.some(mail => mail.id === id)) {
+    notify('这封邮件当前不在收件箱中。');
+    return;
+  }
+  if (mailSearchQuery) {
+    $('mail-search-input').value = '';
+    setMailSearch('');
+  }
+  selected = '全部';
+  selectedCourse = '全部课程';
+  mailSelectionMode = false;
+  selectedMailIds.clear();
+  activeMailId = id;
+  showPage('mail');
+  render();
+  $('mail-detail-pane').scrollTop = 0;
+  document.getElementById('mail-' + id)?.scrollIntoView({ block: 'nearest' });
+  const mail = state.mails.find(item => item.id === id);
+  if (mail && !mail.is_read) call('/api/mail', { id, action: 'read' });
+}
+
 function compactMailStatus(status) {
   if (status.phase === 'checking') return '正在检查新邮件…';
   if (status.phase === 'analyzing') return '正在分析 ' + (status.completed || 0) + '/' + (status.total || 0);

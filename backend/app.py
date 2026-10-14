@@ -14,6 +14,7 @@ from backend.core import database as mail_database
 from backend.mail import ingest as mail_ingest
 from backend.mail import analysis as mail_analysis
 from backend.mail.read_model import MailReadModel, json_object
+from backend.mail.chat import MailChat
 from backend.core import operation_status
 # An engine is initialized only with an authenticated user's runtime.
 RUNTIME = None
@@ -486,12 +487,15 @@ class APIHandler:
                 row['links'] = []
             return row
         reader = MailReadModel(db, CFG, STATUS, ai_services.PROVIDERS, decorate)
+        chat = MailChat(db, CFG, model_reply)
         query = getattr(self, 'query', {})
         try:
             if self.path == '/api/state': return self.reply(200, reader.state())
             if self.path == '/api/updates': return self.reply(200, reader.updates())
             if self.path == '/api/mail/detail': return self.reply(200, reader.detail(query.get('id')))
             if self.path == '/api/mail/search': return self.reply(200, reader.search(query.get('q', '')))
+            if self.path == '/api/chat/conversations': return self.reply(200, {'conversations': chat.conversations()})
+            if self.path == '/api/chat/conversation': return self.reply(200, chat.history(query.get('id')))
         except UserFacingError as error:
             return self.reply(400, error_payload(error))
         self.reply(404,{})
@@ -516,6 +520,11 @@ class APIHandler:
                 return self.reply(200,original_mail(d.get('id')))
             elif self.path=='/api/source/translate':
                 return self.reply(200,translate_source(d.get('id')))
+            elif self.path=='/api/chat':
+                return self.reply(200,MailChat(db,CFG,model_reply).send(d))
+            elif self.path=='/api/chat/delete':
+                MailChat(db,CFG,model_reply).delete(d.get('id'))
+                return self.reply(200,{'ok':True})
             elif self.path=='/api/pin':
                 update_pin(d)
             elif self.path=='/api/event/check':
