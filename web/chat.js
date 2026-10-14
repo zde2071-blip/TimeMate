@@ -1,28 +1,10 @@
-// Mail-focused LLM conversations. Email content is fetched and scoped on the server.
+// Mail-focused LLM conversations. Email retrieval is query-based and server-side.
 let chatConversationId = null;
 let chatMessages = [];
 let chatConversations = [];
 let chatBusy = false;
 let chatHistoryRequest = 0;
-
-function chatDateKey(date) {
-  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
-}
-
-function chatDateRange(scope, now = new Date()) {
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  let start;
-  if (scope === 'week') {
-    const offset = (end.getDay() + 6) % 7;
-    start = new Date(end);
-    start.setDate(end.getDate() - offset);
-  } else {
-    const days = scope === '30d' ? 30 : 7;
-    start = new Date(end);
-    start.setDate(end.getDate() - days + 1);
-  }
-  return { fromDate: chatDateKey(start), toDate: chatDateKey(end) };
-}
+const chatEmpty = $('chat-empty');
 
 async function chatRequest(path, options = {}) {
   const response = await fetch(path, {
@@ -37,10 +19,6 @@ async function chatRequest(path, options = {}) {
 function renderChatHistory() {
   const list = $('chat-history-list');
   list.replaceChildren();
-  if (!chatConversations.length) {
-    list.append(element('p', '新对话会保存在这里。', 'chat-history-empty'));
-    return;
-  }
   for (const conversation of chatConversations) {
     const row = element('div', '', 'chat-history-row' + (conversation.id === chatConversationId ? ' is-active' : ''));
     const open = element('button', conversation.title || '新对话', 'chat-history-open');
@@ -72,13 +50,12 @@ function renderChatHistory() {
 function renderChatTranscript() {
   const transcript = $('chat-transcript');
   transcript.replaceChildren();
-  const empty = $('chat-empty');
   if (!chatMessages.length) {
-    transcript.append(empty);
-    empty.hidden = false;
+    transcript.append(chatEmpty);
+    chatEmpty.hidden = false;
     return;
   }
-  empty.hidden = true;
+  chatEmpty.hidden = true;
   for (const message of chatMessages) {
     const item = element('article', '', 'chat-message ' + (message.role === 'user' ? 'is-user' : 'is-assistant'));
     const label = element('div', message.role === 'user' ? '你' : 'TimeMate', 'chat-message-label');
@@ -143,8 +120,6 @@ function startNewChat() {
 async function sendChatMessage(message) {
   const question = String(message || '').trim();
   if (!question || chatBusy) return;
-  const scope = $('chat-scope').value;
-  const range = chatDateRange(scope);
   const unsaved = chatMessages.length;
   chatMessages.push({ role: 'user', content: question, sources: [] });
   chatBusy = true;
@@ -155,7 +130,7 @@ async function sendChatMessage(message) {
     const data = await chatRequest('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversationId: chatConversationId, message: question, scope, ...range })
+      body: JSON.stringify({ conversationId: chatConversationId, message: question })
     });
     chatConversationId = data.conversationId;
     chatMessages.push({ role: 'assistant', content: data.reply, sources: data.sources || [] });
@@ -167,8 +142,8 @@ async function sendChatMessage(message) {
     }
     chatConversations.sort((a, b) => b.updated - a.updated);
     $('chat-status').textContent = data.truncated
-      ? `本次使用了 ${data.included} / ${data.total} 封邮件的摘要。`
-      : (data.included ? `已参考 ${data.included} 封邮件的摘要。` : '所选时间范围内没有邮件摘要，回答将以通用知识为主。');
+      ? `从 ${data.total} 封邮件中检索了 ${data.included} 封相关邮件。`
+      : (data.included ? `已检索 ${data.included} 封邮件。` : '暂时没有可用于回答的邮件摘要。');
     $('chat-input').value = '';
     renderChatHistory();
   } catch (error) {
@@ -187,10 +162,6 @@ for (const button of document.querySelectorAll('[data-chat-prompt]')) {
   button.onclick = () => sendChatMessage(button.dataset.chatPrompt);
 }
 $('chat-new').onclick = startNewChat;
-$('chat-scope').onchange = () => {
-  const label = $('chat-scope').selectedOptions[0]?.textContent || '本周';
-  $('chat-scope-note').textContent = `使用${label}邮件摘要回答；回答会标出相关邮件来源。`;
-};
 $('chat-form').onsubmit = event => {
   event.preventDefault();
   sendChatMessage($('chat-input').value);
