@@ -699,23 +699,23 @@ function deadlineReminder(item, now = new Date()) {
   if (!Number.isFinite(remaining)) return null;
   if (remaining <= 0) return {
     label: '已截止',
-    color: 'var(--tm-danger)',
-    background: 'var(--tm-danger-soft)'
+    color: '#9f3d32',
+    background: '#f7e8e5'
   };
   if (remaining <= 86400000) return {
     label: '1天内截止',
-    color: 'var(--tm-danger)',
-    background: 'var(--tm-danger-soft)'
+    color: '#a63f31',
+    background: '#fae9e5'
   };
   if (remaining <= 3 * 86400000) return {
     label: '3天内截止',
-    color: 'var(--tm-warning)',
-    background: 'var(--tm-warning-soft)'
+    color: '#936014',
+    background: '#fbf1dc'
   };
   if (remaining <= 7 * 86400000) return {
     label: '7天内截止',
-    color: 'var(--tm-text-secondary)',
-    background: 'var(--tm-surface-soft)'
+    color: '#526b80',
+    background: '#edf2f6'
   };
   return null;
 }
