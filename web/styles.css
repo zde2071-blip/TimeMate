@@ -2702,19 +2702,19 @@ body.chat-layout-page:has(.app-rail button:focus-visible) > main { left:208px; }
   overflow:hidden; border:0; border-radius:0; background:#fff;
 }
 .chat-layout { display:grid; grid-template-columns:260px minmax(0,1fr); width:100%; height:100%; min-height:0; background:#fff; }
-.chat-history-pane { min-width:0; min-height:0; display:flex; flex-direction:column; gap:12px; padding:18px 12px; border:0; border-right:1px solid #eceef0; border-radius:0; background:#f7f7f8; }
+.chat-history-pane { min-width:0; min-height:0; display:flex; flex-direction:column; gap:12px; padding:18px 12px; border:0; border-right:1px solid #e4e6e8; border-radius:0; background:#f3f4f5; }
 .chat-history-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 4px 8px; }
 .chat-history-heading strong { color:#30383d; font-size:14px; }
 .chat-history-heading button { margin:0; padding:8px 10px; font-size:13px; }
 #chat-history-list { min-height:0; overflow:auto; }
 .chat-history-row { display:flex; align-items:center; gap:4px; margin:2px 0; border-radius:8px; }
-.chat-history-row.is-active,.chat-history-row:hover { background:#e9ebed; }
+.chat-history-row.is-active,.chat-history-row:hover { background:#e5e7e9; }
 .chat-history-open { flex:1; min-width:0; overflow:hidden; margin:0; padding:10px 9px; text-align:left; text-overflow:ellipsis; white-space:nowrap; background:transparent; color:#343a40; font-size:13px; }
 .chat-history-delete { flex:none; margin:0; padding:5px 8px; background:transparent; color:#697178; }
 .chat-history-delete:hover { background:#dfe2e4; }
 .chat-history-empty { margin:8px 4px; color:#81888e; font-size:13px; }
 .chat-main { min-width:0; min-height:0; display:grid; grid-template-rows:auto minmax(0,1fr) auto auto; margin:0; padding:0 clamp(20px,5vw,72px); border:0; border-radius:0; background:#fff; }
-.chat-header { display:flex; align-items:center; gap:20px; padding:18px 0 14px; border-bottom:1px solid #eceef0; }
+.chat-header { display:flex; align-items:center; gap:20px; padding:18px 0 14px; border-bottom:1px solid #e4e6e8; }
 .chat-header h1 { margin:0; color:#283238; font-size:18px; }
 .chat-transcript { min-height:0; overflow:auto; padding:28px 0; overscroll-behavior:contain; }
 .chat-empty { width:min(100%,820px); margin:clamp(48px,16vh,190px) auto 0; text-align:center; }
@@ -2750,7 +2750,7 @@ body.chat-layout-page:has(.app-rail button:focus-visible) > main { left:208px; }
 @media(max-width:760px) {
   body.chat-layout-page > main { left:56px; }
   .chat-layout { grid-template-columns:1fr; grid-template-rows:auto minmax(0,1fr); }
-  .chat-history-pane { max-height:130px; padding:8px 10px; border-right:0; border-bottom:1px solid #eceef0; }
+  .chat-history-pane { max-height:130px; padding:8px 10px; border-right:0; border-bottom:1px solid #e4e6e8; }
   .chat-history-heading { padding-bottom:0; }
   #chat-history-list { display:flex; gap:4px; overflow-x:auto; }
   .chat-history-row { flex:0 0 190px; }
@@ -2824,12 +2824,12 @@ body.settings-view .settings-layout { min-height: 100dvh; border: 0; border-radi
 body.mail-layout main { padding:0; background:#fff; }
 /* Keep the navigation rail distinct; the mail list and reader share a white workspace. */
 body.mail-layout main { background:#fff; }
-body.mail-layout .app-rail { background:#f1f2f3; border-right:1px solid #e7e8ea; }
-body.mail-layout .app-rail .rail-item:hover,body.mail-layout .app-rail .account-avatar:hover { background:#e9ebed; }
-body.mail-layout .app-rail .rail-item.is-active { background:#e5e7e9; }
+body.mail-layout .app-rail { background:#e7e9eb; border-right:1px solid #e4e6e8; }
+body.mail-layout .app-rail .rail-item:hover,body.mail-layout .app-rail .account-avatar:hover { background:#dfe2e4; }
+body.mail-layout .app-rail .rail-item.is-active { background:#d9dcdf; }
 body.mail-layout .mail-workspace { grid-template-columns: minmax(260px,28%) minmax(0,1fr); gap:0; margin:0; height:100%; }
-body.mail-layout .mail-list-pane { display:flex; flex-direction:column; min-height:0; min-width:0; border-right:1px solid #e8e9eb; background:#fff; }
-body.mail-layout .mail-list-header { flex:0 0 auto; padding:16px 14px 12px; border-bottom:1px solid #e8e9eb; background:#fff; }
+body.mail-layout .mail-list-pane { display:flex; flex-direction:column; min-height:0; min-width:0; border-right:1px solid #e4e6e8; background:#f3f4f5; }
+body.mail-layout .mail-list-header { flex:0 0 auto; padding:16px 14px 12px; border-bottom:1px solid #e4e6e8; background:#f3f4f5; }
 body.mail-layout .mail-search { margin:0; }
 body.mail-layout .mail-search-controls { display:flex; flex-wrap:nowrap; align-items:center; gap:8px; border:1px solid #e0e2e4; background:#f8f8f9; border-radius:9px; padding:0 10px; }
 body.mail-layout .mail-search-controls input { width:100%; min-width:0; margin:0; padding:10px 0; border:0; border-radius:0; background:transparent; font-size:14px; box-shadow:none; order:0; }
@@ -2848,14 +2848,18 @@ body.mail-layout #course-filters { gap:4px; margin:6px 0 0; padding:0; border:0;
 body.mail-layout #course-filters button { margin:0; padding:5px 6px; border:0; background:transparent; color:#76838d; font-size:12px; }
 body.mail-layout #course-filters button.active { background:#f0f2f3; color:#29333b; }
 body.mail-layout .mail-workspace #mails { flex:1 1 auto; height:auto; min-height:0; gap:0; padding:0; }
-body.mail-layout .mail-list-item { align-self:stretch; width:100%; min-width:0; flex:0 0 auto; padding:16px 14px; border:0; border-bottom:1px solid #e7e8ea; border-radius:0; box-shadow:none; background:transparent; }
-body.mail-layout .mail-list-item:hover { background:#f7f8f9; }
-body.mail-layout .mail-list-item.multi-selected { background:#f1f2f3; }
-body.mail-layout .mail-list-item.selected { background:#11845b; border-bottom-color:#11845b; }
+body.mail-layout .mail-list-item { align-self:stretch; width:100%; min-width:0; flex:0 0 auto; padding:16px 14px; border:0; border-bottom:1px solid #e4e6e8; border-radius:0; box-shadow:none; background:transparent; }
+body.mail-layout .mail-list-item:hover { background:#e9ebed; }
+body.mail-layout .mail-list-item.multi-selected { background:#e5e7e9; }
+body.mail-layout .mail-list-item.selected { background:#16a36a; border-bottom-color:#16a36a; }
 body.mail-layout .mail-list-item.selected .mail-list-title,
 body.mail-layout .mail-list-item.selected .mail-list-category,
 body.mail-layout .mail-list-item.selected .mail-list-date { color:#fff; }
 body.mail-layout .mail-list-item.selected.unread { box-shadow:inset 3px 0 rgba(255,255,255,.7); }
+/* The agreed three-level neutral palette: rail, list/history, then white reader. */
+body.chat-layout-page .app-rail { background:#e7e9eb; border-right-color:#e4e6e8; }
+body.chat-layout-page .app-rail .rail-item:hover,body.chat-layout-page .app-rail .account-avatar:hover { background:#dfe2e4; }
+body.chat-layout-page .app-rail .rail-item.is-active { background:#d9dcdf; }
 /* Keep mail panes clean at rest; briefly reveal their scrollbar while scrolling. */
 body.mail-layout #mails,body.mail-layout #mail-detail-pane { scrollbar-width:none; scrollbar-gutter:auto; }
 body.mail-layout #mails::-webkit-scrollbar,body.mail-layout #mail-detail-pane::-webkit-scrollbar { display:none; width:0; height:0; }
