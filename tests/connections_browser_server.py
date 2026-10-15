@@ -24,6 +24,7 @@ with tempfile.TemporaryDirectory() as directory:
    c.execute('INSERT INTO sessions VALUES (?,?,?,?)',(digest(session),uid,csrf,time.time()+3600))
   engine=app.store.engine(uid)
   engine.ai_services.complete=staticmethod(lambda *args,**kwargs:{'ok':True})
+  engine.ai_services.list_models=staticmethod(lambda *args,**kwargs:['fixture-model','second-service-a','second-service-b'])
   r=redirect('/#settings');r.set_cookie('mail_session',session,httponly=True,samesite='Lax');return r
  server=make_server('127.0.0.1',0,app,threaded=True)
  origin='http://127.0.0.1:'+str(server.server_port);app.config['MAIL_ALLOWED_ORIGINS']={origin}

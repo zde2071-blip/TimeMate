@@ -40,6 +40,7 @@ def main():
             engine=app.store.engine(uid)
             engine.CFG.update(key='fixture-only',model='fixture-vision')
             engine.ai_services.complete=staticmethod(model)
+            engine.ai_services.list_models=staticmethod(lambda *args,**kwargs:['first-model','second-model'])
             response=redirect('/#chat')
             response.set_cookie('mail_session',session,httponly=True,samesite='Lax')
             return response

@@ -103,11 +103,8 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.locator('#chat-model-settings').click();
    await page.locator('#ai-profile-new').click();
    await page.locator('#key').fill('fixture-key-one');
-   for (const model of ['first-model','second-model']) {
-    await page.locator('.ai-manual-toggle').click();
-    await page.locator('#ai-manual-input').fill(model);
-    await page.locator('#manual-model button').click();
-   }
+   await page.locator('#ai-save').click();
+   await page.locator('.ai-model-option input[value="second-model"]').check();
    await page.locator('#ai-save').click();
    await page.locator('#ai-profile-dialog').waitFor({state:'hidden'});
    await page.locator('.ai-provider-row').waitFor();
@@ -119,10 +116,24 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-ai-library-${width}.png`)});
    await page.getByRole('button',{name:'编辑DeepSeek',exact:true}).click();
    assert.equal(await page.locator('#key').inputValue(),'');
-   assert.equal(await page.locator('#ai-analysis-use').isChecked(),true);
-   assert.equal(await page.locator('#ai-analysis-model').inputValue(),mailBefore,'first added model is mail default');
+   assert.equal(await page.locator('#ai-model-tab').getAttribute('aria-selected'),'true');
+   assert.equal(await page.locator('.ai-mail-choice[aria-pressed=true]').getAttribute('data-model'),mailBefore,'first added model is mail default');
    assert.equal(await page.locator('#ai-model-list input:checked').count(),2);
+   assert.equal(await page.locator('#ai-model-panel').evaluate(n=>getComputedStyle(n).borderTopWidth),'0px','model tab has no extra card');
+   assert.equal(await page.locator('#ai-profile-dialog').getByText('型号',{exact:true}).count(),0);
+   assert.equal(await page.getByText('手动添加',{exact:false}).count(),0);
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-ai-editor-${width}.png`)});
+   await page.locator('.ai-mail-choice[data-model="second-model"]').click();
+   assert.equal(await page.locator('.ai-mail-choice[aria-pressed=true]').count(),1);
+   await page.locator('#ai-connection-tab').click();
+   assert.equal(await page.locator('#ai-key-caption').textContent(),'✓ 已保存');
+   assert.equal(await page.locator('#key').isVisible(),false);
+   await page.locator('#ai-key-replace').click();await page.locator('#key').fill('fixture-unsaved-replacement');
+   await page.screenshot({path:path.join(os.tmpdir(),`timemate-ai-connection-${width}.png`)});
+   await page.getByRole('button',{name:'取消',exact:true}).click();
+   await page.getByRole('button',{name:'编辑DeepSeek',exact:true}).click();
+   assert.equal(await page.locator('.ai-mail-choice[aria-pressed=true]').getAttribute('data-model'),mailBefore,'cancel discards default change');
+   assert.equal(await page.locator('#key').inputValue(),'','cancel discards unsaved replacement key');
    await page.locator('#ai-profile-dialog .modal-close-x').click();
    await page.locator('#nav-chat').click();
    await page.locator('#chat-new').click();
@@ -133,8 +144,8 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.getByText('当前模型：second-model',{exact:true}).waitFor();
    await page.locator('#chat-model-menu summary').click();await page.locator('#chat-model-settings').click();
    await page.getByRole('button',{name:'编辑DeepSeek',exact:true}).click();
-   assert.equal(await page.locator('#ai-analysis-model').inputValue(),mailBefore,'chat selection leaves mail analysis unchanged');
-   await page.locator('#ai-analysis-model').selectOption('second-model');
+   assert.equal(await page.locator('.ai-mail-choice[aria-pressed=true]').getAttribute('data-model'),mailBefore,'chat selection leaves mail analysis unchanged');
+   await page.locator('.ai-mail-choice[data-model="second-model"]').click();
    await page.locator('#ai-save').click();
    await page.locator('#ai-profile-dialog').waitFor({state:'hidden'});
    await page.locator('#nav-chat').click();

@@ -2,6 +2,21 @@ let aiProfiles = [];
 let aiEditingId = null;
 let aiModelDraft = [];
 let aiProfileBusy = false;
+let aiMailModelDraft = '';
+
+function selectAIProfileTab(tab) {
+  const models = tab === 'models';
+  $('ai-model-panel').hidden = !models;
+  $('ai-connection-panel').hidden = models;
+  $('ai-model-tab').setAttribute('aria-selected', String(models));
+  $('ai-connection-tab').setAttribute('aria-selected', String(!models));
+  $('ai-save').textContent = !aiEditingId && !models ? '下一步' : '保存';
+}
+
+function replaceAIKey() {
+  $('ai-key-field').hidden = false;
+  $('key').focus();
+}
 
 function aiProfileModels(profile) {
   return profile.models?.length ? profile.models : [profile.model];
@@ -15,7 +30,7 @@ function renderAIProfiles(data) {
     const title = providers[profile.provider]?.name || profile.provider;
     const models = aiProfileModels(profile);
     const row = element('article', '', 'ai-provider-row');
-    const mark = element('span', profile.provider === 'qwen' ? 'Q' : title[0], 'ai-provider-mark'); mark.setAttribute('aria-hidden', 'true');
+    const mark = element('span', profile.provider === 'deepseek' ? 'DS' : profile.provider === 'qwen' ? 'Q' : title[0], 'ai-provider-mark'); mark.setAttribute('aria-hidden', 'true');
     const copy = element('div', '', 'ai-provider-copy');
     copy.append(element('strong', title), element('small', models.length > 2 ? `已启用 ${models.length} 个模型` : models.join(' · ')));
     const edit = element('button', '', 'ai-provider-edit');
@@ -35,27 +50,28 @@ function fillAIProfile(id) {
   $('key').value = '';
   delete $('key').dataset.editing;
   $('key').dataset.saved = profile ? 'yes' : '';
-  $('key').placeholder = profile ? '已保存 · 留空保持不变' : '输入 API Key';
+  $('key').placeholder = '输入 API Key';
+  $('ai-key-field').hidden = !!profile;
+  $('ai-key-caption').textContent = profile ? '✓ 已保存' : '尚未配置';
+  $('ai-key-replace').hidden = !profile;
   aiModelDraft = [];
-  $('ai-analysis-use').checked = !!profile?.is_default || !aiProfiles.length;
-  $('ai-analysis-use').disabled = !!profile?.is_default || !aiProfiles.length;
-  $('ai-analysis-model').dataset.choice = profile?.model || '';
+  aiMailModelDraft = profile?.is_default ? profile.model : '';
   modelOptions(profile ? aiProfileModels(profile) : [], profile?.model || '');
-  $('ai-manual-input').value = '';
-  $('manual-model').hidden = true;
   $('ai-advanced').open = false;
   $('ai-provider-field').hidden = !!profile;
   $('ai-dialog-title').textContent = profile ? providers[profile.provider]?.name || profile.provider : '添加服务';
+  $('ai-dialog-mark').textContent = profile?.provider === 'deepseek' || !profile ? 'DS' : (providers[profile.provider]?.name || profile.provider)[0];
   $('ai-profile-delete').hidden = !profile;
   renderProviderHelp();
   $('ai-feedback').textContent = '';
+  selectAIProfileTab(profile ? 'models' : 'connection');
 }
 
 function openAIProfile(id) {
   if (aiProfileBusy) return;
   fillAIProfile(id);
   $('ai-profile-dialog').showModal();
-  $(id ? 'key' : 'provider').focus();
+  $(id ? 'ai-model-tab' : 'provider').focus();
 }
 
 function closeAIProfile() {
@@ -67,30 +83,41 @@ function closeAIProfile() {
 
 function renderAIModelOptions() {
   const list = $('ai-model-list'); list.replaceChildren();
+  $('ai-model-count').textContent = `已启用 ${aiModelDraft.filter(m => m.enabled).length} 个`;
   for (const model of aiModelDraft) {
+    const selected = model.id === aiMailModelDraft;
+    const row = element('div', '', 'ai-model-row' + (selected ? ' is-mail' : ''));
     const label = element('label', '', 'ai-model-option');
     const input = element('input'); input.type = 'checkbox'; input.checked = model.enabled; input.value = model.id;
-    input.onchange = () => { model.enabled = input.checked; renderAIAnalysisChoice(); aiRevision++; };
-    label.append(input, element('span', model.id)); list.append(label);
+    input.onchange = () => {
+      if (!input.checked && model.id === aiMailModelDraft) {
+        input.checked = true; $('ai-feedback').textContent = '先选择其他默认模型'; return;
+      }
+      model.enabled = input.checked; aiRevision++; renderAIModelOptions();
+    };
+    const choice = element('button', selected ? '✓ 默认' : '设为默认', 'ai-mail-choice');
+    choice.type = 'button'; choice.disabled = !model.enabled;
+    choice.dataset.model = model.id;
+    choice.setAttribute('aria-label', model.id + (selected ? '：邮件分析默认模型' : '：设为邮件分析默认模型'));
+    choice.setAttribute('aria-pressed', String(selected));
+    choice.onclick = () => {
+      aiMailModelDraft = model.id; aiRevision++; $('ai-feedback').textContent = ''; renderAIModelOptions();
+      [...list.querySelectorAll('.ai-mail-choice')].find(b => b.dataset.model === model.id)?.focus();
+    };
+    label.append(input, element('span', model.id)); row.append(label, choice); list.append(row);
   }
-  renderAIAnalysisChoice();
-}
-
-function addAIModel() {
-  const id = $('ai-manual-input').value.trim();
-  if (!id) return;
-  const found = aiModelDraft.find(m => m.id === id);
-  if (found) found.enabled = true; else aiModelDraft.push({id,enabled:true});
-  $('model').value = aiModelDraft.find(m => m.enabled)?.id || '';
-  $('ai-manual-input').value = ''; $('manual-model').hidden = true; aiRevision++;
-  renderAIModelOptions();
+  $('model').value = aiMailModelDraft || aiModelDraft.find(m => m.enabled)?.id || '';
 }
 
 async function saveAIService() {
   if (aiProfileBusy) return;
+  if (!aiEditingId && !$('ai-connection-panel').hidden) {
+    if (!aiModelDraft.length && !await connectionAction('ai', 'models')) return;
+    selectAIProfileTab('models'); return;
+  }
   const data = draft('ai');
   if (!data.models.length) { $('ai-feedback').textContent = '至少启用一个模型'; return; }
-  if (!$('base').reportValidity()) return;
+  if (!$('base').checkValidity()) { selectAIProfileTab('connection'); $('ai-advanced').open = true; $('base').reportValidity(); return; }
   const controls = [...$('ai-profile-dialog').querySelectorAll('input,select,button')];
   aiProfileBusy = true; controls.forEach(e => e.disabled = true); $('ai-feedback').textContent = '正在连接…';
   try {
@@ -103,11 +130,18 @@ async function saveAIService() {
     connectionStates.ai = '已保存';
     await refresh(); $('ai-library-feedback').textContent = '已保存';
   } catch(error) { $('ai-feedback').textContent = error.message; }
-  finally { aiProfileBusy = false; controls.forEach(e => e.disabled = false); $('ai-analysis-use').disabled = !aiProfiles.length || !!aiProfiles.find(p=>p.id===aiEditingId)?.is_default; }
+  finally { aiProfileBusy = false; controls.forEach(e => e.disabled = false); renderAIModelOptions(); }
 }
 
 $('ai-profile-dialog').addEventListener('cancel', event => { if (aiProfileBusy) event.preventDefault(); });
 $('ai-profile-dialog').addEventListener('close', () => { $('key').value = ''; delete $('key').dataset.editing; });
+$('ai-profile-dialog').querySelector('[role="tablist"]').addEventListener('keydown', event => {
+  if (aiProfileBusy || !['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+  event.preventDefault();
+  const models = event.key === 'Home' || event.key !== 'End' && $('ai-model-tab').getAttribute('aria-selected') !== 'true';
+  selectAIProfileTab(models ? 'models' : 'connection');
+  $(models ? 'ai-model-tab' : 'ai-connection-tab').focus();
+});
 $('ai-profile-delete').onclick = async () => {
   if (aiProfileBusy || !aiEditingId || !window.confirm('移除此服务及保存的 Key？')) return;
   try {
@@ -116,19 +150,6 @@ $('ai-profile-delete').onclick = async () => {
     closeAIProfile(); await refresh();
   } catch(error) { $('ai-feedback').textContent = error.message; }
 };
-function renderAIAnalysisChoice() {
-  const select = $('ai-analysis-model'), enabled = aiModelDraft.filter(m => m.enabled);
-  const previous = select.dataset.choice || '';
-  select.replaceChildren();
-  for (const model of enabled) { const option=element('option',model.id);option.value=model.id;select.append(option); }
-  select.value = enabled.some(m => m.id === previous) ? previous : enabled[0]?.id || '';
-  select.dataset.choice = select.value;
-  select.hidden = !$('ai-analysis-use').checked;
-  select.disabled = !enabled.length;
-  $('model').value = $('ai-analysis-use').checked ? select.value : enabled[0]?.id || '';
-}
-$('ai-analysis-use').onchange = () => { renderAIAnalysisChoice(); aiRevision++; };
-$('ai-analysis-model').onchange = () => { $('ai-analysis-model').dataset.choice=$('ai-analysis-model').value;renderAIAnalysisChoice();aiRevision++; };
 // Mailbox, AI, calendar and account settings.
 
 function connectionBadge(group, ready) {
@@ -160,6 +181,8 @@ function modelOptions(models, current = '') {
   const enabled = aiModelDraft.length ? aiModelDraft.filter(m => m.enabled).map(m => m.id) : saved ? aiProfileModels(saved) : current ? [current] : [];
   const all = [...new Set([...models,...enabled])];
   aiModelDraft = all.map(id => ({id,enabled:enabled.includes(id)}));
+  if (!saved && !aiModelDraft.some(m => m.enabled) && aiModelDraft.length) aiModelDraft[0].enabled = true;
+  if (!aiProfiles.length && !aiMailModelDraft) aiMailModelDraft = aiModelDraft.find(m => m.enabled)?.id || '';
   $('model').value = enabled[0] || '';
   renderAIModelOptions(); aiRevision++;
 }
@@ -178,7 +201,8 @@ function providerChanged() {
   const p = providers[$('provider').value];
   $('base').value = p?.base || '';
   $('key').value = ''; $('key').dataset.saved = ''; $('key').dataset.editing = '1';
-  aiModelDraft = []; modelOptions([]); renderProviderHelp();
+  aiModelDraft = []; aiMailModelDraft = ''; modelOptions([]); renderProviderHelp();
+  $('ai-dialog-mark').textContent = $('provider').value === 'deepseek' ? 'DS' : (p?.name || '?')[0];
   $('ai-advanced').open = false; $('ai-feedback').textContent = '';
 }
 
@@ -203,7 +227,7 @@ function savedSecret(id, saved) {
 function draft(group) {
   let keys = group === 'mail' ? ['account', 'mail_provider', 'school_sender', 'password'] : ['provider', 'base', 'model', 'key'];
   const result = Object.fromEntries(keys.map(k => [k, $(k).dataset.saved === 'yes' ? '' : $(k).value.trim()]));
-  if (group === 'ai' && typeof aiEditingId !== 'undefined') Object.assign(result, {profileId:aiEditingId || '',name:providers[$('provider').value]?.name || $('provider').value,models:aiModelDraft.filter(m => m.enabled).map(m => m.id),makeDefault:$('ai-analysis-use').checked});
+  if (group === 'ai' && typeof aiEditingId !== 'undefined') Object.assign(result, {profileId:aiEditingId || '',name:providers[$('provider').value]?.name || $('provider').value,models:aiModelDraft.filter(m => m.enabled).map(m => m.id),makeDefault:!!aiMailModelDraft});
   return result;
 }
 
@@ -264,6 +288,8 @@ function renderFieldStatuses(d) {
 }
 
 async function connectionAction(group, action) {
+  if (group === 'ai' && aiProfileBusy) return false;
+  if (group === 'ai') aiProfileBusy = true;
   let data = draft(group),
     revision = aiRevision;
   let controls = document.querySelectorAll(group === 'ai' ? '#ai-profile-dialog button, #ai-profile-dialog input, #ai-profile-dialog select' : '#mail-settings button, #mail-settings input, #mail-settings select');
@@ -306,8 +332,9 @@ async function connectionAction(group, action) {
     if (!r.ok) throw Error(result.error || '操作未完成');
     if (group === 'ai' && action === 'save' && result.profileId) aiEditingId = result.profileId;
     if (action === 'models') {
+      if (!Array.isArray(result.models) || !result.models.length) throw Error('未获取到模型，请稍后刷新');
       modelOptions(result.models, data.model);
-      box.textContent = '已获取 ' + result.models.length + ' 个模型';
+      box.textContent = '';
     } else {
       box.textContent = '';
       connectionStates[group] = '✓ 成功';
@@ -323,15 +350,18 @@ async function connectionAction(group, action) {
         connectionBadge(group, true);
       }
     }
+    return true;
   } catch (e) {
     if (action !== 'models') {
       connectionStates[group] = '失败';
       connectionBadge(group, false);
       renderFieldStatuses(state);
     }
-    box.textContent = e.message + (action === 'models' ? ' 可手动输入模型 ID。' : '');
+    box.textContent = e.message;
+    return false;
   } finally {
     controls.forEach(x => x.disabled = false);
+    if (group === 'ai') { aiProfileBusy = false; renderAIModelOptions(); }
   }
 }
 
