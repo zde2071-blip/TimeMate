@@ -1,4 +1,5 @@
 from backend.core.user_errors import UserFacingError, payload as error_payload
+from backend.core.ai_services import AIServiceError
 import hashlib, html, imaplib, json, re, ssl, threading, time
 from datetime import datetime, timezone
 from contextlib import nullcontext
@@ -171,7 +172,16 @@ def translate_source(ident):
         return {'html':translation,'external':external,'subject':translated_subject,'cached':False,'truncated':False,'elapsedMs':elapsed_ms}
 
 def model_reply(cfg,prompt,data):
-    return ai_services.complete(cfg,prompt,data)
+    if '_images' not in data:
+        return ai_services.complete(cfg,prompt,data)
+    payload=dict(data)
+    images=payload.pop('_images')
+    try:
+        return ai_services.complete(cfg,prompt,payload,images=images)
+    except AIServiceError as error:
+        if 'HTTP 400' in str(error) or 'HTTP 422' in str(error):
+            raise UserFacingError('当前模型或接口不支持这次图片输入，请在账户设置中选择支持图片识别的模型，或改用文字。') from None
+        raise
 
 def connection_draft(group,data):
     candidate=CFG.copy()
@@ -522,6 +532,8 @@ class APIHandler:
                 return self.reply(200,translate_source(d.get('id')))
             elif self.path=='/api/chat':
                 return self.reply(200,MailChat(db,CFG,model_reply).send(d))
+            elif self.path=='/api/chat/events/add':
+                return self.reply(200,MailChat(db,CFG,model_reply).add_event(d))
             elif self.path=='/api/chat/delete':
                 MailChat(db,CFG,model_reply).delete(d.get('id'))
                 return self.reply(200,{'ok':True})

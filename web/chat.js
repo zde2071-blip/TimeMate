@@ -4,6 +4,10 @@ let chatMessages = [];
 let chatConversations = [];
 let chatBusy = false;
 let chatHistoryRequest = 0;
+let chatAttachments = [];
+let chatAttachmentBusy = false;
+let chatRetry = null;
+let chatOpenRequest = 0;
 const chatEmpty = $('chat-empty');
 
 async function chatRequest(path, options = {}) {
@@ -29,7 +33,7 @@ function renderChatHistory() {
     remove.type = 'button';
     remove.setAttribute('aria-label', '删除对话：' + (conversation.title || '新对话'));
     remove.onclick = async () => {
-      if (!window.confirm('删除这段对话？')) return;
+      if (chatBusy || !window.confirm('删除这段对话？已加入的重要事项会保留。')) return;
       try {
         await chatRequest('/api/chat/delete', {
           method: 'POST',
@@ -53,6 +57,7 @@ function renderChatTranscript() {
   if (!chatMessages.length) {
     transcript.append(chatEmpty);
     chatEmpty.hidden = false;
+    if (chatBusy) transcript.append(element('p', '正在整理…', 'chat-thinking'));
     return;
   }
   chatEmpty.hidden = true;
@@ -73,9 +78,10 @@ function renderChatTranscript() {
       }
       item.append(sources);
     }
+    if (Array.isArray(message.events) && message.events.length) item.append(renderChatEvents(message));
     transcript.append(item);
   }
-  if (chatBusy) transcript.append(element('p', '正在整理相关邮件…', 'chat-thinking'));
+  if (chatBusy) transcript.append(element('p', '正在整理…', 'chat-thinking'));
   transcript.scrollTop = transcript.scrollHeight;
 }
 
@@ -94,8 +100,10 @@ async function loadChatConversations(openLatest = true) {
 
 async function openChatConversation(id) {
   if (chatBusy) return;
+  const request = ++chatOpenRequest;
   try {
     const data = await chatRequest('/api/chat/conversation?id=' + encodeURIComponent(id));
+    if (request !== chatOpenRequest || chatBusy) return;
     chatConversationId = data.conversation.id;
     chatMessages = data.messages || [];
     $('chat-status').textContent = '';
@@ -108,6 +116,11 @@ async function openChatConversation(id) {
 
 function startNewChat() {
   if (chatBusy) return;
+  ++chatOpenRequest;
+  ++chatHistoryRequest;
+  chatRetry = null;
+  chatAttachments = [];
+  renderChatAttachments();
   chatConversationId = null;
   chatMessages = [];
   $('chat-status').textContent = '';
@@ -118,22 +131,31 @@ function startNewChat() {
 }
 
 async function sendChatMessage(message) {
-  const question = String(message || '').trim();
-  if (!question || chatBusy) return;
+  const question = String(message || '').trim() || (chatAttachments.length ? '整理图片中的考试和截止信息。' : '');
+  if (!question || chatBusy || chatAttachmentBusy) return;
+  ++chatOpenRequest;
+  const images = chatAttachments.map(({name, dataUrl}) => ({name, dataUrl}));
+  const mode = $('chat-approval-mode').value;
+  const key = JSON.stringify([chatConversationId, question, images, mode]);
+  if (!chatRetry || chatRetry.key !== key) chatRetry = {key, id: crypto.randomUUID()};
   const unsaved = chatMessages.length;
-  chatMessages.push({ role: 'user', content: question, sources: [] });
+  chatMessages.push({ role: 'user', content: question + images.map(image => '\n[图片：' + image.name + ']').join(''), sources: [] });
   chatBusy = true;
   $('chat-status').textContent = '';
-  $('chat-send').disabled = true;
+  setChatBusy(true);
   renderChatTranscript();
   try {
     const data = await chatRequest('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversationId: chatConversationId, message: question })
+      body: JSON.stringify({ conversationId: chatConversationId, message: question, images, approvalMode: mode, requestId: chatRetry.id })
     });
     chatConversationId = data.conversationId;
-    chatMessages.push({ role: 'assistant', content: data.reply, sources: data.sources || [] });
+    chatMessages.push({ role: 'assistant', content: data.reply, sources: data.sources || [], events: data.events || [] });
+    chatRetry = null;
+    chatAttachments = [];
+    renderChatAttachments();
+    if ((data.events || []).some(item => item.status === 'added')) await refresh();
     if (!chatConversations.some(item => item.id === chatConversationId)) {
       chatConversations.unshift({ id: chatConversationId, title: data.title || question.slice(0, 48), updated: Date.now() / 1000 });
     } else {
@@ -143,7 +165,7 @@ async function sendChatMessage(message) {
     chatConversations.sort((a, b) => b.updated - a.updated);
     $('chat-status').textContent = data.truncated
       ? `从 ${data.total} 封邮件中检索了 ${data.included} 封相关邮件。`
-      : (data.included ? `已检索 ${data.included} 封邮件。` : '暂时没有可用于回答的邮件摘要。');
+      : '';
     $('chat-input').value = '';
     renderChatHistory();
   } catch (error) {
@@ -152,7 +174,7 @@ async function sendChatMessage(message) {
     $('chat-status').textContent = error.message;
   } finally {
     chatBusy = false;
-    $('chat-send').disabled = false;
+    setChatBusy(false);
     renderChatTranscript();
     $('chat-input').focus();
   }
@@ -173,3 +195,165 @@ $('chat-input').addEventListener('keydown', event => {
   }
 });
 renderChatTranscript();
+
+function setChatBusy(busy) {
+  for (const id of ['chat-send', 'chat-upload', 'chat-approval-mode', 'chat-new']) $(id).disabled = busy;
+}
+
+function renderChatEvents(message) {
+  const list = element('section', '', 'chat-event-list');
+  list.setAttribute('aria-label', '识别到的重要事项');
+  for (const proposal of message.events) {
+    const event = proposal.event;
+    const row = element('article', '', 'chat-event-card');
+    const heading = element('div', '', 'chat-event-heading');
+    heading.append(element('span', event.kind === '截止' ? '截止事项' : '日程安排', 'chat-event-kind'), element('strong', event.title));
+    row.append(heading);
+    const when = event.allDay ? String(event.start || '').slice(0, 10) + '（全天）' : String(event.start || '时间待补充').replace('T', ' ') + (event.end ? ' — ' + (event.end.slice(0, 10) === event.start.slice(0, 10) ? event.end.slice(11, 16) : event.end.replace('T', ' ')) : '');
+    row.append(element('p', when, 'chat-event-time'));
+    if (event.location) row.append(element('p', event.location, 'chat-event-detail'));
+    if (event.action) row.append(element('p', event.action, 'chat-event-detail'));
+    if (event.evidence) row.append(element('p', '依据：' + event.evidence, 'chat-event-evidence'));
+    const footer = element('div', '', 'chat-event-footer');
+    const saved = ['added', 'duplicate', 'completed', 'removed'].includes(proposal.status);
+    const statusText = {added: '✓ 已添加', duplicate: '✓ 已有相同事项', completed: '✓ 已完成', removed: '已移除', needs_info: '需要补充信息', conflict: '需要核对'};
+    if (proposal.note && !saved) row.append(element('p', proposal.note, 'chat-event-note'));
+    if (saved) {
+      footer.append(element('span', statusText[proposal.status], 'chat-event-state'));
+      if (proposal.status !== 'removed') {
+        const view = element('button', '查看重要事项', 'secondary');
+        view.type = 'button';
+        view.onclick = async () => {
+          await refresh();
+          showPage('important');
+          if (typeof focusImportantEvent === 'function') focusImportantEvent(proposal.savedId, proposal.savedIndex);
+        };
+        footer.append(view);
+      }
+    } else if (proposal.status === 'needs_info') {
+      const clarify = element('button', '补充信息', 'secondary');
+      clarify.type = 'button';
+      clarify.onclick = () => {
+        $('chat-input').value = '补充“' + event.title + '”的时间信息：';
+        $('chat-input').focus();
+      };
+      footer.append(clarify);
+    } else {
+      if (proposal.status === 'conflict') {
+        const view = element('button', '查看重要事项', 'secondary');
+        view.type = 'button';
+        view.onclick = () => showPage('important');
+        footer.append(view);
+      }
+      const add = element('button', proposal.status === 'conflict' ? '另行添加' : '添加', 'chat-event-add');
+      add.type = 'button';
+      add.onclick = async () => {
+        if (proposal.status === 'conflict' && !window.confirm('已有相似事项，仍要另行添加吗？')) return;
+        add.disabled = true;
+        try {
+          const data = await chatRequest('/api/chat/events/add', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id: proposal.id, separate: proposal.status === 'conflict'})
+          });
+          message.events = data.events;
+          renderChatTranscript();
+          await refresh();
+        } catch (error) {
+          $('chat-status').textContent = error.message;
+          add.disabled = false;
+        }
+      };
+      footer.append(add);
+    }
+    row.append(footer);
+    list.append(row);
+  }
+  return list;
+}
+
+function renderChatAttachments() {
+  const box = $('chat-attachments');
+  box.replaceChildren();
+  box.hidden = !chatAttachments.length;
+  $('chat-image-notice').hidden = !chatAttachments.length;
+  for (const image of chatAttachments) {
+    const item = element('div', '', 'chat-attachment');
+    const preview = document.createElement('img');
+    preview.src = image.dataUrl;
+    preview.alt = image.name;
+    const remove = element('button', '×', 'secondary');
+    remove.type = 'button';
+    remove.setAttribute('aria-label', '移除图片：' + image.name);
+    remove.onclick = () => {
+      if (chatBusy) return;
+      chatAttachments = chatAttachments.filter(entry => entry !== image);
+      chatRetry = null;
+      renderChatAttachments();
+    };
+    item.append(preview, element('span', image.name), remove);
+    box.append(item);
+  }
+}
+
+async function prepareChatImage(file) {
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw Error('请上传 PNG、JPEG 或 WebP 图片。');
+  if (file.size > 15 * 1024 * 1024) throw Error('原始图片不能超过 15 MB，请缩小后上传。');
+  const image = await createImageBitmap(file);
+  try {
+    if (image.width * image.height > 40000000) throw Error('图片尺寸过大，请裁剪后上传。');
+    const scale = Math.min(1, 2400 / Math.max(image.width, image.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    // Re-encoding also removes EXIF/location metadata before transmission.
+    const dataUrl = canvas.toDataURL('image/jpeg', .9);
+    if (dataUrl.length > 4 * 1024 * 1024) throw Error('图片压缩后仍超过 3 MB，请裁剪后上传。');
+    return {name: file.name || '粘贴的图片', dataUrl};
+  } finally {
+    image.close();
+  }
+}
+
+async function attachChatImages(files) {
+  if (chatBusy || chatAttachmentBusy) return;
+  if (chatAttachments.length + files.length > 3) {
+    $('chat-status').textContent = '每次最多上传 3 张图片。';
+    return;
+  }
+  chatAttachmentBusy = true;
+  setChatBusy(true);
+  try {
+    const prepared = [];
+    for (const file of files) prepared.push(await prepareChatImage(file));
+    const images = [...chatAttachments, ...prepared];
+    if (images.reduce((total, image) => total + image.dataUrl.length * .75, 0) > 6 * 1024 * 1024) throw Error('本次图片总大小不能超过 6 MB，请减少图片。');
+    chatAttachments = images;
+    chatRetry = null;
+    $('chat-status').textContent = '';
+    renderChatAttachments();
+  } catch (error) {
+    $('chat-status').textContent = error.message || '图片读取失败，请重新上传。';
+  } finally {
+    chatAttachmentBusy = false;
+    setChatBusy(false);
+    $('chat-image-input').value = '';
+  }
+}
+
+$('chat-upload').onclick = () => $('chat-image-input').click();
+$('chat-image-input').onchange = event => attachChatImages(Array.from(event.target.files || []));
+$('chat-input').addEventListener('paste', event => {
+  const files = Array.from(event.clipboardData?.files || []).filter(file => file.type.startsWith('image/'));
+  if (files.length) {
+    event.preventDefault();
+    attachChatImages(files);
+  }
+});
+$('chat-approval-mode').onchange = () => {
+  chatRetry = null;
+  $('chat-mode-hint').textContent = $('chat-approval-mode').value === 'auto' ? '明确的事项将直接加入重要事项' : '识别后由你逐项添加';
+};

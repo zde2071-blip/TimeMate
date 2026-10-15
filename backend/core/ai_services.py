@@ -63,15 +63,21 @@ def list_models(cfg):
  if not models:raise AIServiceError('没有获取到模型，请手动填写服务商控制台中的模型 ID。')
  return models
 
-def complete(cfg,prompt,data,max_tokens=4096):
+def complete(cfg,prompt,data,max_tokens=4096,images=None):
  validate(cfg)
  user=json.dumps(data,ensure_ascii=False)
+ images=images or []
+ compatible_content=([{'type':'text','text':user}]+[{'type':'image_url','image_url':{'url':image['dataUrl']}} for image in images]) if images else user
  if cfg['provider']=='claude':
-  result=request_json(cfg,'/messages',{'model':cfg['model'],'max_tokens':max_tokens,'system':prompt,'messages':[{'role':'user','content':user}]})
+  content=[{'type':'text','text':user}]
+  for image in images:
+   header,encoded=image['dataUrl'].split(',',1)
+   content.append({'type':'image','source':{'type':'base64','media_type':header[5:].split(';')[0],'data':encoded}})
+  result=request_json(cfg,'/messages',{'model':cfg['model'],'max_tokens':max_tokens,'system':prompt,'messages':[{'role':'user','content':content if images else user}]})
   if result.get('stop_reason')=='max_tokens':raise AIServiceError('模型回答达到输出额度上限，结果不完整。')
   content=''.join(x.get('text','') for x in result.get('content',[]) if x.get('type')=='text')
  else:
-  payload={'model':cfg['model'],'messages':[{'role':'system','content':prompt},{'role':'user','content':user}],'max_tokens':max_tokens,'stream':False}
+  payload={'model':cfg['model'],'messages':[{'role':'system','content':prompt},{'role':'user','content':compatible_content}],'max_tokens':max_tokens,'stream':False}
   # Email extraction/translation needs a final answer, not a reasoning trace.
   # DeepSeek enables thinking by default, which shares the output token limit.
   if cfg['provider']=='deepseek':payload['thinking']={'type':'disabled'}

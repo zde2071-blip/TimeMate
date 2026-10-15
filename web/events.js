@@ -742,9 +742,16 @@ function renderImportantCard(item, d) {
     if (sources.length === 1) {
       titleControl = element('button', label, 'important-source-title');
       titleControl.type = 'button';
-      titleControl.title = '查看来源邮件';
-      titleControl.setAttribute('aria-label', (item.event.title || '事项') + '，查看来源邮件');
-      titleControl.onclick = () => jumpMail(sources[0].id);
+      const fromChat = sources[0].source === 'chat';
+      titleControl.title = fromChat ? '查看来源对话' : '查看来源邮件';
+      titleControl.setAttribute('aria-label', (item.event.title || '事项') + '，' + titleControl.title);
+      titleControl.onclick = () => {
+        if (fromChat) {
+          showPage('chat');
+          const conversationId = item.result?.conversationId || JSON.parse(sources[0].result || '{}').conversationId;
+          if (conversationId) openChatConversation(conversationId);
+        } else jumpMail(sources[0].id);
+      };
     } else {
       titleControl = element('details', '', 'important-source-group');
       let summary = element('summary', label, 'important-source-title');

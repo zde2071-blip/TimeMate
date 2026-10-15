@@ -4,7 +4,7 @@ import sqlite3
 import threading
 from backend.mail import titles as mail_titles
 from backend.mail import dates as mail_dates
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 MAIL_COLUMNS = {
     'original': 'TEXT', 'source_links': 'TEXT',
     'source': "TEXT NOT NULL DEFAULT 'manual'",
@@ -73,6 +73,10 @@ def initialize(connection):
             connection.execute("CREATE TABLE IF NOT EXISTS chat_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, conversation_id TEXT NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE, role TEXT NOT NULL CHECK(role IN ('user','assistant')), content TEXT NOT NULL, sources TEXT NOT NULL DEFAULT '[]', created REAL NOT NULL)")
             connection.execute('CREATE INDEX IF NOT EXISTS chat_messages_conversation ON chat_messages(conversation_id,id)')
             connection.execute('CREATE INDEX IF NOT EXISTS chat_conversations_updated ON chat_conversations(updated DESC)')
+        if version < 6:
+            connection.execute("CREATE TABLE IF NOT EXISTS chat_event_proposals (id TEXT PRIMARY KEY,message_id INTEGER NOT NULL REFERENCES chat_messages(id),event TEXT NOT NULL,status TEXT NOT NULL,note TEXT NOT NULL DEFAULT '',saved_id TEXT,saved_index INTEGER)")
+            connection.execute('CREATE INDEX IF NOT EXISTS chat_event_message ON chat_event_proposals(message_id)')
+            connection.execute('CREATE TABLE IF NOT EXISTS chat_requests (id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL,response TEXT NOT NULL)')
         connection.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
         connection.commit()
     except Exception:

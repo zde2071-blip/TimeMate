@@ -220,8 +220,15 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         allowed_origins.add('https://'+railway_domain)
     app.config.update(MAX_CONTENT_LENGTH=20000,TRUSTED_HOSTS=sorted(trusted_hosts),MAIL_ALLOWED_ORIGINS=allowed_origins)
     secure=url.scheme=='https'
+    @app.errorhandler(413)
+    def too_large(error):
+        return jsonify(error='上传内容过大；每次最多 3 张图片，合计不超过 6 MB。'),413
     @app.before_request
     def guard():
+        # Keep ordinary routes small; only authenticated chat accepts image JSON.
+        if request.path == '/api/chat' and request.method == 'POST':
+            from backend.mail.chat_images import CHAT_REQUEST_BYTES
+            request.max_content_length = CHAT_REQUEST_BYTES
         g.auth=None
         token=request.cookies.get('mail_session','')
         with store.db() as c:

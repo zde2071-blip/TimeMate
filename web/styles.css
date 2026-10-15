@@ -2921,3 +2921,33 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
  body.mail-layout .mail-detail-heading h2 { font-size:19px; }
  body.mail-layout .mail-list-item { padding:12px 14px; }
 }
+
+/* Chat actions stay within the established reader and neutral palette. */
+.chat-header { justify-content:space-between; }
+.chat-approval-label { display:flex; align-items:center; gap:9px; margin:0; color:#788188; font-size:12px; }
+.chat-approval-label select { width:auto; margin:0; padding:6px 26px 6px 10px; color:#344047; background-color:#f3f4f5; border:1px solid #e4e6e8; border-radius:8px; font-size:13px; }
+.chat-composer-footer #chat-upload { margin-right:auto; padding:7px 10px; background:#f3f4f5; color:#485258; }
+.chat-mode-hint,.chat-image-notice { color:#788188; font-size:12px; }
+.chat-image-notice { margin:8px 0 0; line-height:1.5; }
+.chat-attachments { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+.chat-attachment { display:flex; align-items:center; gap:7px; max-width:100%; padding:5px; border:1px solid #e4e6e8; border-radius:8px; }
+.chat-attachment img { width:44px; height:44px; object-fit:cover; border-radius:4px; }
+.chat-attachment span { max-width:150px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:12px; }
+.chat-attachment button { margin:0; padding:4px 7px; }
+.chat-event-list { display:grid; gap:12px; margin:16px 0 0; padding:0; border:0; border-radius:0; background:transparent; }
+.chat-event-card { margin:0; padding:16px 18px; border:1px solid #e1e5e7; border-radius:12px; background:#fff; }
+.chat-event-heading { display:flex; flex-wrap:wrap; align-items:baseline; gap:9px; color:#283238; }
+.chat-event-kind { color:#65747c; font-size:12px; }
+.chat-event-heading strong { font-size:15px; font-weight:600; }
+.chat-event-time { margin:9px 0 5px; color:#344047; font-size:14px; }
+.chat-event-detail { margin:4px 0; color:#536169; font-size:13px; line-height:1.7; overflow-wrap:anywhere; }
+.chat-event-evidence,.chat-event-note { margin:8px 0; color:#788188; font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+.chat-event-footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; margin-top:12px; }
+.chat-event-footer button { margin:0; padding:7px 12px; font-size:13px; }
+.chat-event-state { margin-right:auto; color:#237650; font-size:13px; }
+.chat-event-add { background:#237650; color:white; }
+@media(max-width:600px) {
+  .chat-mode-hint { max-width:48%; font-size:11px; }
+  .chat-approval-label { gap:5px; }
+  .chat-event-card { padding:13px; }
+}

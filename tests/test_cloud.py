@@ -84,6 +84,42 @@ class CloudTests(unittest.TestCase):
   with patch.object(self.app.store,'limited',return_value=True):
    blocked=self.post(self.a,'/api/chat',{'message':'再问一次'},self.ta)
   self.assertEqual(blocked.status_code,429)
+ def test_chat_event_confirmation_is_account_isolated_and_calendar_feed_works(self):
+  from tests.test_chat_actions import DEADLINE,EXAM
+  engine=self.app.store.engine(self.ua)
+  engine.CFG.update({'key':'configured-test-key','model':'test-model'})
+  with patch.object(engine.ai_services,'complete',return_value={'reply':'已整理。','events':[DEADLINE,EXAM]}):
+   result=self.post(self.a,'/api/chat',{'message':'整理并添加事项','approvalMode':'confirm'},self.ta)
+  self.assertEqual(result.status_code,200)
+  deadline,exam=result.json['events']
+  self.assertEqual(self.post(self.b,'/api/chat/events/add',{'id':deadline['id']},self.tb).status_code,400)
+  self.assertEqual(self.post(self.anon,'/api/chat/events/add',{'id':deadline['id']}).status_code,401)
+  self.assertEqual(self.post(self.a,'/api/chat/events/add',{'id':deadline['id']},'bad-token').status_code,403)
+  for item in (deadline,exam):
+   response=self.post(self.a,'/api/chat/events/add',{'id':item['id']},self.ta)
+   self.assertEqual(response.status_code,200)
+  state=self.state(self.a,self.ta).json
+  self.assertEqual(state['mails'],[])
+  self.assertEqual(len(state['eventSourceMails']),2)
+  self.assertEqual(len(state['pins']),1)
+  self.assertEqual(len(state['calendarEvents']),1)
+  self.assertEqual(self.state(self.b,self.tb).json['pins'],[])
+  feed=self.app.store.create_calendar_feed(self.ua,'http://127.0.0.1:18744')
+  ics=self.anon.get(feed).text
+  self.assertIn('SUMMARY:SOE104',ics)
+  self.assertIn('DTSTART:20261026T010000Z',ics)
+ def test_chat_accepts_bounded_images_without_raising_other_route_limits(self):
+  import base64
+  engine=self.app.store.engine(self.ua)
+  engine.CFG.update({'key':'configured-test-key','model':'test-model'})
+  image='data:image/png;base64,'+base64.b64encode(b'\x89PNG\r\n\x1a\n'+b'0'*30_000).decode()
+  with patch.object(engine.ai_services,'complete',return_value={'reply':'已识别。','events':[]}) as model:
+   response=self.post(self.a,'/api/chat',{'images':[{'dataUrl':image,'name':'考试.png'}]},self.ta)
+  self.assertEqual(response.status_code,200)
+  self.assertEqual(model.call_args.kwargs['images'][0]['dataUrl'],image)
+  self.assertEqual(self.post(self.a,'/api/chat/events/add',{'padding':'x'*21_000},self.ta).status_code,413)
+  self.assertEqual(self.post(self.a,'/api/chat',{'message':'x'*10_000_000},self.ta).status_code,413)
+  self.assertEqual(self.post(self.anon,'/api/chat',{'images':[{'dataUrl':image}]}).status_code,401)
  def test_external_javascript_and_page_token(self):
   response=self.anon.get('/main.js')
   self.assertEqual(response.status_code,200)
