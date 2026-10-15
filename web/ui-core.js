@@ -153,7 +153,7 @@ function showPage(name) {
 
 function selectConnectionSettings(group) {
   const labels = {
-    mail: ['邮箱', '设置学校邮件转发与接收邮箱'],
+    mail: ['邮箱', ''],
     ai: ['AI 服务', ''],
     calendar: ['日历', '设置日历订阅方式']
   };
@@ -167,6 +167,7 @@ function selectConnectionSettings(group) {
   $('settings-detail-title').textContent = labels[group][0];
   $('settings-detail-description').textContent = labels[group][1];
   $('settings-page').dataset.settingOpen = group;
+  if (typeof renderMailboxConnection === 'function') renderMailboxConnection(state);
 }
 
 function closeConnectionSettings(group) {

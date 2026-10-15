@@ -3074,3 +3074,40 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 .chat-model-menu { flex:0 1 auto; }
 #ai-profile-dialog .ai-model-section .field-heading { justify-content:space-between; }
 .chat-main { grid-template-columns:minmax(0,1fr); }
+
+/* Approved connection picker and lower-right setup card. */
+#mail-connection-methods { max-width:410px; }
+.mailbox-provider { display:flex; align-items:center; gap:14px; width:100%; padding:15px 18px; margin:0 0 12px; border:1px solid #e7eaec; border-radius:10px; background:#fff; color:#252b2c; font-size:14px; text-align:left; }
+.mailbox-provider > span:first-child { width:22px; flex:none; font-size:18px; font-weight:600; text-align:center; }
+.mailbox-provider > span:last-child { margin-left:auto; color:#70797d; }
+.mailbox-provider:hover { background:#f3f4f5; }
+#mail-connection-methods .text-button,.mailbox-back { border:0; background:transparent; color:#70797d; padding:6px 0; margin:5px 0; font-size:13px; }
+#mail-connection-methods .mailbox-other { display:block; margin-top:13px; }
+#mail-oauth-result { font-size:13px; color:#70797d; line-height:1.7; padding:0 0 22px; }
+#mail-oauth-help { margin-top:14px; }
+#mail-connection-explanation,.mailbox-manual-note { color:#70797d; font-size:13px; line-height:1.7; }
+#mail-direct-account strong { display:block; font-size:17px; margin-bottom:8px; overflow-wrap:anywhere; }
+#mail-direct-status { display:block; color:#18845b; font-size:13px; margin-bottom:16px; }
+#mail-manual-settings .mailbox-manual-note { margin:10px 0 24px; }
+.connection-onboarding { position:fixed; z-index:35; right:24px; bottom:24px; width:280px; max-width:calc(100vw - 90px); box-sizing:border-box; padding:17px 18px; border:1px solid #e7eaec; border-radius:13px; background:#fff; color:#252b2c; box-shadow:0 8px 28px #14202615; }
+.connection-onboarding[hidden] { display:none; }
+.connection-guide-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:13px; }
+.connection-guide-header strong { font-size:14px; font-weight:500; }
+.connection-onboarding .connection-collapse { border:0; background:transparent; color:#70797d; padding:0 5px; margin:0; min-height:28px; }
+.connection-guide-step { display:flex; align-items:center; gap:9px; font-size:12px; margin:11px 0; }
+.connection-guide-check { color:#70797d; width:15px; text-align:center; }
+.connection-guide-step.is-done .connection-guide-check { color:#18845b; }
+.connection-guide-step small { margin-left:auto; color:#70797d; font-size:12px; }
+.connection-onboarding .connection-next { display:block; width:100%; margin:16px 0 0; padding:9px 13px; background:#252929; color:#fff; border:1px solid #252929; border-radius:8px; font-size:13px; }
+.connection-onboarding.is-collapsed { padding:0; width:auto; border-radius:30px; }
+.connection-onboarding .connection-expand { margin:0; padding:11px 16px; background:transparent; border:0; color:#70797d; font-size:12px; }
+.connection-welcome { width:420px; max-width:calc(100vw - 32px); box-sizing:border-box; padding:26px; border:1px solid #e7eaec; border-radius:16px; background:#fff; color:#252929; }
+.connection-welcome::backdrop { background:#1b27272d; backdrop-filter:blur(3px); }
+.connection-welcome header { display:flex; align-items:center; justify-content:space-between; }
+.connection-welcome h2 { font-size:20px; font-weight:600; margin:0; }
+.connection-welcome-steps { display:grid; gap:0; margin:24px 0; }
+.connection-welcome-steps span { padding:15px 0; border-bottom:1px solid #e7eaec; font-size:14px; }
+.connection-welcome footer { display:flex; justify-content:flex-end; gap:12px; }
+.connection-welcome footer button { margin:0; padding:9px 14px; border:1px solid #e7eaec; border-radius:8px; background:#252929; color:#fff; font-size:14px; }
+.connection-welcome footer .secondary { background:#fff; color:#70797d; }
+@media(max-width:600px) { .connection-onboarding { right:12px; bottom:12px; width:260px; } .mailbox-provider { font-size:13px; padding:14px 12px; } .connection-welcome { padding:22px 18px; } }

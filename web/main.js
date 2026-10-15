@@ -103,6 +103,8 @@ async function refresh() {
     document.querySelectorAll('.task').forEach(x => x.disabled = d.status.busy);
     const previousRevision = state?.revision;
     state = d;
+    renderMailboxConnection(d);
+    renderConnectionOnboarding(d);
     if (mailSearchQuery.trim() && previousRevision !== d.revision) resolveMailSearch();
     renderSetupGuide(d);
     renderFieldStatuses(d);
@@ -302,6 +304,7 @@ async function pollState() {
       });
       enabled = !!state.status.auto;
       renderMailControls(state);
+      renderConnectionOnboarding(state);
       document.querySelectorAll('.task').forEach(button => {
         button.disabled = !!state.status.busy;
       });

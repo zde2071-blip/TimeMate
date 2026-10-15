@@ -414,6 +414,8 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
             return jsonify(error='接口不存在。'),404
         except sqlite3.IntegrityError: return jsonify(error='无法注册，请核对账号或登录。'),400
         except ValueError as e: return jsonify(error=str(e)),400
+    from backend.mail.oauth import install as install_mail_oauth
+    install_mail_oauth(app,store,origin)
     @app.route('/api/<path:path>',methods=['GET','POST'])
     def api(path):
         if path == 'chat' and request.method == 'POST' and store.limited('chat:'+g.auth['user_id'],20):

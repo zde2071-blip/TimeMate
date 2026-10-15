@@ -4,6 +4,7 @@ from backend.core.ai_profiles import AIProfiles
 import hashlib, html, imaplib, json, re, ssl, threading, time
 from datetime import datetime, timezone
 from contextlib import nullcontext
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from email.utils import parseaddr
 import certifi
@@ -22,7 +23,7 @@ from backend.core import operation_status
 RUNTIME = None
 DB = None
 PREFS = None
-DEFAULTS={'account':'','mail_provider':'','base':'https://api.deepseek.com','model':'deepseek-flash','school_sender':'','calendar_method':'unset','calendar_provider':'','calendar_subscription_confirmed':'no','provider':'deepseek'}
+DEFAULTS={'mail_mode':'forward','account':'','mail_provider':'','base':'https://api.deepseek.com','model':'deepseek-flash','school_sender':'','calendar_method':'unset','calendar_provider':'','calendar_subscription_confirmed':'no','provider':'deepseek'}
 CFG={**DEFAULTS,'password':'','key':''}
 LOCK=threading.Lock()
 STATUS={'busy':False,'auto':False}
@@ -120,6 +121,10 @@ def import_uid(conn, cfg, validity, uid, source):
     return mail_ingest.import_uid(conn, cfg, validity, uid, source, db, parse_mail)
 
 def mail_receiver():
+    if CFG.get('mail_mode')=='oauth':
+        from backend.mail.oauth import OAuthReceiver
+        # The receiver needs this per-user engine, never a global engine.
+        return OAuthReceiver(SimpleNamespace(CFG=CFG,STATUS=STATUS,RUNTIME=RUNTIME,db=db,parse_mail=parse_mail,analyze_pending=analyze_pending))
     return mail_ingest.MailReceiver(db, CFG, STATUS, connect_mail, import_uid, close_mail, analyze_pending)
 
 def mail_analyzer():
@@ -261,10 +266,12 @@ def save_connection(group,data):
         if group=='ai': ai_services.validate(candidate)
         keys=('account','mail_provider','school_sender','password') if group=='mail' else ('provider','base','model','key')
         updated={**CFG,**{k:candidate[k] for k in keys}}
+        if group=='mail': updated['mail_mode']='forward'
         secret_field='password' if group=='mail' else 'key'
         credential_store('save',group,updated,updated[secret_field])
         PREFS.write_text(json.dumps({k:updated[k] for k in DEFAULTS},ensure_ascii=False))
         CFG.update({k:updated[k] for k in keys})
+        if group=='mail': CFG['mail_mode']='forward'
         if group=='ai':
             profiles=ai_profiles()
             default=next((item for item in profiles.list() if item['is_default']),None)
@@ -551,6 +558,9 @@ class APIHandler:
             if self.path == '/api/state':
                 data=reader.state()
                 data['aiProfiles']=ai_profiles().list()
+                from backend.mail.oauth import connection_state
+                data['mailConnection']=connection_state(SimpleNamespace(CFG=CFG,RUNTIME=RUNTIME))
+                if CFG.get('mail_mode')=='oauth': data['ready']['mail']=data['mailConnection']['connected']
                 return self.reply(200,data)
             if self.path == '/api/ai/profiles': return self.reply(200,{'profiles':ai_profiles().list()})
             if self.path == '/api/updates': return self.reply(200, reader.updates())

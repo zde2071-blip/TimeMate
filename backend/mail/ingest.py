@@ -83,8 +83,11 @@ def import_uid(conn,cfg,validity,uid,source,database,parse):
     chunks=checked(conn.uid('FETCH',str(uid),'(BODY.PEEK[])'))
     raw=b''.join(x[1] for x in chunks if isinstance(x,tuple))
     if not raw: raise RuntimeError('未能读取邮件正文，将在下次检查时重试')
+    return import_raw(raw,ident,cfg['account'],source,database,parse)
+
+def import_raw(raw,ident,receiving_account,source,database,parse):
     fingerprint=hashlib.sha256(raw).hexdigest()
-    account=cursor_key(cfg['account'])
+    account=cursor_key(receiving_account)
     with database() as c:
         duplicate=c.execute('SELECT id FROM mails WHERE receiving_account=? AND source_fingerprint=?',
                             (account,fingerprint)).fetchone()
