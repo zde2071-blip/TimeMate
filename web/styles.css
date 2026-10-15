@@ -2923,12 +2923,33 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 }
 
 /* Chat actions stay within the established reader and neutral palette. */
-.chat-header { justify-content:space-between; }
-.chat-approval-label { display:flex; align-items:center; gap:9px; margin:0; color:#788188; font-size:12px; }
-.chat-approval-label select { width:auto; margin:0; padding:6px 26px 6px 10px; color:#344047; background-color:#f3f4f5; border:1px solid #e4e6e8; border-radius:8px; font-size:13px; }
-.chat-composer-footer #chat-upload { margin-right:auto; padding:7px 10px; background:#f3f4f5; color:#485258; }
-.chat-mode-hint,.chat-image-notice { color:#788188; font-size:12px; }
-.chat-image-notice { margin:8px 0 0; line-height:1.5; }
+/* A compact composer toolbar: attachment and approval left, model and send right. */
+.chat-composer { padding:14px 14px 10px; border-radius:22px; }
+.chat-composer textarea { resize:none; min-height:42px; padding:4px 6px 10px; }
+.chat-composer-footer { justify-content:space-between; gap:8px; margin-top:6px; }
+.chat-composer-tools,.chat-composer-actions { display:flex; align-items:center; gap:8px; min-width:0; }
+.chat-composer-actions { margin-left:auto; }
+.chat-composer-footer .chat-icon-button { display:grid; place-items:center; width:34px; height:34px; padding:6px; background:transparent; color:#30383d; border-radius:50%; }
+.chat-composer-footer .chat-icon-button:hover { background:#f0f1f2; }
+.chat-composer-footer svg { display:block; width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+.chat-approval-label { position:relative; display:flex; align-items:center; gap:6px; margin:0; padding:6px 4px; border-radius:8px; color:#798187; }
+.chat-approval-label:hover { background:#f4f5f6; }
+.chat-approval-label select { appearance:none; width:auto; margin:0; padding:0 17px 0 0; background:transparent; border:0; border-radius:0; color:inherit; font:13px/1.5 -apple-system,BlinkMacSystemFont,sans-serif; cursor:pointer; }
+.chat-approval-label:has(option[value="auto"]:checked) { color:#237650; }
+.chat-composer-footer .chat-chevron { width:14px; height:14px; stroke-width:1.5; }
+.chat-approval-label > .chat-chevron { position:absolute; right:4px; pointer-events:none; }
+.chat-model-menu { position:relative; min-width:0; }
+.chat-model-menu summary { display:flex; align-items:center; gap:5px; padding:7px 6px; border-radius:8px; font-size:13px; font-weight:400; color:#485258; list-style:none; }
+.chat-model-menu summary::-webkit-details-marker { display:none; }
+.chat-model-menu summary:hover { background:#f4f5f6; }
+#chat-model-name { max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chat-model-options { position:absolute; z-index:5; right:0; bottom:calc(100% + 12px); width:220px; padding:6px; border:1px solid #e4e6e8; border-radius:12px; background:#fff; box-shadow:0 6px 28px #00000015; }
+#chat-model-current { display:block; padding:9px; color:#788188; overflow-wrap:anywhere; font-size:12px; }
+.chat-composer-footer #chat-model-settings { display:block; width:100%; padding:9px; text-align:left; background:transparent; color:#344047; font-size:13px; }
+.chat-composer-footer #chat-model-settings:hover { background:#f3f4f5; }
+.chat-composer-footer #chat-send { display:grid; place-items:center; flex:none; width:36px; height:36px; padding:7px; border-radius:50%; background:#263238; color:white; }
+.chat-composer-footer #chat-send:hover { background:#425057; }
+.chat-composer-footer button:focus-visible,.chat-model-menu summary:focus-visible,.chat-approval-label select:focus-visible { outline:2px solid #237650; outline-offset:3px; }
 .chat-attachments { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
 .chat-attachment { display:flex; align-items:center; gap:7px; max-width:100%; padding:5px; border:1px solid #e4e6e8; border-radius:8px; }
 .chat-attachment img { width:44px; height:44px; object-fit:cover; border-radius:4px; }
@@ -2947,7 +2968,11 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 .chat-event-state { margin-right:auto; color:#237650; font-size:13px; }
 .chat-event-add { background:#237650; color:white; }
 @media(max-width:600px) {
-  .chat-mode-hint { max-width:48%; font-size:11px; }
-  .chat-approval-label { gap:5px; }
+  .chat-composer-tools,.chat-composer-actions { gap:3px; }
+  .chat-approval-label { gap:4px; }
+  #chat-model-name { max-width:94px; }
+  .chat-approval-label select,.chat-model-menu summary { font-size:12px; }
+  .chat-composer-footer .chat-icon-button { width:30px; height:32px; }
+  .chat-composer-footer #chat-send { width:32px; height:32px; }
   .chat-event-card { padding:13px; }
 }

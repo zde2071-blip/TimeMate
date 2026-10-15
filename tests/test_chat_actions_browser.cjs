@@ -25,6 +25,31 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    const imagePage=await browser.newPage({viewport:{width:800,height:500}});
    await imagePage.setContent('<html><meta charset="utf-8"><body style="padding:40px;font:24px sans-serif"><h1>考试与提交安排</h1><p>ISA104 项目：2026年10月25日23:59截止</p><p>SOE104 考试：2026年10月26日09:00—11:00</p><p>地点：FB308</p></body></html>');
    const image=await imagePage.screenshot();await imagePage.close();
+   assert.equal(await page.locator('#chat-form #chat-approval-mode').count(),1);
+   assert.equal(await page.locator('#chat-model-name').textContent(),'fixture-vision');
+   assert.equal(await page.locator('#chat-mode-hint, #chat-image-notice').count(),0);
+   await page.locator('#chat-model-menu summary').click();
+   await page.locator('#chat-model-settings').click();
+   await page.locator('#settings-page').waitFor({state:'visible'});
+   assert.equal(await page.locator('.settings-nav-item[aria-current="page"]').getAttribute('data-setting'),'ai');
+   await page.locator('#nav-chat').click();
+   await page.locator('#chat-new').click();
+   // Exercise the browser paste event with the same files/items data used by Cmd/Ctrl+V.
+   await page.locator('#chat-input').fill('图片');
+   await page.locator('#chat-input').evaluate((input,encoded)=>{
+    input.setSelectionRange(0,2);
+    const bytes=Uint8Array.from(atob(encoded),c=>c.charCodeAt(0));
+    const clipboard=new DataTransfer();
+    clipboard.items.add(new File([bytes],'粘贴图片.png',{type:'image/png'}));
+    clipboard.setData('text/plain','请整理图片');
+    input.dispatchEvent(new ClipboardEvent('paste',{clipboardData:clipboard,bubbles:true,cancelable:true}));
+   },image.toString('base64'));
+   await page.locator('.chat-attachment img').waitFor();
+   assert.equal(await page.locator('#chat-input').inputValue(),'请整理图片');
+   await page.locator('.chat-attachment button').click();
+   assert.equal(await page.locator('.chat-attachment').count(),0);
+   await page.locator('#chat-input').fill('');
+
    await page.locator('#chat-image-input').setInputFiles({name:'考试安排.png',mimeType:'image/png',buffer:image});
    await page.locator('.chat-attachment').waitFor();
    await page.locator('#chat-send').click();
@@ -65,7 +90,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.locator('#chat-input').fill('不支持图片');await page.locator('#chat-send').click();
    await page.getByText('当前模型或接口不支持这次图片输入',{exact:false}).waitFor();
    assert.equal(await page.locator('.chat-attachment').count(),1,'failed request keeps attachment for retry');
-   console.log(width+': upload, per-item approval, reload, calendar navigation, auto dedupe, uncertainty, unsupported-model recovery passed');
+   console.log(width+': paste preview/removal, compact toolbar/model settings, upload, per-item approval, reload, calendar navigation, auto dedupe, uncertainty, unsupported-model recovery passed');
    await page.close();
   }
   assert.deepEqual(errors,[]);

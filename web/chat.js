@@ -125,6 +125,7 @@ function startNewChat() {
   chatMessages = [];
   $('chat-status').textContent = '';
   $('chat-input').value = '';
+  resizeChatInput();
   renderChatHistory();
   renderChatTranscript();
   $('chat-input').focus();
@@ -167,6 +168,7 @@ async function sendChatMessage(message) {
       ? `从 ${data.total} 封邮件中检索了 ${data.included} 封相关邮件。`
       : '';
     $('chat-input').value = '';
+    resizeChatInput();
     renderChatHistory();
   } catch (error) {
     chatMessages.splice(unsaved);
@@ -275,7 +277,6 @@ function renderChatAttachments() {
   const box = $('chat-attachments');
   box.replaceChildren();
   box.hidden = !chatAttachments.length;
-  $('chat-image-notice').hidden = !chatAttachments.length;
   for (const image of chatAttachments) {
     const item = element('div', '', 'chat-attachment');
     const preview = document.createElement('img');
@@ -346,14 +347,46 @@ async function attachChatImages(files) {
 
 $('chat-upload').onclick = () => $('chat-image-input').click();
 $('chat-image-input').onchange = event => attachChatImages(Array.from(event.target.files || []));
-$('chat-input').addEventListener('paste', event => {
-  const files = Array.from(event.clipboardData?.files || []).filter(file => file.type.startsWith('image/'));
-  if (files.length) {
-    event.preventDefault();
-    attachChatImages(files);
+$('chat-form').addEventListener('paste', event => {
+  const clipboard = event.clipboardData;
+  let files = Array.from(clipboard?.files || []).filter(file => file.type.startsWith('image/'));
+  if (!files.length) files = Array.from(clipboard?.items || []).filter(item => item.kind === 'file' && item.type.startsWith('image/')).map(item => item.getAsFile()).filter(Boolean);
+  if (!files.length) return;
+  event.preventDefault();
+  if (chatBusy || chatAttachmentBusy) return;
+  const text = clipboard.getData('text/plain');
+  const input = $('chat-input');
+  if (text && event.target === input) {
+    const available = input.maxLength - input.value.length + input.selectionEnd - input.selectionStart;
+    input.setRangeText(text.slice(0, Math.max(0, available)), input.selectionStart, input.selectionEnd, 'end');
   }
+  resizeChatInput();
+  attachChatImages(files);
 });
-$('chat-approval-mode').onchange = () => {
-  chatRetry = null;
-  $('chat-mode-hint').textContent = $('chat-approval-mode').value === 'auto' ? '明确的事项将直接加入重要事项' : '识别后由你逐项添加';
+$('chat-approval-mode').onchange = () => { chatRetry = null; };
+$('chat-model-settings').onclick = () => {
+  $('chat-model-menu').open = false;
+  showPage('settings');
+  selectConnectionSettings('ai');
 };
+document.addEventListener('click', event => {
+  if (!$('chat-model-menu').contains(event.target)) $('chat-model-menu').open = false;
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') $('chat-model-menu').open = false;
+});
+
+function renderChatModel(config) {
+  const model = config?.model || '';
+  const name = model || '选择模型';
+  $('chat-model-name').textContent = name;
+  $('chat-model-current').textContent = model || '尚未连接';
+  $('chat-model-menu').querySelector('summary').setAttribute('aria-label', '模型：' + name);
+}
+
+function resizeChatInput() {
+  const input = $('chat-input');
+  input.style.height = 'auto';
+  input.style.height = Math.min(180, input.scrollHeight) + 'px';
+}
+$('chat-input').addEventListener('input', resizeChatInput);

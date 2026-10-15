@@ -96,6 +96,7 @@ async function refresh() {
     $('ai-nav-provider').textContent = $('provider').selectedOptions?.[0]?.textContent || '尚未设置';
     calendarMethod = d.config.calendar_method || 'unset';
     renderCalendarSettings(d.config, d.calendarSubscriptionUrl);
+    renderChatModel(d.config);
     enabled = d.status.auto;
     renderMailControls(d);
     document.querySelectorAll('.task').forEach(x => x.disabled = d.status.busy);
