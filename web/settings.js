@@ -3,6 +3,33 @@ let aiEditingId = null;
 let aiModelDraft = [];
 let aiProfileBusy = false;
 let aiMailModelDraft = '';
+let aiModelNamesDraft = {};
+const aiNameLookups = new Set();
+
+function aiModelName(profile, model) {
+  return profile?.model_names?.[model] || model;
+}
+
+async function loadAIModelNames(profiles) {
+  for (const profile of profiles) {
+    const signature = JSON.stringify([profile.id, profile.provider, profile.base, profile.models]);
+    if (aiNameLookups.has(signature) || aiProfileModels(profile).every(id => profile.model_names?.[id])) continue;
+    aiNameLookups.add(signature);
+    try {
+      const response = await fetch('/api/settings/ai/models', {method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify({profileId:profile.id})});
+      const result = await response.json();
+      if (!response.ok || !Object.keys(result.modelNames || {}).length) continue;
+      const current = aiProfiles.find(p => p.id === profile.id);
+      if (!current) continue;
+      current.model_names = {...current.model_names,...result.modelNames};
+      if (aiEditingId === profile.id && !aiProfileBusy) {
+        aiModelNamesDraft = {...aiModelNamesDraft,...result.modelNames};
+        renderAIModelOptions();
+      }
+      await refresh();
+    } catch (_) { /* Keep the original ID when discovery is unavailable. */ }
+  }
+}
 
 function selectAIProfileTab(tab) {
   const models = tab === 'models';
@@ -34,7 +61,7 @@ function renderAIProfiles(data) {
     const row = element('article', '', 'ai-provider-row');
     const mark = element('span', profile.provider === 'deepseek' ? 'DS' : profile.provider === 'qwen' ? 'Q' : title[0], 'ai-provider-mark'); mark.setAttribute('aria-hidden', 'true');
     const copy = element('div', '', 'ai-provider-copy');
-    copy.append(element('strong', title), element('small', models.length > 2 ? `已启用 ${models.length} 个模型` : models.join(' · ')));
+    copy.append(element('strong', title), element('small', models.length > 2 ? `已启用 ${models.length} 个模型` : models.map(id=>aiModelName(profile,id)).join(' · ')));
     const edit = element('button', '', 'ai-provider-edit');
     const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('aria-hidden','true');
     const lines = document.createElementNS('http://www.w3.org/2000/svg', 'path');lines.setAttribute('d','M4 6h7m4 0h5M4 12h2m4 0h10M4 18h10m4 0h2M11 3v6M7 9v6M16 15v6');icon.append(lines);
@@ -42,6 +69,7 @@ function renderAIProfiles(data) {
     row.append(mark, copy, edit); list.append(row);
   }
   $('ai-nav-provider').textContent = aiProfiles.length ? aiProfiles.map(p => providers[p.provider]?.name || p.provider).filter((v,i,a) => a.indexOf(v) === i).join(' · ') : '尚未设置';
+  void loadAIModelNames(aiProfiles);
 }
 
 function fillAIProfile(id) {
@@ -57,6 +85,7 @@ function fillAIProfile(id) {
   $('ai-key-replace').hidden = !profile;
   $('ai-key-replace').setAttribute('aria-expanded', String(!profile));
   aiModelDraft = [];
+  aiModelNamesDraft = {...profile?.model_names};
   aiMailModelDraft = profile?.is_default ? profile.model : '';
   modelOptions(profile ? aiProfileModels(profile) : [], profile?.model || '');
   $('ai-advanced').open = false;
@@ -100,13 +129,14 @@ function renderAIModelOptions() {
     const choice = element('button', selected ? '✓ 默认' : '设为默认', 'ai-mail-choice');
     choice.type = 'button'; choice.disabled = !model.enabled;
     choice.dataset.model = model.id;
-    choice.setAttribute('aria-label', model.id + (selected ? '：邮件分析默认模型' : '：设为邮件分析默认模型'));
+    const name = aiModelNamesDraft[model.id] || model.id;
+    choice.setAttribute('aria-label', name + (selected ? '：邮件分析默认模型' : '：设为邮件分析默认模型'));
     choice.setAttribute('aria-pressed', String(selected));
     choice.onclick = () => {
       aiMailModelDraft = model.id; aiRevision++; $('ai-feedback').textContent = ''; renderAIModelOptions();
       [...list.querySelectorAll('.ai-mail-choice')].find(b => b.dataset.model === model.id)?.focus();
     };
-    label.append(input, element('span', model.id)); row.append(label, choice); list.append(row);
+    label.append(input, element('span', name)); row.append(label, choice); list.append(row);
   }
   $('model').value = aiMailModelDraft || aiModelDraft.find(m => m.enabled)?.id || '';
 }
@@ -203,7 +233,7 @@ function providerChanged() {
   const p = providers[$('provider').value];
   $('base').value = p?.base || '';
   $('key').value = ''; $('key').dataset.saved = ''; $('key').dataset.editing = '1';
-  aiModelDraft = []; aiMailModelDraft = ''; modelOptions([]); renderProviderHelp();
+  aiModelDraft = []; aiMailModelDraft = ''; aiModelNamesDraft = {}; modelOptions([]); renderProviderHelp();
   $('ai-dialog-mark').textContent = $('provider').value === 'deepseek' ? 'DS' : (p?.name || '?')[0];
   $('ai-advanced').open = false; $('ai-feedback').textContent = '';
 }
@@ -229,7 +259,7 @@ function savedSecret(id, saved) {
 function draft(group) {
   let keys = group === 'mail' ? ['account', 'mail_provider', 'school_sender', 'password'] : ['provider', 'base', 'model', 'key'];
   const result = Object.fromEntries(keys.map(k => [k, $(k).dataset.saved === 'yes' ? '' : $(k).value.trim()]));
-  if (group === 'ai' && typeof aiEditingId !== 'undefined') Object.assign(result, {profileId:aiEditingId || '',name:providers[$('provider').value]?.name || $('provider').value,models:aiModelDraft.filter(m => m.enabled).map(m => m.id),makeDefault:!!aiMailModelDraft});
+  if (group === 'ai' && typeof aiEditingId !== 'undefined') Object.assign(result, {profileId:aiEditingId || '',name:providers[$('provider').value]?.name || $('provider').value,models:aiModelDraft.filter(m => m.enabled).map(m => m.id),modelNames:aiModelNamesDraft,makeDefault:!!aiMailModelDraft});
   return result;
 }
 
@@ -335,6 +365,7 @@ async function connectionAction(group, action) {
     if (group === 'ai' && action === 'save' && result.profileId) aiEditingId = result.profileId;
     if (action === 'models') {
       if (!Array.isArray(result.models) || !result.models.length) throw Error('未找到模型，请稍后重试');
+      aiModelNamesDraft = {...aiModelNamesDraft,...result.modelNames};
       modelOptions(result.models, data.model);
       box.textContent = '';
     } else {

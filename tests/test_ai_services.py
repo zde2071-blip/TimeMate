@@ -3,6 +3,25 @@ from unittest.mock import patch
 
 from backend.core import ai_services
 class AIServiceTests(unittest.TestCase):
+    def test_model_catalog_keeps_ids_and_provider_display_fields(self):
+        data={'data':[{'id':'deepseek-flash','name':'DeepSeek-V4.1-Flash'},
+                      {'id':'claude-id','display_name':'Claude Example'},
+                      {'id':'gemini-id','displayName':'Gemini Example'},
+                      {'id':'plain-id'}, {'id':'bad-name','name':{'invalid':True}}]}
+        with patch.object(ai_services,'request_json',return_value=data):
+            models=ai_services.list_models(self.config())
+        self.assertIn('deepseek-flash',models)
+        self.assertNotIn('DeepSeek-V4.1-Flash',models)
+        self.assertEqual(models.names,{'deepseek-flash':'DeepSeek-V4.1-Flash','claude-id':'Claude Example','gemini-id':'Gemini Example'})
+
+    def test_claude_pagination_keeps_names(self):
+        pages=[{'data':[{'id':'a','display_name':'Claude A'}],'has_more':True,'last_id':'a'},
+               {'data':[{'id':'b','display_name':'Claude B'}],'has_more':False}]
+        with patch.object(ai_services,'request_json',side_effect=pages):
+            models=ai_services.list_models(self.config('claude'))
+        self.assertEqual(models,['a','b'])
+        self.assertEqual(models.names,{'a':'Claude A','b':'Claude B'})
+
     def config(self, provider='deepseek'):
         return {'provider':provider,'base':ai_services.PROVIDERS[provider]['base'],
                 'model':'deepseek-flash' if provider=='deepseek' else 'test-model','key':'test-key'}

@@ -51,6 +51,11 @@ def request_json(cfg,path,payload=None):
  except (URLError,TimeoutError): raise AIServiceError('连接超时或网络不可达，请检查网络和接口地址。') from None
  except (json.JSONDecodeError,UnicodeDecodeError): raise AIServiceError('服务商返回了无法识别的数据，请核对接口地址。') from None
 
+class ModelCatalog(list):
+ def __init__(self, models, names=None):
+  super().__init__(models)
+  self.names = names or {}
+
 def list_models(cfg):
  data=request_json(cfg,'/models')
  items=list(data.get('data',[]))
@@ -61,7 +66,14 @@ def list_models(cfg):
  models=sorted({x['id'] for x in items if isinstance(x,dict) and isinstance(x.get('id'),str)})
  # Model listing is discovery, not a guarantee of chat permissions/capabilities.
  if not models:raise AIServiceError('没有获取到模型，请手动填写服务商控制台中的模型 ID。')
- return models
+ names={}
+ for item in items:
+  if not isinstance(item,dict) or item.get('id') not in models:continue
+  for field in ('display_name','displayName','name'):
+   name=item.get(field)
+   if isinstance(name,str) and name.strip() and len(name)<=200 and not any(ord(c)<32 for c in name):
+    names[item['id']]=name.strip();break
+ return ModelCatalog(models,names)
 
 def complete(cfg,prompt,data,max_tokens=4096,images=None):
  validate(cfg)

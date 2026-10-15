@@ -585,7 +585,13 @@ class APIHandler:
                 return self.reply(200,{'ok':True,'message':test_mail_connection(d)})
             elif self.path=='/api/settings/ai/models':
                 candidate=connection_draft('ai',d)
-                return self.reply(200,{'models':ai_services.list_models(candidate)})
+                models=ai_services.list_models(candidate)
+                names=getattr(models,'names',{})
+                if d.get('profileId'):
+                    profile=ai_profiles().get(d['profileId'])
+                    if profile['provider']==candidate['provider'] and profile['base'].rstrip('/')==candidate['base'].rstrip('/'):
+                        ai_profiles().update_model_names(profile['id'],names)
+                return self.reply(200,{'models':models,'modelNames':names})
             elif self.path=='/api/settings/ai/test':
                 candidate=connection_draft('ai',d)
                 reply=ai_services.complete(candidate,'只返回 JSON 对象 {"ok":true}。',{'test':'连接测试，不含邮件内容'})

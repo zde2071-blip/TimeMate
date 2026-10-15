@@ -11,7 +11,7 @@ from flask import redirect
 from cryptography.fernet import Fernet
 from werkzeug.serving import make_server
 from backend.cloud import create_app, digest, password_hash
-from backend.core.ai_services import AIServiceError
+from backend.core.ai_services import AIServiceError, ModelCatalog
 from tests.test_chat_actions import DEADLINE, EXAM
 
 
@@ -40,7 +40,7 @@ def main():
             engine=app.store.engine(uid)
             engine.CFG.update(key='fixture-only',model='fixture-vision')
             engine.ai_services.complete=staticmethod(model)
-            engine.ai_services.list_models=staticmethod(lambda *args,**kwargs:['first-model','second-model'])
+            engine.ai_services.list_models=staticmethod(lambda *args,**kwargs:ModelCatalog(['first-model','second-model'],{'first-model':'DeepSeek-V4.1-Flash','second-model':'DeepSeek-V4-Pro'}))
             response=redirect('/#chat')
             response.set_cookie('mail_session',session,httponly=True,samesite='Lax')
             return response

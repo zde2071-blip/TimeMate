@@ -402,15 +402,16 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Escape') for (const id of ['chat-model-menu','chat-approval-menu']) $(id).open = false;
 });
 
-function chatModelDisplayName(provider, model) {
+function chatModelDisplayName(provider, model, names = {}) {
+  const display = names[model] || model;
   const brand = providers[provider]?.name || provider;
   // Keep the provider's model ID intact; do not repeat a brand already in it.
-  const lower = model.toLowerCase();
+  const lower = display.toLowerCase();
   const branded = [brand, provider].some(prefix => {
     const value = prefix.toLowerCase();
     return lower === value || ['-', '_', ' ', '.', '/'].some(separator => lower.startsWith(value + separator));
   });
-  return branded ? model : brand + ' · ' + model;
+  return branded ? display : brand + ' · ' + display;
 }
 
 function renderChatModel(config, profiles = []) {
@@ -421,7 +422,7 @@ function renderChatModel(config, profiles = []) {
   }
   const profile = profiles.find(item => item.id === chatProfileId && (item.models || [item.model]).includes(chatModelId));
   if (!profile) { chatProfileId = null; chatModelId = null; }
-  const name = profile ? chatModelDisplayName(profile.provider, chatModelId) : profiles.length ? '选择模型' : config?.model || '选择模型';
+  const name = profile ? chatModelDisplayName(profile.provider, chatModelId, profile.model_names) : profiles.length ? '选择模型' : config?.model || '选择模型';
   $('chat-model-name').textContent = name;
   $('chat-model-menu').querySelector('summary').setAttribute('aria-label', '模型：' + name);
   const list = $('chat-model-list');
@@ -435,7 +436,7 @@ function renderChatModel(config, profiles = []) {
     const selected = item.id === chatProfileId && model === chatModelId;
     button.setAttribute('aria-pressed', String(selected));
     const copy = element('span', '', 'chat-model-copy');
-    copy.append(element('strong', model));
+    copy.append(element('strong', aiModelName(item, model)));
     button.append(copy, element('span', selected ? '✓' : '', 'chat-choice-check'));
     button.onclick = () => {
       if (chatBusy || chatAttachmentBusy) return;

@@ -7,6 +7,33 @@ from cryptography.fernet import Fernet
 import tempfile
 
 class AIProfileTests(unittest.TestCase):
+    def test_display_names_survive_save_reload_without_changing_call_ids(self):
+        ident=self.save('DeepSeek',model='deepseek-flash',models=['deepseek-flash'],modelNames={'deepseek-flash':'DeepSeek-V4.1-Flash'})
+        engine=self.app.store.engine(self.ua)
+        profile=engine.ai_profiles().get(ident)
+        self.assertEqual(profile['model_names'],{'deepseek-flash':'DeepSeek-V4.1-Flash'})
+        self.assertEqual(engine.CFG['model'],'deepseek-flash')
+        with patch.object(engine.ai_services,'complete',return_value={'reply':'ok','events':[]}) as call:
+            response=self.post(self.a,'/api/chat',{'message':'hello','profileId':ident,'model':'deepseek-flash'},self.ta)
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(call.call_args.args[0]['model'],'deepseek-flash')
+        self.assertEqual(self.state(self.a,self.ta).json['aiProfiles'][0]['model_names'],profile['model_names'])
+
+    def test_lookup_backfills_legacy_names_without_changing_default_or_keys(self):
+        from backend.core.ai_services import ModelCatalog
+        ident=self.save('DeepSeek',model='flash',models=['flash','pro'])
+        engine=self.app.store.engine(self.ua)
+        with patch.object(engine.ai_services,'list_models',return_value=ModelCatalog(['flash','pro'],{'flash':'DeepSeek Flash','pro':'DeepSeek Pro'})):
+            response=self.post(self.a,'/api/settings/ai/models',{'profileId':ident},self.ta)
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json['models'],['flash','pro'])
+        self.assertEqual(response.json['modelNames']['flash'],'DeepSeek Flash')
+        self.assertEqual(engine.CFG['model'],'flash')
+        self.assertEqual(engine.ai_profiles().get(ident)['key'],'test-profile-key')
+        self.assertEqual(engine.ai_profiles().get(ident)['models'],['flash','pro'])
+        self.assertEqual(self.state(self.a,self.ta).json['aiProfiles'][0]['model_names']['pro'],'DeepSeek Pro')
+        self.assertEqual(self.post(self.b,'/api/settings/ai/models',{'profileId':ident},self.tb).status_code,400)
+
     setUp=cloud_fixture.CloudTests.setUp
     tearDown=cloud_fixture.CloudTests.tearDown
     post=cloud_fixture.CloudTests.post

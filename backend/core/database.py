@@ -4,7 +4,7 @@ import sqlite3
 import threading
 from backend.mail import titles as mail_titles
 from backend.mail import dates as mail_dates
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 MAIL_COLUMNS = {
     'original': 'TEXT', 'source_links': 'TEXT',
     'source': "TEXT NOT NULL DEFAULT 'manual'",
@@ -91,6 +91,9 @@ def initialize(connection):
             if 'ai_model' not in {row[1] for row in connection.execute('PRAGMA table_info(chat_conversations)')}:
                 connection.execute("ALTER TABLE chat_conversations ADD COLUMN ai_model TEXT NOT NULL DEFAULT ''")
                 connection.execute("UPDATE chat_conversations SET ai_model=COALESCE((SELECT model FROM ai_profiles WHERE id=chat_conversations.ai_profile_id),'')")
+        if version < 9:
+            if 'model_names' not in {row[1] for row in connection.execute('PRAGMA table_info(ai_profiles)')}:
+                connection.execute("ALTER TABLE ai_profiles ADD COLUMN model_names TEXT NOT NULL DEFAULT '{}'")
         connection.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
         connection.commit()
     except Exception:

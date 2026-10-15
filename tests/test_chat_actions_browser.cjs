@@ -119,6 +119,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    assert.equal(await page.locator('#ai-model-tab').getAttribute('aria-selected'),'true');
    assert.equal(await page.locator('.ai-mail-choice[aria-pressed=true]').getAttribute('data-model'),mailBefore,'first added model is mail default');
    assert.equal(await page.locator('#ai-model-list input:checked').count(),2);
+   assert.equal(await page.locator('.ai-model-option span').first().textContent(),'DeepSeek-V4.1-Flash','official display name is separate from API ID');
    assert.equal(await page.locator('#ai-model-panel').evaluate(n=>getComputedStyle(n).borderTopWidth),'0px','model tab has no extra card');
    assert.equal(await page.locator('#ai-profile-dialog').getByText('型号',{exact:true}).count(),0);
    assert.equal(await page.getByText('手动添加',{exact:false}).count(),0);
@@ -157,8 +158,8 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.locator('#chat-model-menu summary').click();
    assert.equal(await page.locator('.chat-model-settings-footer').evaluate(n=>getComputedStyle(n).borderTopWidth),'1px','settings is separated from models');
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-model-menu-${width}.png`)});
-   await page.locator('.chat-model-option').filter({hasText:'second-model'}).click();
-   assert.equal(await page.locator('#chat-model-name').textContent(),'DeepSeek · second-model');
+   await page.locator('.chat-model-option').filter({hasText:'DeepSeek-V4-Pro'}).click();
+   assert.equal(await page.locator('#chat-model-name').textContent(),'DeepSeek-V4-Pro');
    await page.locator('#chat-input').fill('查询当前连接');await page.locator('#chat-send').click();
    await page.getByText('当前模型：second-model',{exact:true}).waitFor();
    await page.locator('#chat-model-menu summary').click();await page.locator('#chat-model-settings').click();
@@ -168,13 +169,26 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.locator('#ai-save').click();
    await page.locator('#ai-profile-dialog').waitFor({state:'hidden'});
    await page.locator('#nav-chat').click();
-   await page.locator('#chat-model-menu summary').click();await page.locator('.chat-model-option').filter({hasText:'first-model'}).click();
+   await page.locator('#chat-model-menu summary').click();await page.locator('.chat-model-option').filter({hasText:'DeepSeek-V4.1-Flash'}).click();
    await page.locator('#chat-input').fill('查询当前连接');await page.locator('#chat-send').click();
    await page.getByText('当前模型：first-model',{exact:true}).waitFor();
    await page.reload();await page.locator('#nav-chat').click();
-   await page.waitForFunction(()=>document.querySelector('#chat-model-name').textContent==='DeepSeek · first-model');
+   await page.waitForFunction(()=>document.querySelector('#chat-model-name').textContent==='DeepSeek-V4.1-Flash');
    const stored=await page.evaluate(async()=>{const r=await fetch('/api/state',{headers:{'X-Token':document.querySelector('meta[name="csrf-token"]').content}});return r.json()});
    assert.equal(stored.config.model,'second-model','mail selection survives chat change and reload');
+   // An older connection has IDs but no display-name metadata. Reload should
+   // discover names without changing enabled IDs or the mail-analysis default.
+   const legacy=stored.aiProfiles[0];
+   await page.evaluate(async profile=>{
+    const response=await fetch('/api/settings/ai',{method:'POST',headers:{'Content-Type':'application/json','X-Token':document.querySelector('meta[name="csrf-token"]').content},body:JSON.stringify({profileId:profile.id,name:profile.name,provider:profile.provider,base:profile.base,model:profile.model,models:profile.models,key:'',modelNames:{},makeDefault:true})});
+    if(!response.ok)throw Error('Could not prepare legacy connection');
+   },legacy);
+   await page.reload();await page.locator('#nav-chat').click();
+   await page.waitForFunction(()=>document.querySelector('#chat-model-name').textContent==='DeepSeek-V4.1-Flash');
+   const hydrated=await page.evaluate(async()=>{const r=await fetch('/api/state',{headers:{'X-Token':document.querySelector('meta[name="csrf-token"]').content}});return r.json()});
+   assert.equal(hydrated.aiProfiles[0].model_names['first-model'],'DeepSeek-V4.1-Flash');
+   assert.deepEqual(hydrated.aiProfiles[0].models,legacy.models);
+   assert.equal(hydrated.config.model,'second-model','automatic name discovery leaves default ID unchanged');
    await page.locator('#chat-approval-menu summary').click();
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-chat-approval-${width}.png`)});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'approval menu fits viewport');
