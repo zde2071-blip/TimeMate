@@ -402,6 +402,17 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Escape') for (const id of ['chat-model-menu','chat-approval-menu']) $(id).open = false;
 });
 
+function chatModelDisplayName(provider, model) {
+  const brand = providers[provider]?.name || provider;
+  // Keep the provider's model ID intact; do not repeat a brand already in it.
+  const lower = model.toLowerCase();
+  const branded = [brand, provider].some(prefix => {
+    const value = prefix.toLowerCase();
+    return lower === value || ['-', '_', ' ', '.', '/'].some(separator => lower.startsWith(value + separator));
+  });
+  return branded ? model : brand + ' · ' + model;
+}
+
 function renderChatModel(config, profiles = []) {
   if (!chatModelInitialized && profiles.length) {
     chatProfileId = profiles[0].id;
@@ -410,7 +421,7 @@ function renderChatModel(config, profiles = []) {
   }
   const profile = profiles.find(item => item.id === chatProfileId && (item.models || [item.model]).includes(chatModelId));
   if (!profile) { chatProfileId = null; chatModelId = null; }
-  const name = profile ? (providers[profile.provider]?.name || profile.provider) + ' · ' + chatModelId : profiles.length ? '选择模型' : config?.model || '选择模型';
+  const name = profile ? chatModelDisplayName(profile.provider, chatModelId) : profiles.length ? '选择模型' : config?.model || '选择模型';
   $('chat-model-name').textContent = name;
   $('chat-model-menu').querySelector('summary').setAttribute('aria-label', '模型：' + name);
   const list = $('chat-model-list');

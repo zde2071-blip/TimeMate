@@ -2947,6 +2947,7 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 #chat-model-current { display:block; padding:9px; color:#788188; overflow-wrap:anywhere; font-size:12px; }
 .chat-composer-footer #chat-model-settings { display:block; width:100%; padding:9px; text-align:left; background:transparent; color:#344047; font-size:13px; }
 .chat-composer-footer #chat-model-settings:hover { background:#f3f4f5; }
+.chat-model-settings-footer { border-top:1px solid #e4e6e8; margin-top:6px; padding-top:6px; }
 .chat-composer-footer #chat-send { display:grid; place-items:center; flex:none; width:36px; height:36px; padding:7px; border-radius:50%; background:#263238; color:white; }
 .chat-composer-footer #chat-send:hover { background:#425057; }
 .chat-composer-footer button:focus-visible,.chat-model-menu summary:focus-visible,.chat-approval-label select:focus-visible { outline:2px solid #237650; outline-offset:3px; }
@@ -3059,13 +3060,13 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 #ai-profile-dialog .ai-profile-tabs button { position:relative; margin:0; padding:0 1px 12px; border:0; border-radius:0; background:transparent; color:#737d80; font-size:13px; }
 #ai-profile-dialog .ai-profile-tabs button[aria-selected="true"] { color:#252b2c; font-weight:500; }
 #ai-profile-dialog .ai-profile-tabs button[aria-selected="true"]::after { position:absolute; bottom:-1px; left:0; right:0; height:2px; background:#252b2c; content:''; }
-#ai-profile-dialog .ai-model-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; min-height:28px; font-size:12px; color:#737d80; }
+#ai-profile-dialog .ai-model-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; min-height:28px; padding:0 10px 0 36px; font-size:12px; color:#737d80; }
+#ai-profile-dialog .ai-model-toolbar .text-button { min-width:78px; padding:7px 10px; text-align:center; }
 #ai-profile-dialog .ai-model-row { display:flex; align-items:center; gap:12px; padding:14px 10px; border-radius:8px; min-height:51px; }
 #ai-profile-dialog .ai-model-row.is-mail { background:#eaf6ef; }
 #ai-profile-dialog .ai-mail-choice { display:inline-flex; align-items:center; justify-content:center; flex:none; min-width:78px; padding:7px 10px; margin:0; border:1px solid #e8ebed; border-radius:7px; background:#fff; color:#737d80; font-size:12px; white-space:nowrap; }
 #ai-profile-dialog .ai-mail-choice[aria-pressed="true"] { border-color:transparent; background:transparent; color:#18845b; font-weight:500; }
 #ai-profile-dialog .ai-key-status { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:9px 0 18px; font-size:13px; font-weight:500; }
-#ai-profile-dialog #ai-key-caption { margin:7px 0 0; font-size:12px; font-weight:400; color:#737d80; }
 #ai-profile-dialog #ai-key-field { margin-bottom:22px; }
 #ai-profile-dialog #ai-key-field input { margin:0; }
 #ai-profile-dialog #ai-advanced label { display:block; margin-top:16px; }

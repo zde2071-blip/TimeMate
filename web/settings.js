@@ -14,8 +14,17 @@ function selectAIProfileTab(tab) {
 }
 
 function replaceAIKey() {
-  $('ai-key-field').hidden = false;
-  $('key').focus();
+  const field = $('ai-key-field'), show = field.hidden;
+  field.hidden = !show;
+  $('ai-key-replace').setAttribute('aria-expanded', String(show));
+  if (show) $('key').focus();
+  else {
+    $('key').value = '';
+    delete $('key').dataset.editing;
+    $('key').dataset.saved = aiEditingId ? 'yes' : '';
+    aiRevision++;
+    $('ai-feedback').textContent = '';
+  }
 }
 
 function aiProfileModels(profile) {
@@ -52,8 +61,8 @@ function fillAIProfile(id) {
   $('key').dataset.saved = profile ? 'yes' : '';
   $('key').placeholder = '输入 API Key';
   $('ai-key-field').hidden = !!profile;
-  $('ai-key-caption').textContent = profile ? '✓ 已保存' : '尚未配置';
   $('ai-key-replace').hidden = !profile;
+  $('ai-key-replace').setAttribute('aria-expanded', String(!profile));
   aiModelDraft = [];
   aiMailModelDraft = profile?.is_default ? profile.model : '';
   modelOptions(profile ? aiProfileModels(profile) : [], profile?.model || '');
@@ -128,7 +137,7 @@ async function saveAIService() {
     result = await response.json(); if (!response.ok) throw Error(result.error || '保存失败');
     $('key').value = ''; delete $('key').dataset.editing; $('ai-profile-dialog').close();
     connectionStates.ai = '已保存';
-    await refresh(); $('ai-library-feedback').textContent = '已保存';
+    await refresh(); $('ai-library-feedback').textContent = '';
   } catch(error) { $('ai-feedback').textContent = error.message; }
   finally { aiProfileBusy = false; controls.forEach(e => e.disabled = false); renderAIModelOptions(); }
 }
@@ -299,7 +308,7 @@ async function connectionAction(group, action) {
     connectionStates[group] = '连接中';
     connectionBadge(group, false);
   }
-  box.textContent = action === 'models' ? '正在获取模型列表…' : action === 'test' ? '测试中…' : '正在保存…';
+  box.textContent = action === 'models' ? '正在查找模型…' : action === 'test' ? '测试中…' : '正在保存…';
   try {
     if (action === 'save') {
       box.textContent = '正在连接…';
@@ -332,7 +341,7 @@ async function connectionAction(group, action) {
     if (!r.ok) throw Error(result.error || '操作未完成');
     if (group === 'ai' && action === 'save' && result.profileId) aiEditingId = result.profileId;
     if (action === 'models') {
-      if (!Array.isArray(result.models) || !result.models.length) throw Error('未获取到模型，请稍后刷新');
+      if (!Array.isArray(result.models) || !result.models.length) throw Error('未找到模型，请稍后重试');
       modelOptions(result.models, data.model);
       box.textContent = '';
     } else {
