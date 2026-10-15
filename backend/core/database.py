@@ -4,7 +4,7 @@ import sqlite3
 import threading
 from backend.mail import titles as mail_titles
 from backend.mail import dates as mail_dates
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 MAIL_COLUMNS = {
     'original': 'TEXT', 'source_links': 'TEXT',
     'source': "TEXT NOT NULL DEFAULT 'manual'",
@@ -85,6 +85,12 @@ def initialize(connection):
                 connection.execute("ALTER TABLE chat_conversations ADD COLUMN ai_profile_id TEXT NOT NULL DEFAULT ''")
             for action in ('INSERT', 'UPDATE', 'DELETE'):
                 connection.execute(f"CREATE TRIGGER IF NOT EXISTS revision_ai_profiles_{action.lower()} AFTER {action} ON ai_profiles BEGIN UPDATE state_revision SET revision=revision+1 WHERE id=1; END")
+        if version < 8:
+            if 'models' not in {row[1] for row in connection.execute('PRAGMA table_info(ai_profiles)')}:
+                connection.execute("ALTER TABLE ai_profiles ADD COLUMN models TEXT NOT NULL DEFAULT '[]'")
+            if 'ai_model' not in {row[1] for row in connection.execute('PRAGMA table_info(chat_conversations)')}:
+                connection.execute("ALTER TABLE chat_conversations ADD COLUMN ai_model TEXT NOT NULL DEFAULT ''")
+                connection.execute("UPDATE chat_conversations SET ai_model=COALESCE((SELECT model FROM ai_profiles WHERE id=chat_conversations.ai_profile_id),'')")
         connection.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
         connection.commit()
     except Exception:

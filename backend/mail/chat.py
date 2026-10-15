@@ -59,7 +59,7 @@ class MailChat:
         if not isinstance(conversation_id, str) or not conversation_id:
             raise UserFacingError('对话编号无效。')
         with self.database() as connection:
-            conversation = connection.execute('SELECT id,title,ai_profile_id AS profileId FROM chat_conversations WHERE id=?', (conversation_id,)).fetchone()
+            conversation = connection.execute('SELECT id,title,ai_profile_id AS profileId,ai_model AS model FROM chat_conversations WHERE id=?', (conversation_id,)).fetchone()
             if conversation is None:
                 raise UserFacingError('找不到这段对话。')
             rows = connection.execute('SELECT id,role,content,sources,created FROM chat_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 200', (conversation_id,)).fetchall()
@@ -193,7 +193,7 @@ class MailChat:
                                 (conversation_id, 'user', message.strip() + ''.join('\n[图片：' + image['name'] + ']' for image in images), '[]', now))
             assistant = connection.execute('INSERT INTO chat_messages(conversation_id,role,content,sources,created) VALUES (?,?,?,?,?)',
                                 (conversation_id, 'assistant', reply, json.dumps(sources, ensure_ascii=False), now + .001))
-            connection.execute('UPDATE chat_conversations SET updated=?,ai_profile_id=? WHERE id=?', (now,self.config.get('_profileId',''),conversation_id))
+            connection.execute('UPDATE chat_conversations SET updated=?,ai_profile_id=?,ai_model=? WHERE id=?', (now,self.config.get('_profileId',''),self.config.get('model',''),conversation_id))
             chat_actions.create(connection, assistant.lastrowid, answer.get('events'), mode == 'auto')
             events = chat_actions.proposals(connection, assistant.lastrowid)
             result = {'conversationId': conversation_id, 'title': title, 'reply': reply, 'sources': sources, 'events': events, 'profileId': self.config.get('_profileId',''),

@@ -3013,3 +3013,64 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
   body.chat-layout-page .app-rail:has(button:focus-visible) { width:56px; }
   body.chat-layout-page .app-rail .rail-label { width:0; opacity:0; }
 }
+
+/* AI service library: shared connection, enabled models, independent mail selection. */
+#settings-page[data-setting-open="ai"] .settings-detail-heading p { display:none; }
+#settings-page[data-setting-open="ai"] .settings-detail-heading { align-items:center; margin-bottom:0; padding-bottom:26px; }
+#ai-profile-new { background:#252929; color:#fff; border:1px solid #252929; border-radius:8px; padding:8px 13px; margin:0; font-size:14px; }
+#ai-settings .ai-mail-model { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:23px 0; border-bottom:1px solid #e7eaea; }
+#ai-settings .ai-mail-model label { margin:0; color:#252929; font-size:14px; font-weight:500; }
+#ai-settings .ai-mail-model select { width:auto; max-width:65%; min-width:0; margin:0; padding:9px 11px; background:#fff; border:1px solid #e7eaea; border-radius:8px; font-size:13px; }
+#ai-settings .ai-library-label { margin:26px 0 0; color:#727b7b; font-size:13px; font-weight:400; }
+#ai-settings .ai-provider-row { display:flex; align-items:center; gap:14px; padding:26px 0; border:0; }
+#ai-settings .ai-provider-mark { display:grid; place-items:center; width:39px; height:39px; flex:none; border:1px solid #e7eaea; border-radius:11px; background:#f5f5f5; color:#252929; font-size:16px; font-weight:600; }
+#ai-settings .ai-provider-copy { flex:1; min-width:0; }
+#ai-settings .ai-provider-copy strong { display:block; color:#252929; font-size:16px; font-weight:600; }
+#ai-settings .ai-provider-copy small { display:block; margin-top:6px; color:#727b7b; font-size:13px; overflow-wrap:anywhere; }
+#ai-settings .ai-provider-edit { padding:7px; margin:0; background:transparent; color:#727b7b; border:0; font-size:12px; }
+#ai-library-feedback { color:#18845b; font-size:12px; }
+#ai-profile-dialog { width:min(445px,calc(100vw - 24px)); max-height:calc(100dvh - 32px); padding:23px 25px; border:1px solid #e7eaea; border-radius:16px; background:#fff; color:#252929; box-shadow:0 18px 60px #0002; }
+#ai-profile-dialog::backdrop { background:#1b27272d; backdrop-filter:blur(3px); }
+#ai-profile-dialog .ai-dialog-heading { display:flex; justify-content:space-between; align-items:center; margin-bottom:22px; }
+#ai-profile-dialog h2 { margin:0; font-size:19px; font-weight:600; }
+#ai-profile-dialog .modal-close-x { position:static; width:28px; height:28px; margin:0; padding:0; border:0; background:transparent; color:#727b7b; font-size:23px; }
+#ai-profile-dialog label { color:#727b7b; font-size:12px; margin:0; }
+#ai-profile-dialog input:not([type="checkbox"]):not([type="hidden"]),#ai-profile-dialog select { width:100%; margin:7px 0 0; border:1px solid #e7eaea; border-radius:8px; background:#fff; color:#252929; padding:9px 11px; font-size:14px; }
+#ai-profile-dialog .field-heading { margin:17px 0 0; }
+#ai-profile-dialog .field-heading a { color:#18845b; font-size:12px; }
+#ai-profile-dialog #ai-advanced { margin:17px 0; }
+#ai-profile-dialog #ai-advanced summary { font-size:12px; color:#727b7b; font-weight:400; }
+#ai-profile-dialog .ai-hidden-label { position:absolute; width:1px; height:1px; clip-path:inset(50%); overflow:hidden; }
+#ai-profile-dialog .ai-model-section { border-top:1px solid #e7eaea; padding-top:14px; }
+#ai-profile-dialog .ai-model-section .field-heading { margin:0 0 7px; }
+#ai-profile-dialog .ai-model-section strong { font-size:14px; font-weight:500; }
+#ai-profile-dialog .text-button { background:transparent; border:0; color:#727b7b; font-size:12px; margin:0; padding:7px 0; }
+#ai-profile-dialog .ai-model-option { display:flex; align-items:center; gap:10px; margin:0; padding:13px 0; color:#252929; font-size:14px; }
+#ai-profile-dialog .ai-model-option span { overflow-wrap:anywhere; min-width:0; }
+#ai-profile-dialog input[type="checkbox"] { width:16px; height:16px; flex:none; margin:0; accent-color:#18845b; }
+#ai-profile-dialog #manual-model { display:flex; align-items:center; gap:6px; }
+#ai-profile-dialog #manual-model[hidden] { display:none; }
+#ai-profile-dialog #manual-model input { margin:0; min-width:0; flex:1; }
+#ai-profile-dialog #manual-model button { margin:0; padding:8px 12px; }
+#ai-profile-dialog .ai-dialog-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; border-top:1px solid #e7eaea; padding-top:18px; margin-top:17px; }
+#ai-profile-dialog .ai-dialog-actions > div { margin-left:auto; display:flex; gap:8px; }
+#ai-profile-dialog .ai-dialog-actions button:not(.text-button) { margin:0; border:1px solid #e7eaea; border-radius:8px; padding:8px 13px; background:#fff; color:#252929; }
+#ai-profile-dialog .ai-dialog-actions #ai-save { background:#252929; color:#fff; border-color:#252929; }
+#ai-profile-dialog #ai-feedback { color:#727b7b; font-size:12px; margin:10px 0 0; }
+.chat-model-group { padding:10px 12px 4px; color:#727b7b; font-size:12px; }
+@media(max-width:600px) {
+  #ai-settings .ai-mail-model { flex-direction:column; align-items:flex-start; gap:12px; padding:20px 0; }
+  #ai-settings .ai-mail-model select { width:100%; max-width:100%; font-size:16px; }
+  #ai-settings .ai-provider-row { gap:9px; padding:23px 0; }
+  #ai-settings .ai-provider-mark { width:31px; height:34px; border-radius:9px; }
+  #ai-settings .ai-provider-copy strong { font-size:15px; }
+  #ai-settings .ai-provider-copy small { font-size:12px; }
+  #ai-profile-new { font-size:12px; padding:8px; }
+  #ai-profile-dialog { padding:20px 16px; }
+  #ai-profile-dialog input:not([type="checkbox"]):not([type="hidden"]),#ai-profile-dialog select { font-size:16px; }
+}
+.chat-composer-actions { flex:1; justify-content:flex-end; }
+.chat-model-menu,.chat-model-menu summary,#chat-model-name { min-width:0; }
+.chat-model-menu { flex:0 1 auto; }
+#ai-profile-dialog .ai-model-section .field-heading { justify-content:space-between; }
+.chat-main { grid-template-columns:minmax(0,1fr); }

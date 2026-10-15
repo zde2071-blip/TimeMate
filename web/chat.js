@@ -2,6 +2,8 @@
 let chatConversationId = null;
 let chatApprovalMode = 'confirm';
 let chatProfileId = null;
+let chatModelId = null;
+let chatModelInitialized = false;
 let chatMessages = [];
 let chatConversations = [];
 let chatBusy = false;
@@ -108,6 +110,8 @@ async function openChatConversation(id) {
     if (request !== chatOpenRequest || chatBusy) return;
     chatConversationId = data.conversation.id;
     chatProfileId = (aiProfiles || []).some(item => item.id === data.conversation.profileId) ? data.conversation.profileId : null;
+    chatModelId = data.conversation.model || aiProfiles.find(item => item.id === chatProfileId)?.model || null;
+    chatModelInitialized = true;
     renderChatModel(state?.config, aiProfiles);
     chatMessages = data.messages || [];
     $('chat-status').textContent = '';
@@ -138,10 +142,14 @@ function startNewChat() {
 async function sendChatMessage(message) {
   const question = String(message || '').trim() || (chatAttachments.length ? '整理图片中的考试和截止信息。' : '');
   if (!question || chatBusy || chatAttachmentBusy) return;
+  if (aiProfiles.length && (!chatProfileId || !chatModelId)) {
+    $('chat-status').textContent = '请选择聊天模型。';
+    return;
+  }
   ++chatOpenRequest;
   const images = chatAttachments.map(({name, dataUrl}) => ({name, dataUrl}));
   const mode = chatApprovalMode;
-  const key = JSON.stringify([chatConversationId, question, images, mode, chatProfileId]);
+  const key = JSON.stringify([chatConversationId, question, images, mode, chatProfileId, chatModelId]);
   if (!chatRetry || chatRetry.key !== key) chatRetry = {key, id: crypto.randomUUID()};
   const unsaved = chatMessages.length;
   chatMessages.push({ role: 'user', content: question + images.map(image => '\n[图片：' + image.name + ']').join(''), sources: [] });
@@ -153,7 +161,7 @@ async function sendChatMessage(message) {
     const data = await chatRequest('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversationId: chatConversationId, message: question, images, approvalMode: mode, profileId: chatProfileId, requestId: chatRetry.id })
+      body: JSON.stringify({ conversationId: chatConversationId, message: question, images, approvalMode: mode, profileId: chatProfileId, model: chatModelId, requestId: chatRetry.id })
     });
     chatConversationId = data.conversationId;
     chatMessages.push({ role: 'assistant', content: data.reply, sources: data.sources || [], events: data.events || [] });
@@ -395,29 +403,39 @@ document.addEventListener('keydown', event => {
 });
 
 function renderChatModel(config, profiles = []) {
-  const profile = profiles.find(item => item.id === chatProfileId) || profiles.find(item => item.is_default);
-  chatProfileId = profile?.id || null;
-  const name = profile?.name || config?.model || '选择模型';
+  if (!chatModelInitialized && profiles.length) {
+    chatProfileId = profiles[0].id;
+    chatModelId = (profiles[0].models || [profiles[0].model])[0];
+    chatModelInitialized = true;
+  }
+  const profile = profiles.find(item => item.id === chatProfileId && (item.models || [item.model]).includes(chatModelId));
+  if (!profile) { chatProfileId = null; chatModelId = null; }
+  const name = profile ? (providers[profile.provider]?.name || profile.provider) + ' · ' + chatModelId : profiles.length ? '选择模型' : config?.model || '选择模型';
   $('chat-model-name').textContent = name;
   $('chat-model-menu').querySelector('summary').setAttribute('aria-label', '模型：' + name);
   const list = $('chat-model-list');
   list.replaceChildren();
   if (!profiles.length) list.append(element('span', config?.model || '尚未连接', 'chat-model-empty'));
   for (const item of profiles) {
+    list.append(element('div', providers[item.provider]?.name || item.provider, 'chat-model-group'));
+    for (const model of item.models || [item.model]) {
     const button = element('button', '', 'chat-model-option');
     button.type = 'button';
-    button.setAttribute('aria-pressed', String(item.id === chatProfileId));
+    const selected = item.id === chatProfileId && model === chatModelId;
+    button.setAttribute('aria-pressed', String(selected));
     const copy = element('span', '', 'chat-model-copy');
-    copy.append(element('strong', item.name), element('small', item.model));
-    button.append(copy, element('span', item.id === chatProfileId ? '✓' : '', 'chat-choice-check'));
+    copy.append(element('strong', model));
+    button.append(copy, element('span', selected ? '✓' : '', 'chat-choice-check'));
     button.onclick = () => {
       if (chatBusy || chatAttachmentBusy) return;
       chatProfileId = item.id;
+      chatModelId = model;
       chatRetry = null;
       $('chat-model-menu').open = false;
       renderChatModel(config, profiles);
     };
     list.append(button);
+    }
   }
 }
 

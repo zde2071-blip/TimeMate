@@ -48,13 +48,18 @@ def apply_default_ai_profile():
 
 def chat_config(data):
     ident=data.get('profileId')
+    model=data.get('model')
     if ident is None and isinstance(data.get('conversationId'),str):
         with db() as c:
-            row=c.execute('SELECT ai_profile_id FROM chat_conversations WHERE id=?',(data['conversationId'],)).fetchone()
+            row=c.execute('SELECT ai_profile_id,ai_model FROM chat_conversations WHERE id=?',(data['conversationId'],)).fetchone()
         ident=row['ai_profile_id'] if row else ''
+        if model is None and row: model=row['ai_model']
     if ident:
         profile=ai_profiles().get(ident)
-        return {**CFG,**{k:profile[k] for k in ('provider','base','model','key')},'_profileId':ident}
+        model=model or profile['model']
+        if not isinstance(model,str) or model not in profile['models']:
+            raise UserFacingError('此聊天模型已停用，请重新选择。')
+        return {**CFG,**{k:profile[k] for k in ('provider','base','key')},'model':model,'_profileId':ident}
     return CFG.copy()
 
 def credential_id(group,cfg):
@@ -582,6 +587,11 @@ class APIHandler:
                 return self.reply(200,translate_source(d.get('id')))
             elif self.path=='/api/ai/profiles/delete':
                 ai_profiles().delete(d.get('id'))
+                return self.reply(200,{'ok':True})
+            elif self.path=='/api/ai/mail-model':
+                profile=ai_profiles().get(d.get('profileId'))
+                if d.get('model') not in profile['models']: raise UserFacingError('请选择已启用的型号。')
+                save_ai_profile({**profile,'profileId':profile['id'],'model':d['model'],'makeDefault':True})
                 return self.reply(200,{'ok':True})
             elif self.path=='/api/chat':
                 return self.reply(200,MailChat(db,chat_config(d),model_reply).send(d))

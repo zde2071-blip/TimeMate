@@ -91,4 +91,46 @@ class AIProfileTests(unittest.TestCase):
         self.assertEqual(default['model'],'old-model')
         self.assertEqual(engine.ai_profiles().get(default['id'])['key'],'legacy-test-key')
 
+    def test_models_share_connection_and_chat_choice_survives_mail_change_and_restart(self):
+        ident=self.save('DeepSeek',model='flash',models=['flash','reasoner'])
+        engine=self.app.store.engine(self.ua)
+        with patch.object(engine.ai_services,'complete',return_value={'reply':'已回答','events':[]}) as complete:
+            response=self.post(self.a,'/api/chat',{'message':'你好','profileId':ident,'model':'reasoner'},self.ta)
+            self.assertEqual(response.status_code,200,response.json)
+            conversation=response.json['conversationId']
+            self.assertEqual(complete.call_args.args[0]['model'],'reasoner')
+            self.assertEqual(engine.CFG['model'],'flash')
+            changed=self.post(self.a,'/api/ai/mail-model',{'profileId':ident,'model':'reasoner'},self.ta)
+            self.assertEqual(changed.status_code,200,changed.json)
+            # The next message can explicitly use flash without changing mail analysis.
+            sent=self.post(self.a,'/api/chat',{'message':'继续','conversationId':conversation,'profileId':ident,'model':'flash'},self.ta)
+            self.assertEqual(sent.status_code,200,sent.json)
+            self.assertEqual(engine.CFG['model'],'reasoner')
+            self.post(self.a,'/api/chat',{'message':'再继续','conversationId':conversation},self.ta)
+            self.assertEqual(complete.call_args.args[0]['model'],'flash')
+        history=self.a.get('/api/chat/conversation?id='+conversation,headers={'X-Token':self.ta}).json
+        self.assertEqual(history['conversation']['model'],'flash')
+        restarted=create_app(self.tmp.name,self.key).store.engine(self.ua)
+        self.assertEqual(restarted.CFG['model'],'reasoner')
+        self.assertEqual(restarted.chat_config({'conversationId':conversation})['model'],'flash')
+        self.assertEqual(restarted.ai_profiles().list()[0]['models'],['flash','reasoner'])
+        self.assertNotIn('test-profile-key',json.dumps(self.state(self.a,self.ta).json))
+
+    def test_mail_choice_checks_enabled_models_and_account_ownership(self):
+        ident=self.save('DeepSeek',model='flash',models=['flash','reasoner'])
+        self.assertEqual(self.post(self.a,'/api/ai/mail-model',{'profileId':ident,'model':'unknown'},self.ta).status_code,400)
+        self.assertEqual(self.post(self.b,'/api/ai/mail-model',{'profileId':ident,'model':'reasoner'},self.tb).status_code,400)
+        self.assertEqual(self.post(self.a,'/api/chat',{'message':'你好','profileId':ident,'model':'unknown'},self.ta).status_code,400)
+        engine=self.app.store.engine(self.ua)
+        self.assertEqual(engine.CFG['model'],'flash')
+
+    def test_editing_models_preserves_mail_selection_and_cannot_disable_it(self):
+        ident=self.save('DeepSeek',model='flash',models=['flash','reasoner'])
+        self.save('DeepSeek',key='',profileId=ident,model='reasoner',models=['reasoner','flash'])
+        engine=self.app.store.engine(self.ua)
+        self.assertEqual(engine.CFG['model'],'flash')
+        invalid=self.post(self.a,'/api/settings/ai',{'profileId':ident,'name':'DeepSeek','provider':'deepseek','base':'https://api.deepseek.com','model':'reasoner','models':['reasoner'],'key':''},self.ta)
+        self.assertEqual(invalid.status_code,400)
+        self.assertEqual(engine.ai_profiles().get(ident)['models'],['reasoner','flash'])
+
 if __name__=='__main__':unittest.main()

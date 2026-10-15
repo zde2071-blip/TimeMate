@@ -1,65 +1,141 @@
 let aiProfiles = [];
 let aiEditingId = null;
+let aiModelDraft = [];
+let aiProfileBusy = false;
+
+function aiProfileModels(profile) {
+  return profile.models?.length ? profile.models : [profile.model];
+}
 
 function renderAIProfiles(data) {
   aiProfiles = data.aiProfiles || [];
-  const picker = $('ai-profile-choice');
+  const list = $('ai-provider-list');
+  list.replaceChildren();
+  const picker = $('ai-mail-model');
   picker.replaceChildren();
-  const empty = element('option', '新建连接'); empty.value = ''; picker.append(empty);
+  const placeholder = element('option', '选择模型'); placeholder.value = ''; placeholder.disabled = true; picker.append(placeholder);
+  let chosen = '';
   for (const profile of aiProfiles) {
-    const option = element('option', profile.name + (profile.is_default ? ' · 默认' : ''));
-    option.value = profile.id; picker.append(option);
+    const title = providers[profile.provider]?.name || profile.provider;
+    const models = aiProfileModels(profile);
+    const row = element('article', '', 'ai-provider-row');
+    const mark = element('span', profile.provider === 'qwen' ? 'Q' : title[0], 'ai-provider-mark'); mark.setAttribute('aria-hidden', 'true');
+    const copy = element('div', '', 'ai-provider-copy');
+    copy.append(element('strong', title), element('small', models.length > 2 ? `已启用 ${models.length} 个模型` : models.join(' · ')));
+    const edit = element('button', '编辑', 'ai-provider-edit'); edit.type = 'button'; edit.setAttribute('aria-label', '编辑' + title); edit.onclick = () => openAIProfile(profile.id);
+    row.append(mark, copy, edit); list.append(row);
+    const group = element('optgroup'); group.label = title;
+    for (const model of models) {
+      const option = element('option', title + ' · ' + model); option.value = JSON.stringify([profile.id, model]); group.append(option);
+      if (profile.is_default && profile.model === model) chosen = option.value;
+    }
+    picker.append(group);
   }
-  if (aiEditingId === null || aiEditingId && !aiProfiles.some(item => item.id === aiEditingId)) {
-    fillAIProfile(aiProfiles.find(item => item.is_default)?.id || '');
-  }
-  picker.value = aiEditingId || '';
-  const current = aiProfiles.find(item => item.id === aiEditingId);
-  $('ai-profile-delete').hidden = !current || !!current.is_default;
+  picker.value = chosen;
+  $('ai-nav-provider').textContent = aiProfiles.length ? aiProfiles.map(p => providers[p.provider]?.name || p.provider).filter((v,i,a) => a.indexOf(v) === i).join(' · ') : '尚未设置';
 }
 
 function fillAIProfile(id) {
   const profile = aiProfiles.find(item => item.id === id);
   aiEditingId = profile?.id || '';
-  $('ai-profile-choice').value = aiEditingId;
-  $('ai-profile-name').value = profile?.name || '';
-  $('ai-profile-default').checked = !!profile?.is_default || !aiProfiles.length;
-  $('ai-profile-default').disabled = !!profile?.is_default;
-  $('ai-profile-delete').hidden = !profile || !!profile.is_default;
   $('provider').value = profile?.provider || 'deepseek';
   $('base').value = profile?.base || providers[$('provider').value]?.base || '';
   $('key').value = '';
   delete $('key').dataset.editing;
   $('key').dataset.saved = profile ? 'yes' : '';
-  $('key').placeholder = profile ? '••••••••' : '填写 API Key';
-  modelOptions(profile?.model ? [profile.model] : [], profile?.model || '');
-  $('provider-hint').textContent = providers[$('provider').value]?.hint || '';
+  $('key').placeholder = profile ? '已保存 · 留空保持不变' : '输入 API Key';
+  aiModelDraft = [];
+  modelOptions(profile ? aiProfileModels(profile) : [], profile?.model || '');
+  $('ai-manual-input').value = '';
+  $('manual-model').hidden = true;
+  $('ai-advanced').open = false;
+  $('ai-provider-field').hidden = !!profile;
+  $('ai-dialog-title').textContent = profile ? providers[profile.provider]?.name || profile.provider : '添加服务';
+  $('ai-profile-delete').hidden = !profile;
   renderProviderHelp();
-  connectionStates.ai = profile ? '已保存' : '未保存';
-  connectionBadge('ai', !!profile);
   $('ai-feedback').textContent = '';
 }
 
-$('ai-profile-choice').onchange = () => fillAIProfile($('ai-profile-choice').value);
-$('ai-profile-new').onclick = () => { fillAIProfile(''); $('ai-profile-name').focus(); };
-$('ai-profile-delete').onclick = async () => {
-  if (!aiEditingId || !window.confirm('移除这条 API 连接及其保存的 Key？')) return;
-  const id = aiEditingId;
+function openAIProfile(id) {
+  if (aiProfileBusy) return;
+  fillAIProfile(id);
+  $('ai-profile-dialog').showModal();
+  $(id ? 'key' : 'provider').focus();
+}
+
+function closeAIProfile() {
+  if (aiProfileBusy) return;
+  $('key').value = '';
+  delete $('key').dataset.editing;
+  $('ai-profile-dialog').close();
+}
+
+function renderAIModelOptions() {
+  const list = $('ai-model-list'); list.replaceChildren();
+  for (const model of aiModelDraft) {
+    const label = element('label', '', 'ai-model-option');
+    const input = element('input'); input.type = 'checkbox'; input.checked = model.enabled; input.value = model.id;
+    input.onchange = () => { model.enabled = input.checked; $('model').value = aiModelDraft.find(m => m.enabled)?.id || ''; aiRevision++; };
+    label.append(input, element('span', model.id)); list.append(label);
+  }
+}
+
+function addAIModel() {
+  const id = $('ai-manual-input').value.trim();
+  if (!id) return;
+  const found = aiModelDraft.find(m => m.id === id);
+  if (found) found.enabled = true; else aiModelDraft.push({id,enabled:true});
+  $('model').value = aiModelDraft.find(m => m.enabled)?.id || '';
+  $('ai-manual-input').value = ''; $('manual-model').hidden = true; aiRevision++;
+  renderAIModelOptions();
+}
+
+async function saveAIService() {
+  if (aiProfileBusy) return;
+  const data = draft('ai');
+  if (!data.models.length) { $('ai-feedback').textContent = '至少启用一个模型'; return; }
+  if (!$('base').reportValidity()) return;
+  const controls = [...$('ai-profile-dialog').querySelectorAll('input,select,button')];
+  aiProfileBusy = true; controls.forEach(e => e.disabled = true); $('ai-feedback').textContent = '正在连接…';
   try {
-    const response = await fetch('/api/ai/profiles/delete', {method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify({id})});
-    const result = await response.json();
-    if (!response.ok) throw Error(result.error);
-    aiEditingId = null;
-    await refresh();
+    const headers = {'Content-Type':'application/json','X-Token':token};
+    let response = await fetch('/api/settings/ai/test', {method:'POST',headers,body:JSON.stringify(data)});
+    let result = await response.json(); if (!response.ok) throw Error(result.error || '连接失败');
+    response = await fetch('/api/settings/ai', {method:'POST',headers,body:JSON.stringify(data)});
+    result = await response.json(); if (!response.ok) throw Error(result.error || '保存失败');
+    $('key').value = ''; delete $('key').dataset.editing; $('ai-profile-dialog').close();
+    connectionStates.ai = '已保存';
+    await refresh(); $('ai-library-feedback').textContent = '已保存';
+  } catch(error) { $('ai-feedback').textContent = error.message; }
+  finally { aiProfileBusy = false; controls.forEach(e => e.disabled = false); }
+}
+
+$('ai-profile-dialog').addEventListener('cancel', event => { if (aiProfileBusy) event.preventDefault(); });
+$('ai-profile-dialog').addEventListener('close', () => { $('key').value = ''; delete $('key').dataset.editing; });
+$('ai-profile-delete').onclick = async () => {
+  if (aiProfileBusy || !aiEditingId || !window.confirm('移除此服务及保存的 Key？')) return;
+  try {
+    const response = await fetch('/api/ai/profiles/delete', {method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify({id:aiEditingId})});
+    const result = await response.json(); if (!response.ok) throw Error(result.error);
+    closeAIProfile(); await refresh();
   } catch(error) { $('ai-feedback').textContent = error.message; }
 };
-
+$('ai-mail-model').onchange = async () => {
+  const [profileId,model] = JSON.parse($('ai-mail-model').value);
+  $('ai-mail-model').disabled = true;
+  try {
+    const response = await fetch('/api/ai/mail-model', {method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify({profileId,model})});
+    const result = await response.json(); if (!response.ok) throw Error(result.error);
+    await refresh(); $('ai-library-feedback').textContent = '';
+  } catch(error) { renderAIProfiles(state); $('ai-library-feedback').textContent = error.message; }
+  finally { $('ai-mail-model').disabled = false; }
+};
 // Mailbox, AI, calendar and account settings.
 
 function connectionBadge(group, ready) {
   const button = $(group + '-save');
   const connected = ready && !['未保存', '失败'].includes(connectionStates[group]);
-  button.textContent = connectionStates[group] === '连接中' ? '连接中…' : connected ? '✓ 已连接' : '连接并保存';
+  button.textContent = group === 'ai' ? '保存' : connectionStates[group] === '连接中' ? '连接中…' : connected ? '✓ 已连接' : '连接并保存';
   const summary = $(group + '-nav-status');
   if (summary) {
     summary.textContent = connectionStates[group] === '连接中' ? '连接中' :
@@ -81,28 +157,12 @@ function connectionEdited(group) {
 }
 
 function modelOptions(models, current = '') {
-  $('model-choice').replaceChildren();
-  let blank = element('option', models.length ? '请选择模型' : '先获取模型列表');
-  blank.value = '';
-  $('model-choice').append(blank);
-  for (let id of models) {
-    let o = element('option', id);
-    o.value = id;
-    $('model-choice').append(o);
-  }
-  let manual = element('option', '手动输入模型 ID');
-  manual.value = '__manual__';
-  $('model-choice').append(manual);
-  $('model-choice').value = models.includes(current) ? current : current ? '__manual__' : '';
-  $('model').value = current;
-  modelChoiceChanged();
-}
-
-function modelChoiceChanged() {
-  let v = $('model-choice').value;
-  $('manual-model').hidden = v !== '__manual__';
-  if (v !== '__manual__') $('model').value = v;
-  aiRevision++;
+  const saved = aiProfiles.find(p => p.id === aiEditingId);
+  const enabled = aiModelDraft.length ? aiModelDraft.filter(m => m.enabled).map(m => m.id) : saved ? aiProfileModels(saved) : current ? [current] : [];
+  const all = [...new Set([...models,...enabled])];
+  aiModelDraft = all.map(id => ({id,enabled:enabled.includes(id)}));
+  $('model').value = enabled[0] || '';
+  renderAIModelOptions(); aiRevision++;
 }
 
 function renderProviderHelp() {
@@ -115,20 +175,12 @@ function renderProviderHelp() {
 }
 
 function providerChanged() {
-  connectionEdited('ai');
   aiRevision++;
-  let p = providers[$('provider').value];
-  $('ai-nav-provider').textContent = p?.name || $('provider').selectedOptions?.[0]?.textContent || '尚未设置';
+  const p = providers[$('provider').value];
   $('base').value = p?.base || '';
-  $('key').value = '';
-  $('key').readOnly = false;
-  $('key').dataset.editing = '1';
-  $('key').dataset.saved = '';
-  modelOptions([]);
-  $('provider-hint').textContent = p?.hint || '';
-  renderProviderHelp();
-  $('ai-advanced').open = false;
-  $('ai-feedback').textContent = '请填写对应 API Key';
+  $('key').value = ''; $('key').dataset.saved = ''; $('key').dataset.editing = '1';
+  aiModelDraft = []; modelOptions([]); renderProviderHelp();
+  $('ai-advanced').open = false; $('ai-feedback').textContent = '';
 }
 
 function editSecret(id) {
@@ -152,7 +204,7 @@ function savedSecret(id, saved) {
 function draft(group) {
   let keys = group === 'mail' ? ['account', 'mail_provider', 'school_sender', 'password'] : ['provider', 'base', 'model', 'key'];
   const result = Object.fromEntries(keys.map(k => [k, $(k).dataset.saved === 'yes' ? '' : $(k).value.trim()]));
-  if (group === 'ai' && typeof aiEditingId !== 'undefined') Object.assign(result, {profileId:aiEditingId || '',name:$('ai-profile-name').value.trim(),makeDefault:$('ai-profile-default').checked});
+  if (group === 'ai' && typeof aiEditingId !== 'undefined') Object.assign(result, {profileId:aiEditingId || '',name:providers[$('provider').value]?.name || $('provider').value,models:aiModelDraft.filter(m => m.enabled).map(m => m.id)});
   return result;
 }
 
@@ -215,7 +267,7 @@ function renderFieldStatuses(d) {
 async function connectionAction(group, action) {
   let data = draft(group),
     revision = aiRevision;
-  let controls = document.querySelectorAll('#' + group + '-settings button, #' + group + '-settings input, #' + group + '-settings select');
+  let controls = document.querySelectorAll(group === 'ai' ? '#ai-profile-dialog button, #ai-profile-dialog input, #ai-profile-dialog select' : '#mail-settings button, #mail-settings input, #mail-settings select');
   controls.forEach(x => x.disabled = true);
   let box = $(group + '-feedback');
   if (action === 'save') {

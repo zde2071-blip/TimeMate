@@ -1,4 +1,5 @@
 """Account-scoped AI connections. Metadata lives in mail.db; secrets stay encrypted."""
+import json
 import secrets
 from backend.core.user_errors import UserFacingError
 
@@ -10,7 +11,10 @@ class AIProfiles:
 
     def list(self):
         with self.database() as c:
-            return [dict(row) for row in c.execute('SELECT id,name,provider,base,model,is_default FROM ai_profiles ORDER BY is_default DESC,rowid')]
+            rows = [dict(row) for row in c.execute('SELECT id,name,provider,base,model,is_default,models FROM ai_profiles ORDER BY rowid')]
+        for row in rows:
+            row['models'] = json.loads(row['models']) or [row['model']]
+        return rows
 
     def get(self, ident):
         if not isinstance(ident, str) or not ident or len(ident) > 80:
@@ -20,6 +24,7 @@ class AIProfiles:
         if not row:
             raise UserFacingError('找不到这条 AI 连接，请重新选择。')
         cfg = dict(row)
+        cfg['models'] = json.loads(cfg['models']) or [cfg['model']]
         cfg['key'] = self.runtime.credential('load', 'ai-profile:' + ident)
         return cfg
 
@@ -30,6 +35,16 @@ class AIProfiles:
         if not isinstance(name, str) or not name.strip() or len(name.strip()) > 60:
             raise UserFacingError('连接名称不能为空，且不能超过 60 个字符。')
         cfg = {field: str(data.get(field) or '').strip() for field in FIELDS}
+        models = data.get('models', [cfg['model']])
+        if not isinstance(models, list) or not models or len(models) > 100 or any(not isinstance(m, str) or not m.strip() or len(m) > 200 for m in models):
+            raise UserFacingError('请启用 1 至 100 个有效模型。')
+        models = list(dict.fromkeys(m.strip() for m in models))
+        if old and old['is_default'] and data.get('makeDefault') is not True:
+            if old['model'] not in models:
+                raise UserFacingError('请先选择另一个邮件自动分析模型，再停用当前型号。')
+            cfg['model'] = old['model']
+        if cfg['model'] not in models:
+            raise UserFacingError('所选型号未启用。')
         key = data.get('key')
         if key is not None and (not isinstance(key, str) or len(key) > 8192):
             raise UserFacingError('API Key 格式无效。')
@@ -46,8 +61,8 @@ class AIProfiles:
             c.execute('BEGIN IMMEDIATE')
             if default:
                 c.execute('UPDATE ai_profiles SET is_default=0')
-            c.execute('INSERT INTO ai_profiles(id,name,provider,base,model,is_default) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,provider=excluded.provider,base=excluded.base,model=excluded.model,is_default=excluded.is_default',
-                      (ident, name.strip(), cfg['provider'], cfg['base'], cfg['model'], int(default)))
+            c.execute('INSERT INTO ai_profiles(id,name,provider,base,model,is_default,models) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,provider=excluded.provider,base=excluded.base,model=excluded.model,is_default=excluded.is_default,models=excluded.models',
+                      (ident, name.strip(), cfg['provider'], cfg['base'], cfg['model'], int(default), json.dumps(models)))
         return ident
 
     def adopt(self, cfg):
@@ -57,7 +72,7 @@ class AIProfiles:
     def delete(self, ident):
         profile = self.get(ident)
         if profile['is_default']:
-            raise UserFacingError('请先将另一条连接设为默认，再移除此连接。')
+            raise UserFacingError('请先选择另一个邮件自动分析模型，再移除此服务。')
         with self.database() as c:
             c.execute('DELETE FROM ai_profiles WHERE id=?', (ident,))
         self.runtime.credential('delete', 'ai-profile:' + ident)

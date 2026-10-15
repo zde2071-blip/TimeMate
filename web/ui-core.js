@@ -154,7 +154,7 @@ function showPage(name) {
 function selectConnectionSettings(group) {
   const labels = {
     mail: ['邮箱', '设置学校邮件转发与接收邮箱'],
-    ai: ['AI 服务', '设置邮件分析使用的 AI 服务'],
+    ai: ['AI 服务', ''],
     calendar: ['日历', '设置日历订阅方式']
   };
   if (!labels[group]) return;

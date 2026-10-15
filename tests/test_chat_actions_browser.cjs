@@ -98,30 +98,52 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.locator('#chat-new').click();
    await page.locator('#chat-model-menu summary').click();
    await page.locator('#chat-model-settings').click();
-   for (const [name,model,key] of [['文本问答','first-model','fixture-key-one'],['图片识别','second-model','fixture-key-two']]) {
-    await page.locator('#ai-profile-new').click();
-    await page.locator('#ai-profile-name').fill(name);
-    await page.locator('#key').fill(key);
-    await page.locator('#model-choice').selectOption('__manual__');
-    await page.locator('#model').fill(model);
-    await page.locator('#ai-save').click();
-    await page.waitForFunction(name=>Array.from(document.querySelector('#ai-profile-choice').options).some(o=>o.textContent.startsWith(name)),name);
+   await page.locator('#ai-profile-new').click();
+   await page.locator('#key').fill('fixture-key-one');
+   for (const model of ['first-model','second-model']) {
+    await page.locator('.ai-manual-toggle').click();
+    await page.locator('#ai-manual-input').fill(model);
+    await page.locator('#manual-model button').click();
    }
+   await page.locator('#ai-save').click();
+   await page.locator('#ai-profile-dialog').waitFor({state:'hidden'});
+   await page.locator('.ai-provider-row').waitFor();
+   assert.equal(await page.locator('.ai-library-label').textContent(),'我的模型');
+   assert.equal(await page.locator('.ai-mail-model label').textContent(),'邮件自动分析');
+   assert.equal(await page.locator('.ai-provider-row').evaluate(node=>getComputedStyle(node).borderBottomWidth),'0px');
+   const mailBefore=await page.locator('#ai-mail-model').inputValue();
+   await page.screenshot({path:path.join(os.tmpdir(),`timemate-ai-library-${width}.png`)});
+   await page.getByRole('button',{name:'编辑DeepSeek',exact:true}).click();
+   assert.equal(await page.locator('#key').inputValue(),'');
+   assert.equal(await page.locator('#ai-model-list input:checked').count(),2);
+   await page.screenshot({path:path.join(os.tmpdir(),`timemate-ai-editor-${width}.png`)});
+   await page.locator('#ai-profile-dialog .modal-close-x').click();
    await page.locator('#nav-chat').click();
    await page.locator('#chat-new').click();
    await page.locator('#chat-model-menu summary').click();
-   await page.locator('.chat-model-option').filter({hasText:'图片识别'}).click();
-   assert.equal(await page.locator('#chat-model-name').textContent(),'图片识别');
+   await page.locator('.chat-model-option').filter({hasText:'second-model'}).click();
+   assert.equal(await page.locator('#chat-model-name').textContent(),'DeepSeek · second-model');
    await page.locator('#chat-input').fill('查询当前连接');await page.locator('#chat-send').click();
    await page.getByText('当前模型：second-model',{exact:true}).waitFor();
+   await page.locator('#chat-model-menu summary').click();await page.locator('#chat-model-settings').click();
+   assert.equal(await page.locator('#ai-mail-model').inputValue(),mailBefore,'chat selection leaves mail analysis unchanged');
+   const options=await page.locator('#ai-mail-model option').evaluateAll(nodes=>nodes.map(o=>({text:o.textContent,value:o.value})));
+   await page.locator('#ai-mail-model').selectOption(options.find(o=>o.text.includes('second-model')).value);
+   await page.waitForFunction(()=>!document.querySelector('#ai-mail-model').disabled);
+   await page.locator('#nav-chat').click();
+   await page.locator('#chat-model-menu summary').click();await page.locator('.chat-model-option').filter({hasText:'first-model'}).click();
+   await page.locator('#chat-input').fill('查询当前连接');await page.locator('#chat-send').click();
+   await page.getByText('当前模型：first-model',{exact:true}).waitFor();
    await page.reload();await page.locator('#nav-chat').click();
-   await page.waitForFunction(()=>document.querySelector('#chat-model-name').textContent==='图片识别');
+   await page.waitForFunction(()=>document.querySelector('#chat-model-name').textContent==='DeepSeek · first-model');
+   const stored=await page.evaluate(async()=>{const r=await fetch('/api/state',{headers:{'X-Token':document.querySelector('meta[name="csrf-token"]').content}});return r.json()});
+   assert.equal(stored.config.model,'second-model','mail selection survives chat change and reload');
    await page.locator('#chat-approval-menu summary').click();
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-chat-approval-${width}.png`)});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'approval menu fits viewport');
    for (const selector of ['#chat-form','.chat-approval-options']) {
     const rect=await page.locator(selector).boundingBox();
-    assert.ok(rect.x>=0 && rect.x+rect.width<=width, selector+' is fully inside the viewport');
+    assert.ok(rect.x>=0 && rect.x+rect.width<=width, selector+' is fully inside the viewport '+JSON.stringify(rect));
    }
    await page.locator('[data-approval-mode=confirm]').click();
    await page.locator('#chat-model-menu summary').click();

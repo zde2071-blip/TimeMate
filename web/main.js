@@ -95,7 +95,6 @@ async function refresh() {
       selectConnectionSettings('mail');
       settingsFoldsInitialized = true;
     }
-    $('ai-nav-provider').textContent = $('provider').selectedOptions?.[0]?.textContent || '尚未设置';
     calendarMethod = d.config.calendar_method || 'unset';
     renderCalendarSettings(d.config, d.calendarSubscriptionUrl);
     renderChatModel(d.config, d.aiProfiles || []);
