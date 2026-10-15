@@ -143,7 +143,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    assert.equal(await page.locator('#ai-key-replace').getAttribute('aria-expanded'),'true');
    await page.locator('#ai-key-replace').click();
    assert.equal(await page.locator('#key').isVisible(),false,'second click collapses replacement');
-   assert.equal(await page.locator('#key').inputValue(),'','collapse discards replacement, keeping saved key');
+   assert.equal(await page.locator('#key').inputValue(),'fixture-unsaved-replacement','collapse only hides the field; cancel discards the draft');
    await page.locator('#ai-key-replace').click();
    assert.equal(await page.locator('#key').isVisible(),true,'replacement can be reopened');
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-ai-connection-${width}.png`)});

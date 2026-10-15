@@ -18,13 +18,6 @@ function replaceAIKey() {
   field.hidden = !show;
   $('ai-key-replace').setAttribute('aria-expanded', String(show));
   if (show) $('key').focus();
-  else {
-    $('key').value = '';
-    delete $('key').dataset.editing;
-    $('key').dataset.saved = aiEditingId ? 'yes' : '';
-    aiRevision++;
-    $('ai-feedback').textContent = '';
-  }
 }
 
 function aiProfileModels(profile) {
