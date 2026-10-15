@@ -11,10 +11,6 @@ function renderAIProfiles(data) {
   aiProfiles = data.aiProfiles || [];
   const list = $('ai-provider-list');
   list.replaceChildren();
-  const picker = $('ai-mail-model');
-  picker.replaceChildren();
-  const placeholder = element('option', '选择模型'); placeholder.value = ''; placeholder.disabled = true; picker.append(placeholder);
-  let chosen = '';
   for (const profile of aiProfiles) {
     const title = providers[profile.provider]?.name || profile.provider;
     const models = aiProfileModels(profile);
@@ -22,16 +18,12 @@ function renderAIProfiles(data) {
     const mark = element('span', profile.provider === 'qwen' ? 'Q' : title[0], 'ai-provider-mark'); mark.setAttribute('aria-hidden', 'true');
     const copy = element('div', '', 'ai-provider-copy');
     copy.append(element('strong', title), element('small', models.length > 2 ? `已启用 ${models.length} 个模型` : models.join(' · ')));
-    const edit = element('button', '编辑', 'ai-provider-edit'); edit.type = 'button'; edit.setAttribute('aria-label', '编辑' + title); edit.onclick = () => openAIProfile(profile.id);
+    const edit = element('button', '', 'ai-provider-edit');
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('aria-hidden','true');
+    const lines = document.createElementNS('http://www.w3.org/2000/svg', 'path');lines.setAttribute('d','M4 6h7m4 0h5M4 12h2m4 0h10M4 18h10m4 0h2M11 3v6M7 9v6M16 15v6');icon.append(lines);
+    edit.append(icon,element('span','编辑')); edit.type = 'button'; edit.setAttribute('aria-label', '编辑' + title); edit.onclick = () => openAIProfile(profile.id);
     row.append(mark, copy, edit); list.append(row);
-    const group = element('optgroup'); group.label = title;
-    for (const model of models) {
-      const option = element('option', title + ' · ' + model); option.value = JSON.stringify([profile.id, model]); group.append(option);
-      if (profile.is_default && profile.model === model) chosen = option.value;
-    }
-    picker.append(group);
   }
-  picker.value = chosen;
   $('ai-nav-provider').textContent = aiProfiles.length ? aiProfiles.map(p => providers[p.provider]?.name || p.provider).filter((v,i,a) => a.indexOf(v) === i).join(' · ') : '尚未设置';
 }
 
@@ -45,6 +37,9 @@ function fillAIProfile(id) {
   $('key').dataset.saved = profile ? 'yes' : '';
   $('key').placeholder = profile ? '已保存 · 留空保持不变' : '输入 API Key';
   aiModelDraft = [];
+  $('ai-analysis-use').checked = !!profile?.is_default || !aiProfiles.length;
+  $('ai-analysis-use').disabled = !!profile?.is_default || !aiProfiles.length;
+  $('ai-analysis-model').dataset.choice = profile?.model || '';
   modelOptions(profile ? aiProfileModels(profile) : [], profile?.model || '');
   $('ai-manual-input').value = '';
   $('manual-model').hidden = true;
@@ -75,9 +70,10 @@ function renderAIModelOptions() {
   for (const model of aiModelDraft) {
     const label = element('label', '', 'ai-model-option');
     const input = element('input'); input.type = 'checkbox'; input.checked = model.enabled; input.value = model.id;
-    input.onchange = () => { model.enabled = input.checked; $('model').value = aiModelDraft.find(m => m.enabled)?.id || ''; aiRevision++; };
+    input.onchange = () => { model.enabled = input.checked; renderAIAnalysisChoice(); aiRevision++; };
     label.append(input, element('span', model.id)); list.append(label);
   }
+  renderAIAnalysisChoice();
 }
 
 function addAIModel() {
@@ -107,7 +103,7 @@ async function saveAIService() {
     connectionStates.ai = '已保存';
     await refresh(); $('ai-library-feedback').textContent = '已保存';
   } catch(error) { $('ai-feedback').textContent = error.message; }
-  finally { aiProfileBusy = false; controls.forEach(e => e.disabled = false); }
+  finally { aiProfileBusy = false; controls.forEach(e => e.disabled = false); $('ai-analysis-use').disabled = !aiProfiles.length || !!aiProfiles.find(p=>p.id===aiEditingId)?.is_default; }
 }
 
 $('ai-profile-dialog').addEventListener('cancel', event => { if (aiProfileBusy) event.preventDefault(); });
@@ -120,16 +116,19 @@ $('ai-profile-delete').onclick = async () => {
     closeAIProfile(); await refresh();
   } catch(error) { $('ai-feedback').textContent = error.message; }
 };
-$('ai-mail-model').onchange = async () => {
-  const [profileId,model] = JSON.parse($('ai-mail-model').value);
-  $('ai-mail-model').disabled = true;
-  try {
-    const response = await fetch('/api/ai/mail-model', {method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify({profileId,model})});
-    const result = await response.json(); if (!response.ok) throw Error(result.error);
-    await refresh(); $('ai-library-feedback').textContent = '';
-  } catch(error) { renderAIProfiles(state); $('ai-library-feedback').textContent = error.message; }
-  finally { $('ai-mail-model').disabled = false; }
-};
+function renderAIAnalysisChoice() {
+  const select = $('ai-analysis-model'), enabled = aiModelDraft.filter(m => m.enabled);
+  const previous = select.dataset.choice || '';
+  select.replaceChildren();
+  for (const model of enabled) { const option=element('option',model.id);option.value=model.id;select.append(option); }
+  select.value = enabled.some(m => m.id === previous) ? previous : enabled[0]?.id || '';
+  select.dataset.choice = select.value;
+  select.hidden = !$('ai-analysis-use').checked;
+  select.disabled = !enabled.length;
+  $('model').value = $('ai-analysis-use').checked ? select.value : enabled[0]?.id || '';
+}
+$('ai-analysis-use').onchange = () => { renderAIAnalysisChoice(); aiRevision++; };
+$('ai-analysis-model').onchange = () => { $('ai-analysis-model').dataset.choice=$('ai-analysis-model').value;renderAIAnalysisChoice();aiRevision++; };
 // Mailbox, AI, calendar and account settings.
 
 function connectionBadge(group, ready) {
@@ -204,7 +203,7 @@ function savedSecret(id, saved) {
 function draft(group) {
   let keys = group === 'mail' ? ['account', 'mail_provider', 'school_sender', 'password'] : ['provider', 'base', 'model', 'key'];
   const result = Object.fromEntries(keys.map(k => [k, $(k).dataset.saved === 'yes' ? '' : $(k).value.trim()]));
-  if (group === 'ai' && typeof aiEditingId !== 'undefined') Object.assign(result, {profileId:aiEditingId || '',name:providers[$('provider').value]?.name || $('provider').value,models:aiModelDraft.filter(m => m.enabled).map(m => m.id)});
+  if (group === 'ai' && typeof aiEditingId !== 'undefined') Object.assign(result, {profileId:aiEditingId || '',name:providers[$('provider').value]?.name || $('provider').value,models:aiModelDraft.filter(m => m.enabled).map(m => m.id),makeDefault:$('ai-analysis-use').checked});
   return result;
 }
 

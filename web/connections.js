@@ -127,3 +127,13 @@ function renderConnectionOnboarding(d) {
     }
   }
 }
+
+// Keep the setup card above the chat composer, including when the textarea grows.
+function positionConnectionCard() {
+  const box=$('connection-onboarding'), composer=$('chat-form');
+  if (!box || !composer) return;
+  box.style.bottom = document.body.classList.contains('chat-layout-page') && composer.getClientRects().length
+    ? Math.max(24,window.innerHeight-composer.getBoundingClientRect().top+16)+'px' : '';
+}
+new ResizeObserver(positionConnectionCard).observe($('chat-form'));
+window.addEventListener('resize',positionConnectionCard);

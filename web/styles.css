@@ -3111,3 +3111,11 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 .connection-welcome footer button { margin:0; padding:9px 14px; border:1px solid #e7eaec; border-radius:8px; background:#252929; color:#fff; font-size:14px; }
 .connection-welcome footer .secondary { background:#fff; color:#70797d; }
 @media(max-width:600px) { .connection-onboarding { right:12px; bottom:12px; width:260px; } .mailbox-provider { font-size:13px; padding:14px 12px; } .connection-welcome { padding:22px 18px; } }
+/* Mail analysis is chosen inside the service editor. */
+#ai-settings .ai-library-label { margin-top:0; }
+#ai-settings .ai-provider-edit { display:inline-flex; align-items:center; gap:6px; }
+#ai-settings .ai-provider-edit svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+#ai-profile-dialog .ai-analysis-setting { margin-top:16px; padding-top:16px; border-top:1px solid #e7eaea; }
+#ai-profile-dialog .ai-analysis-toggle { display:flex; gap:9px; align-items:center; margin:0; font-size:14px; color:#252929; }
+#ai-profile-dialog .ai-analysis-toggle input { margin:0; }
+#ai-profile-dialog #ai-analysis-model { margin-top:12px; }

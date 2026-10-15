@@ -148,6 +148,7 @@ function showPage(name) {
   closeMailSettingsMenu();
   window.scrollTo(0, 0);
   requestAnimationFrame(updateMailWorkspaceHeight);
+  if (typeof positionConnectionCard === 'function') requestAnimationFrame(positionConnectionCard);
   if (name === 'chat') loadChatConversations();
 }
 

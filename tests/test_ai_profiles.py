@@ -19,6 +19,20 @@ class AIProfileTests(unittest.TestCase):
         self.assertEqual(response.status_code,200,response.json)
         return response.json['profileId']
 
+    def test_first_added_model_is_default_and_editor_can_switch_without_chat_effect(self):
+        first=self.save('DeepSeek',model='flash',models=['flash','reasoner'])
+        second=self.save('Another',model='other',models=['other','vision'])
+        engine=self.app.store.engine(self.ua)
+        self.assertEqual(engine.CFG['model'],'flash')
+        with patch.object(engine.ai_services,'complete',return_value={'reply':'ok','events':[]}):
+            sent=self.post(self.a,'/api/chat',{'message':'hello','profileId':first,'model':'reasoner'},self.ta)
+        conversation=sent.json['conversationId']
+        self.save('Another',key='',profileId=second,model='vision',models=['other','vision'],makeDefault=True)
+        self.assertEqual(engine.CFG['model'],'vision')
+        self.assertEqual(engine.chat_config({'conversationId':conversation})['model'],'reasoner')
+        selected=[p for p in engine.ai_profiles().list() if p['is_default']]
+        self.assertEqual([p['id'] for p in selected],[second])
+
     def test_same_provider_profiles_have_independent_encrypted_keys(self):
         first=self.save('first',key='private-key-A',makeDefault=True)
         second=self.save('second',key='private-key-B')
