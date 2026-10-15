@@ -85,8 +85,10 @@ async function refresh() {
       renderMailProvider();
       initialized = true;
     }
+    renderAIProfiles(d);
     savedSecret('password', d.ready?.mail && $('account').value === d.config.account);
-    savedSecret('key', d.ready?.ai && $('provider').value === d.config.provider && $('base').value === d.config.base);
+    const editingProfile = aiProfiles.find(item => item.id === aiEditingId);
+    savedSecret('key', !!editingProfile && $('provider').value === editingProfile.provider && $('base').value === editingProfile.base);
     connectionBadge('mail', d.ready?.mail);
     connectionBadge('ai', d.ready?.ai);
     if (!settingsFoldsInitialized) {
@@ -96,7 +98,7 @@ async function refresh() {
     $('ai-nav-provider').textContent = $('provider').selectedOptions?.[0]?.textContent || '尚未设置';
     calendarMethod = d.config.calendar_method || 'unset';
     renderCalendarSettings(d.config, d.calendarSubscriptionUrl);
-    renderChatModel(d.config);
+    renderChatModel(d.config, d.aiProfiles || []);
     enabled = d.status.auto;
     renderMailControls(d);
     document.querySelectorAll('.task').forEach(x => x.disabled = d.status.busy);

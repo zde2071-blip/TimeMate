@@ -1,5 +1,6 @@
 from backend.core.user_errors import UserFacingError, payload as error_payload
 from backend.core.ai_services import AIServiceError
+from backend.core.ai_profiles import AIProfiles
 import hashlib, html, imaplib, json, re, ssl, threading, time
 from datetime import datetime, timezone
 from contextlib import nullcontext
@@ -26,6 +27,36 @@ CFG={**DEFAULTS,'password':'','key':''}
 LOCK=threading.Lock()
 STATUS={'busy':False,'auto':False}
 
+def ai_profiles():
+    return AIProfiles(db,RUNTIME,ai_services.validate)
+
+def save_ai_profile(data):
+    if not LOCK.acquire(False): raise UserFacingError('请等待当前操作结束后保存设置。')
+    try:
+        ident=ai_profiles().save(data)
+        apply_default_ai_profile()
+        return ident
+    finally:
+        LOCK.release()
+
+def apply_default_ai_profile():
+    default=next((item for item in ai_profiles().list() if item['is_default']),None)
+    if not default: return
+    cfg=ai_profiles().get(default['id'])
+    CFG.update({key:cfg[key] for key in ('provider','base','model','key')})
+    PREFS.write_text(json.dumps({k:CFG[k] for k in DEFAULTS},ensure_ascii=False))
+
+def chat_config(data):
+    ident=data.get('profileId')
+    if ident is None and isinstance(data.get('conversationId'),str):
+        with db() as c:
+            row=c.execute('SELECT ai_profile_id FROM chat_conversations WHERE id=?',(data['conversationId'],)).fetchone()
+        ident=row['ai_profile_id'] if row else ''
+    if ident:
+        profile=ai_profiles().get(ident)
+        return {**CFG,**{k:profile[k] for k in ('provider','base','model','key')},'_profileId':ident}
+    return CFG.copy()
+
 def credential_id(group,cfg):
     identity=cfg['account'] if group=='mail' else cfg['provider']+'|'+cfg['base'].rstrip('/')
     return group+':'+hashlib.sha256(identity.encode()).hexdigest()
@@ -51,6 +82,10 @@ def initialize(runtime):
     for group,field in [('mail','password'),('ai','key')]:
         CFG[field]=credential_store('load',group,CFG)
     STATUS=runtime.status
+    profiles=ai_profiles()
+    profiles.adopt(CFG)
+    default=next((item for item in profiles.list() if item['is_default']),None)
+    if default: CFG.update({k:v for k,v in profiles.get(default['id']).items() if k in ('provider','base','model','key')})
 
 DATABASE = mail_database.MailDatabase()
 Connection = mail_database.Connection
@@ -185,12 +220,16 @@ def model_reply(cfg,prompt,data):
 
 def connection_draft(group,data):
     candidate=CFG.copy()
+    baseline=CFG
+    if group=='ai' and 'profileId' in data:
+        baseline=ai_profiles().get(data['profileId']) if data.get('profileId') else {**CFG,'key':''}
+        candidate.update({k:baseline[k] for k in ('provider','base','model','key')})
     keys=('account','mail_provider','school_sender','password') if group=='mail' else ('provider','base','model','key')
     for k in keys:
         if k in data and isinstance(data[k],str): candidate[k]=data[k].strip()
     secret='password' if group=='mail' else 'key'
-    same=(candidate['account']==CFG['account'] and candidate['mail_provider']==CFG['mail_provider']) if group=='mail' else (candidate['provider']==CFG['provider'] and candidate['base'].rstrip('/')==CFG['base'].rstrip('/'))
-    if not isinstance(data.get(secret),str) or not data[secret].strip(): candidate[secret]=CFG[secret] if same else ''
+    same=(candidate['account']==CFG['account'] and candidate['mail_provider']==CFG['mail_provider']) if group=='mail' else (candidate['provider']==baseline['provider'] and candidate['base'].rstrip('/')==baseline['base'].rstrip('/'))
+    if not isinstance(data.get(secret),str) or not data[secret].strip(): candidate[secret]=baseline[secret] if same else ''
     if group=='mail':
         account=candidate['account'].lower()
         inferred='qq' if account.endswith(('@qq.com','@foxmail.com')) else 'netease' if account.endswith(('@163.com','@126.com')) else ''
@@ -221,6 +260,10 @@ def save_connection(group,data):
         credential_store('save',group,updated,updated[secret_field])
         PREFS.write_text(json.dumps({k:updated[k] for k in DEFAULTS},ensure_ascii=False))
         CFG.update({k:updated[k] for k in keys})
+        if group=='ai':
+            profiles=ai_profiles()
+            default=next((item for item in profiles.list() if item['is_default']),None)
+            profiles.save({**candidate,'profileId':default['id'] if default else '', 'name':default['name'] if default else candidate['model'], 'makeDefault':True})
         STATUS['auto']=False
         message='连接设置已保存，自动分析已暂停；请重新开启。'
         if group=='mail' or STATUS.get('sync_state')=='retrying': clear_receiver_health(message)
@@ -500,7 +543,11 @@ class APIHandler:
         chat = MailChat(db, CFG, model_reply)
         query = getattr(self, 'query', {})
         try:
-            if self.path == '/api/state': return self.reply(200, reader.state())
+            if self.path == '/api/state':
+                data=reader.state()
+                data['aiProfiles']=ai_profiles().list()
+                return self.reply(200,data)
+            if self.path == '/api/ai/profiles': return self.reply(200,{'profiles':ai_profiles().list()})
             if self.path == '/api/updates': return self.reply(200, reader.updates())
             if self.path == '/api/mail/detail': return self.reply(200, reader.detail(query.get('id')))
             if self.path == '/api/mail/search': return self.reply(200, reader.search(query.get('q', '')))
@@ -514,6 +561,9 @@ class APIHandler:
             d=self.data
             if self.path in ('/api/settings/mail','/api/settings/ai'):
                 group=self.path.rsplit('/',1)[-1]
+                if group=='ai' and 'profileId' in d:
+                    ident=save_ai_profile(d)
+                    return self.reply(200,{'ok':True,'profileId':ident})
                 save_connection(group,d)
                 return self.reply(200,{'ok':True,'message':('邮箱' if group=='mail' else 'AI')+'设置已保存；更改连接后请重新开启自动分析。'})
             elif self.path=='/api/settings/mail/test':
@@ -530,8 +580,11 @@ class APIHandler:
                 return self.reply(200,original_mail(d.get('id')))
             elif self.path=='/api/source/translate':
                 return self.reply(200,translate_source(d.get('id')))
+            elif self.path=='/api/ai/profiles/delete':
+                ai_profiles().delete(d.get('id'))
+                return self.reply(200,{'ok':True})
             elif self.path=='/api/chat':
-                return self.reply(200,MailChat(db,CFG,model_reply).send(d))
+                return self.reply(200,MailChat(db,chat_config(d),model_reply).send(d))
             elif self.path=='/api/chat/events/add':
                 return self.reply(200,MailChat(db,CFG,model_reply).add_event(d))
             elif self.path=='/api/chat/delete':

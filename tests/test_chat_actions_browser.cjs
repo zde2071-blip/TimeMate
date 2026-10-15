@@ -20,12 +20,15 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.locator('#nav-chat').click();
    await page.locator('#chat-input').waitFor({state:'visible'});
    await page.locator('#chat-new').click();
-   assert.equal(await page.locator('#chat-approval-mode').inputValue(),'confirm');
+   assert.equal(await page.locator('#chat-approval-name').textContent(),'逐项确认');
    // Build a readable exam image using the browser, then send it through the actual upload path.
    const imagePage=await browser.newPage({viewport:{width:800,height:500}});
    await imagePage.setContent('<html><meta charset="utf-8"><body style="padding:40px;font:24px sans-serif"><h1>考试与提交安排</h1><p>ISA104 项目：2026年10月25日23:59截止</p><p>SOE104 考试：2026年10月26日09:00—11:00</p><p>地点：FB308</p></body></html>');
    const image=await imagePage.screenshot();await imagePage.close();
-   assert.equal(await page.locator('#chat-form #chat-approval-mode').count(),1);
+   assert.equal(await page.locator('#chat-form #chat-approval-menu').count(),1);
+   await page.locator('#chat-approval-menu summary').click();
+   await page.getByText('整理出事项，由你逐条点击添加。',{exact:true}).waitFor({state:'visible'});
+   await page.locator('[data-approval-mode=confirm]').click();
    assert.equal(await page.locator('#chat-model-name').textContent(),'fixture-vision');
    assert.equal(await page.locator('#chat-mode-hint, #chat-image-notice').count(),0);
    await page.locator('#chat-model-menu summary').click();
@@ -72,7 +75,8 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.locator('.important-source-title').filter({hasText:'SOE104'}).first().click();
    await page.locator('#chat-input').waitFor({state:'visible'});
    await page.locator('#chat-new').click();
-   await page.locator('#chat-approval-mode').selectOption('auto');
+   await page.locator('#chat-approval-menu summary').click();
+   await page.locator('[data-approval-mode=auto]').click();
    await page.locator('#chat-input').fill('整理并加入这些事项');await page.locator('#chat-send').click();
    await page.locator('.chat-event-state').first().waitFor();
    assert.equal(await page.locator('.chat-event-add').count(),0,'automatic mode avoids confirmation for exact duplicates');
@@ -90,7 +94,41 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.locator('#chat-input').fill('不支持图片');await page.locator('#chat-send').click();
    await page.getByText('当前模型或接口不支持这次图片输入',{exact:false}).waitFor();
    assert.equal(await page.locator('.chat-attachment').count(),1,'failed request keeps attachment for retry');
-   console.log(width+': paste preview/removal, compact toolbar/model settings, upload, per-item approval, reload, calendar navigation, auto dedupe, uncertainty, unsupported-model recovery passed');
+
+   await page.locator('#chat-new').click();
+   await page.locator('#chat-model-menu summary').click();
+   await page.locator('#chat-model-settings').click();
+   for (const [name,model,key] of [['文本问答','first-model','fixture-key-one'],['图片识别','second-model','fixture-key-two']]) {
+    await page.locator('#ai-profile-new').click();
+    await page.locator('#ai-profile-name').fill(name);
+    await page.locator('#key').fill(key);
+    await page.locator('#model-choice').selectOption('__manual__');
+    await page.locator('#model').fill(model);
+    await page.locator('#ai-save').click();
+    await page.waitForFunction(name=>Array.from(document.querySelector('#ai-profile-choice').options).some(o=>o.textContent.startsWith(name)),name);
+   }
+   await page.locator('#nav-chat').click();
+   await page.locator('#chat-new').click();
+   await page.locator('#chat-model-menu summary').click();
+   await page.locator('.chat-model-option').filter({hasText:'图片识别'}).click();
+   assert.equal(await page.locator('#chat-model-name').textContent(),'图片识别');
+   await page.locator('#chat-input').fill('查询当前连接');await page.locator('#chat-send').click();
+   await page.getByText('当前模型：second-model',{exact:true}).waitFor();
+   await page.reload();await page.locator('#nav-chat').click();
+   await page.waitForFunction(()=>document.querySelector('#chat-model-name').textContent==='图片识别');
+   await page.locator('#chat-approval-menu summary').click();
+   await page.screenshot({path:path.join(os.tmpdir(),`timemate-chat-approval-${width}.png`)});
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'approval menu fits viewport');
+   for (const selector of ['#chat-form','.chat-approval-options']) {
+    const rect=await page.locator(selector).boundingBox();
+    assert.ok(rect.x>=0 && rect.x+rect.width<=width, selector+' is fully inside the viewport');
+   }
+   await page.locator('[data-approval-mode=confirm]').click();
+   await page.locator('#chat-model-menu summary').click();
+   await page.locator('#chat-model-settings').click();
+   assert.equal(await page.locator('#key').inputValue(),'','saved API keys never return to browser');
+   await page.screenshot({path:path.join(os.tmpdir(),`timemate-api-profiles-${width}.png`)});
+   console.log(width+': paste preview/removal, compact toolbar/model settings, multiple API save/switch/reload, upload, per-item approval, reload, calendar navigation, auto dedupe, uncertainty, unsupported-model recovery passed');
    await page.close();
   }
   assert.deepEqual(errors,[]);

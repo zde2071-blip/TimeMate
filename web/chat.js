@@ -1,5 +1,7 @@
 // Mail-focused LLM conversations. Email retrieval is query-based and server-side.
 let chatConversationId = null;
+let chatApprovalMode = 'confirm';
+let chatProfileId = null;
 let chatMessages = [];
 let chatConversations = [];
 let chatBusy = false;
@@ -105,6 +107,8 @@ async function openChatConversation(id) {
     const data = await chatRequest('/api/chat/conversation?id=' + encodeURIComponent(id));
     if (request !== chatOpenRequest || chatBusy) return;
     chatConversationId = data.conversation.id;
+    chatProfileId = (aiProfiles || []).some(item => item.id === data.conversation.profileId) ? data.conversation.profileId : null;
+    renderChatModel(state?.config, aiProfiles);
     chatMessages = data.messages || [];
     $('chat-status').textContent = '';
     renderChatHistory();
@@ -136,8 +140,8 @@ async function sendChatMessage(message) {
   if (!question || chatBusy || chatAttachmentBusy) return;
   ++chatOpenRequest;
   const images = chatAttachments.map(({name, dataUrl}) => ({name, dataUrl}));
-  const mode = $('chat-approval-mode').value;
-  const key = JSON.stringify([chatConversationId, question, images, mode]);
+  const mode = chatApprovalMode;
+  const key = JSON.stringify([chatConversationId, question, images, mode, chatProfileId]);
   if (!chatRetry || chatRetry.key !== key) chatRetry = {key, id: crypto.randomUUID()};
   const unsaved = chatMessages.length;
   chatMessages.push({ role: 'user', content: question + images.map(image => '\n[图片：' + image.name + ']').join(''), sources: [] });
@@ -149,7 +153,7 @@ async function sendChatMessage(message) {
     const data = await chatRequest('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversationId: chatConversationId, message: question, images, approvalMode: mode, requestId: chatRetry.id })
+      body: JSON.stringify({ conversationId: chatConversationId, message: question, images, approvalMode: mode, profileId: chatProfileId, requestId: chatRetry.id })
     });
     chatConversationId = data.conversationId;
     chatMessages.push({ role: 'assistant', content: data.reply, sources: data.sources || [], events: data.events || [] });
@@ -199,7 +203,8 @@ $('chat-input').addEventListener('keydown', event => {
 renderChatTranscript();
 
 function setChatBusy(busy) {
-  for (const id of ['chat-send', 'chat-upload', 'chat-approval-mode', 'chat-new']) $(id).disabled = busy;
+  for (const id of ['chat-send', 'chat-upload', 'chat-new']) $(id).disabled = busy;
+  if (busy) { $('chat-model-menu').open = false; $('chat-approval-menu').open = false; }
 }
 
 function renderChatEvents(message) {
@@ -363,25 +368,57 @@ $('chat-form').addEventListener('paste', event => {
   resizeChatInput();
   attachChatImages(files);
 });
-$('chat-approval-mode').onchange = () => { chatRetry = null; };
+for (const button of document.querySelectorAll('[data-approval-mode]')) {
+  button.onclick = () => {
+    if (chatBusy || chatAttachmentBusy) return;
+    chatApprovalMode = button.dataset.approvalMode;
+    chatRetry = null;
+    $('chat-approval-name').textContent = chatApprovalMode === 'auto' ? '自动添加' : '逐项确认';
+    $('chat-approval-menu').classList.toggle('is-auto', chatApprovalMode === 'auto');
+    for (const option of document.querySelectorAll('[data-approval-mode]')) {
+      option.setAttribute('aria-pressed', String(option.dataset.approvalMode === chatApprovalMode));
+      option.querySelector('.chat-choice-check').textContent = option.dataset.approvalMode === chatApprovalMode ? '✓' : '';
+    }
+    $('chat-approval-menu').open = false;
+  };
+}
 $('chat-model-settings').onclick = () => {
   $('chat-model-menu').open = false;
   showPage('settings');
   selectConnectionSettings('ai');
 };
 document.addEventListener('click', event => {
-  if (!$('chat-model-menu').contains(event.target)) $('chat-model-menu').open = false;
+  for (const id of ['chat-model-menu','chat-approval-menu']) if (!$(id).contains(event.target)) $(id).open = false;
 });
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape') $('chat-model-menu').open = false;
+  if (event.key === 'Escape') for (const id of ['chat-model-menu','chat-approval-menu']) $(id).open = false;
 });
 
-function renderChatModel(config) {
-  const model = config?.model || '';
-  const name = model || '选择模型';
+function renderChatModel(config, profiles = []) {
+  const profile = profiles.find(item => item.id === chatProfileId) || profiles.find(item => item.is_default);
+  chatProfileId = profile?.id || null;
+  const name = profile?.name || config?.model || '选择模型';
   $('chat-model-name').textContent = name;
-  $('chat-model-current').textContent = model || '尚未连接';
   $('chat-model-menu').querySelector('summary').setAttribute('aria-label', '模型：' + name);
+  const list = $('chat-model-list');
+  list.replaceChildren();
+  if (!profiles.length) list.append(element('span', config?.model || '尚未连接', 'chat-model-empty'));
+  for (const item of profiles) {
+    const button = element('button', '', 'chat-model-option');
+    button.type = 'button';
+    button.setAttribute('aria-pressed', String(item.id === chatProfileId));
+    const copy = element('span', '', 'chat-model-copy');
+    copy.append(element('strong', item.name), element('small', item.model));
+    button.append(copy, element('span', item.id === chatProfileId ? '✓' : '', 'chat-choice-check'));
+    button.onclick = () => {
+      if (chatBusy || chatAttachmentBusy) return;
+      chatProfileId = item.id;
+      chatRetry = null;
+      $('chat-model-menu').open = false;
+      renderChatModel(config, profiles);
+    };
+    list.append(button);
+  }
 }
 
 function resizeChatInput() {

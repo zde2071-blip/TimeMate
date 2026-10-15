@@ -4,7 +4,7 @@ import sqlite3
 import threading
 from backend.mail import titles as mail_titles
 from backend.mail import dates as mail_dates
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 MAIL_COLUMNS = {
     'original': 'TEXT', 'source_links': 'TEXT',
     'source': "TEXT NOT NULL DEFAULT 'manual'",
@@ -77,6 +77,14 @@ def initialize(connection):
             connection.execute("CREATE TABLE IF NOT EXISTS chat_event_proposals (id TEXT PRIMARY KEY,message_id INTEGER NOT NULL REFERENCES chat_messages(id),event TEXT NOT NULL,status TEXT NOT NULL,note TEXT NOT NULL DEFAULT '',saved_id TEXT,saved_index INTEGER)")
             connection.execute('CREATE INDEX IF NOT EXISTS chat_event_message ON chat_event_proposals(message_id)')
             connection.execute('CREATE TABLE IF NOT EXISTS chat_requests (id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL,response TEXT NOT NULL)')
+        if version < 7:
+            connection.execute('CREATE TABLE IF NOT EXISTS ai_profiles(id TEXT PRIMARY KEY,name TEXT NOT NULL,provider TEXT NOT NULL,base TEXT NOT NULL,model TEXT NOT NULL,is_default INTEGER NOT NULL DEFAULT 0)')
+            connection.execute('CREATE UNIQUE INDEX IF NOT EXISTS ai_profile_default ON ai_profiles(is_default) WHERE is_default=1')
+            columns = {row[1] for row in connection.execute('PRAGMA table_info(chat_conversations)')}
+            if 'ai_profile_id' not in columns:
+                connection.execute("ALTER TABLE chat_conversations ADD COLUMN ai_profile_id TEXT NOT NULL DEFAULT ''")
+            for action in ('INSERT', 'UPDATE', 'DELETE'):
+                connection.execute(f"CREATE TRIGGER IF NOT EXISTS revision_ai_profiles_{action.lower()} AFTER {action} ON ai_profiles BEGIN UPDATE state_revision SET revision=revision+1 WHERE id=1; END")
         connection.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
         connection.commit()
     except Exception:

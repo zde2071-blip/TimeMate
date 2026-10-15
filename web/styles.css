@@ -2976,3 +2976,40 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
   .chat-composer-footer #chat-send { width:32px; height:32px; }
   .chat-event-card { padding:13px; }
 }
+
+.chat-approval-menu { position:relative; }
+.chat-approval-menu summary { list-style:none; font-size:13px; font-weight:400; cursor:pointer; }
+.chat-approval-menu summary::-webkit-details-marker { display:none; }
+.chat-approval-label > .chat-chevron { position:static; }
+.chat-approval-menu.is-auto summary { color:#237650; }
+.chat-approval-options { position:absolute; bottom:calc(100% + 12px); left:0; z-index:6; width:310px; max-width:calc(100vw - 104px); padding:8px; border:1px solid #e4e6e8; border-radius:14px; background:#fff; box-shadow:0 6px 28px #00000015; }
+.chat-approval-options > p { margin:4px 8px 8px; color:#81888e; font-size:12px; }
+.chat-composer-footer .chat-approval-options button,.chat-composer-footer .chat-model-option { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; padding:10px; text-align:left; background:transparent; color:#344047; border-radius:8px; }
+.chat-approval-options button:hover,.chat-composer-footer .chat-model-option:hover { background:#f3f4f5; }
+.chat-approval-options strong,.chat-model-copy strong { display:block; font-size:13px; font-weight:500; }
+.chat-approval-options small,.chat-model-copy small { display:block; margin-top:4px; color:#81888e; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.chat-choice-check { flex:none; color:#237650; }
+.chat-model-copy { min-width:0; }
+.chat-model-copy strong { overflow-wrap:anywhere; }
+.chat-model-empty { display:block; padding:9px; color:#788188; font-size:12px; }
+#chat-model-list { max-height:300px; overflow:auto; }
+.ai-profile-picker { margin-bottom:18px; }
+.ai-profile-picker-row { display:flex; align-items:center; gap:8px; }
+.ai-profile-picker-row select { min-width:0; flex:1; }
+.ai-profile-picker-row button { flex:none; margin:7px 0 0; padding:10px 12px; }
+#ai-profile-name { margin-bottom:8px; }
+.ai-profile-options { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:4px 0 18px; }
+.ai-profile-options label { display:flex; align-items:center; gap:6px; }
+.ai-profile-options input { width:auto; margin:0; }
+.ai-profile-options button { margin:0; font-size:12px; }
+@media(max-width:600px) { .chat-approval-menu summary { font-size:12px; gap:3px; } }
+@media(max-width:600px) { .chat-approval-options { left:-38px; width:300px; max-width:calc(100vw - 90px); } }
+#chat-approval-name { white-space:nowrap; }
+@media(max-width:760px) {
+  body.chat-layout-page:has(.app-rail:hover) > main,
+  body.chat-layout-page:has(.app-rail button:focus-visible) > main { left:56px; }
+  body.chat-layout-page .app-rail,
+  body.chat-layout-page .app-rail:hover,
+  body.chat-layout-page .app-rail:has(button:focus-visible) { width:56px; }
+  body.chat-layout-page .app-rail .rail-label { width:0; opacity:0; }
+}

@@ -65,6 +65,9 @@ class Runtime:
         self.request_lock=threading.Lock()
     def credential(self,action,identity,secret=''):
         with self.store.db() as c:
+            if action=='delete':
+                c.execute('DELETE FROM credentials WHERE user_id=? AND identity=?',(self.uid,identity))
+                return ''
             if action=='save':
                 c.execute('INSERT OR REPLACE INTO credentials VALUES (?,?,?)',(self.uid,identity,self.store.cipher.encrypt(secret.encode())))
                 return ''

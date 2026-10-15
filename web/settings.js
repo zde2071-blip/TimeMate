@@ -1,3 +1,59 @@
+let aiProfiles = [];
+let aiEditingId = null;
+
+function renderAIProfiles(data) {
+  aiProfiles = data.aiProfiles || [];
+  const picker = $('ai-profile-choice');
+  picker.replaceChildren();
+  const empty = element('option', '新建连接'); empty.value = ''; picker.append(empty);
+  for (const profile of aiProfiles) {
+    const option = element('option', profile.name + (profile.is_default ? ' · 默认' : ''));
+    option.value = profile.id; picker.append(option);
+  }
+  if (aiEditingId === null || aiEditingId && !aiProfiles.some(item => item.id === aiEditingId)) {
+    fillAIProfile(aiProfiles.find(item => item.is_default)?.id || '');
+  }
+  picker.value = aiEditingId || '';
+  const current = aiProfiles.find(item => item.id === aiEditingId);
+  $('ai-profile-delete').hidden = !current || !!current.is_default;
+}
+
+function fillAIProfile(id) {
+  const profile = aiProfiles.find(item => item.id === id);
+  aiEditingId = profile?.id || '';
+  $('ai-profile-choice').value = aiEditingId;
+  $('ai-profile-name').value = profile?.name || '';
+  $('ai-profile-default').checked = !!profile?.is_default || !aiProfiles.length;
+  $('ai-profile-default').disabled = !!profile?.is_default;
+  $('ai-profile-delete').hidden = !profile || !!profile.is_default;
+  $('provider').value = profile?.provider || 'deepseek';
+  $('base').value = profile?.base || providers[$('provider').value]?.base || '';
+  $('key').value = '';
+  delete $('key').dataset.editing;
+  $('key').dataset.saved = profile ? 'yes' : '';
+  $('key').placeholder = profile ? '••••••••' : '填写 API Key';
+  modelOptions(profile?.model ? [profile.model] : [], profile?.model || '');
+  $('provider-hint').textContent = providers[$('provider').value]?.hint || '';
+  renderProviderHelp();
+  connectionStates.ai = profile ? '已保存' : '未保存';
+  connectionBadge('ai', !!profile);
+  $('ai-feedback').textContent = '';
+}
+
+$('ai-profile-choice').onchange = () => fillAIProfile($('ai-profile-choice').value);
+$('ai-profile-new').onclick = () => { fillAIProfile(''); $('ai-profile-name').focus(); };
+$('ai-profile-delete').onclick = async () => {
+  if (!aiEditingId || !window.confirm('移除这条 API 连接及其保存的 Key？')) return;
+  const id = aiEditingId;
+  try {
+    const response = await fetch('/api/ai/profiles/delete', {method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify({id})});
+    const result = await response.json();
+    if (!response.ok) throw Error(result.error);
+    aiEditingId = null;
+    await refresh();
+  } catch(error) { $('ai-feedback').textContent = error.message; }
+};
+
 // Mailbox, AI, calendar and account settings.
 
 function connectionBadge(group, ready) {
@@ -95,7 +151,9 @@ function savedSecret(id, saved) {
 
 function draft(group) {
   let keys = group === 'mail' ? ['account', 'mail_provider', 'school_sender', 'password'] : ['provider', 'base', 'model', 'key'];
-  return Object.fromEntries(keys.map(k => [k, $(k).dataset.saved === 'yes' ? '' : $(k).value.trim()]));
+  const result = Object.fromEntries(keys.map(k => [k, $(k).dataset.saved === 'yes' ? '' : $(k).value.trim()]));
+  if (group === 'ai' && typeof aiEditingId !== 'undefined') Object.assign(result, {profileId:aiEditingId || '',name:$('ai-profile-name').value.trim(),makeDefault:$('ai-profile-default').checked});
+  return result;
 }
 
 function renderMailProvider() {
@@ -195,6 +253,7 @@ async function connectionAction(group, action) {
       return;
     }
     if (!r.ok) throw Error(result.error || '操作未完成');
+    if (group === 'ai' && action === 'save' && result.profileId) aiEditingId = result.profileId;
     if (action === 'models') {
       modelOptions(result.models, data.model);
       box.textContent = '已获取 ' + result.models.length + ' 个模型';

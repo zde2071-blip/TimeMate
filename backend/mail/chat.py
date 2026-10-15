@@ -59,7 +59,7 @@ class MailChat:
         if not isinstance(conversation_id, str) or not conversation_id:
             raise UserFacingError('对话编号无效。')
         with self.database() as connection:
-            conversation = connection.execute('SELECT id,title FROM chat_conversations WHERE id=?', (conversation_id,)).fetchone()
+            conversation = connection.execute('SELECT id,title,ai_profile_id AS profileId FROM chat_conversations WHERE id=?', (conversation_id,)).fetchone()
             if conversation is None:
                 raise UserFacingError('找不到这段对话。')
             rows = connection.execute('SELECT id,role,content,sources,created FROM chat_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 200', (conversation_id,)).fetchall()
@@ -156,7 +156,7 @@ class MailChat:
                    else {'total': 0, 'included': 0, 'truncated': False, 'mails': []})
         conversation_id = conversation_id or secrets.token_urlsafe(18)
         with self.database() as connection:
-            conversation = connection.execute('SELECT id,title FROM chat_conversations WHERE id=?', (conversation_id,)).fetchone()
+            conversation = connection.execute('SELECT id,title,ai_profile_id AS profileId FROM chat_conversations WHERE id=?', (conversation_id,)).fetchone()
             if conversation_id and data.get('conversationId') and conversation is None:
                 raise UserFacingError('找不到这段对话，请新建对话后重试。')
             history = []
@@ -193,10 +193,10 @@ class MailChat:
                                 (conversation_id, 'user', message.strip() + ''.join('\n[图片：' + image['name'] + ']' for image in images), '[]', now))
             assistant = connection.execute('INSERT INTO chat_messages(conversation_id,role,content,sources,created) VALUES (?,?,?,?,?)',
                                 (conversation_id, 'assistant', reply, json.dumps(sources, ensure_ascii=False), now + .001))
-            connection.execute('UPDATE chat_conversations SET updated=? WHERE id=?', (now, conversation_id))
+            connection.execute('UPDATE chat_conversations SET updated=?,ai_profile_id=? WHERE id=?', (now,self.config.get('_profileId',''),conversation_id))
             chat_actions.create(connection, assistant.lastrowid, answer.get('events'), mode == 'auto')
             events = chat_actions.proposals(connection, assistant.lastrowid)
-            result = {'conversationId': conversation_id, 'title': title, 'reply': reply, 'sources': sources, 'events': events,
+            result = {'conversationId': conversation_id, 'title': title, 'reply': reply, 'sources': sources, 'events': events, 'profileId': self.config.get('_profileId',''),
                       'truncated': context['truncated'], 'included': context['included'], 'total': context['total']}
             connection.execute('INSERT INTO chat_requests VALUES (?,?,?)', (request_id, conversation_id, json.dumps(result, ensure_ascii=False)))
         return result
