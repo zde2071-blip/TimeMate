@@ -262,6 +262,8 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         return response
     @app.get('/login')
     def login_page(): return (ROOT/'web/login.html').read_text()
+    @app.get('/about')
+    def public_homepage(): return (ROOT/'web/homepage.html').read_text()
     @app.get('/privacy')
     def privacy_page(): return (ROOT/'web/privacy.html').read_text()
     @app.get('/')

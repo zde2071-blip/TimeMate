@@ -78,7 +78,20 @@ async function startMailboxOAuth(provider) {
   } catch (_) { mailboxResult = 'network'; }
   finally { mailboxConnecting = false; renderMailboxConnection(state); }
 }
-document.querySelectorAll('[data-mail-oauth]').forEach(button => button.onclick = () => startMailboxOAuth(button.dataset.mailOauth));
+function openGoogleMailConsent() {
+  const dialog = $('google-mail-consent');
+  if (!dialog?.showModal) {
+    if (confirm('TimeMate 会以只读权限同步 Gmail 收件箱并保存邮件。使用 AI 分析时，邮件内容会发送给你选择的 AI 服务商。')) startMailboxOAuth('google');
+    return;
+  }
+  dialog.showModal();
+}
+$('google-mail-consent-cancel').onclick = () => $('google-mail-consent').close();
+$('google-mail-consent-continue').onclick = () => { $('google-mail-consent').close(); startMailboxOAuth('google'); };
+document.querySelectorAll('[data-mail-oauth]').forEach(button => button.onclick = () => {
+  const provider = button.dataset.mailOauth;
+  if (provider === 'google') openGoogleMailConsent(); else startMailboxOAuth(provider);
+});
 function openConnectionStep(group) {
   showPage('settings'); selectConnectionSettings(group);
   if (group === 'mail') renderMailboxConnection(state);

@@ -28,7 +28,19 @@ class CloudTests(unittest.TestCase):
   self.assertEqual(response.status_code,200)
   self.assertIn('没有应用层加密',response.text)
   self.assertIn('href="/privacy"',self.anon.get('/login').text)
-  self.assertNotIn('href="/privacy"',self.a.get('/').text)
+  app_page=self.a.get('/').text
+  self.assertIn('href="/privacy"',app_page)
+  self.assertIn('同意并继续',app_page)
+  self.assertIn('只读权限同步 Gmail 收件箱',app_page)
+ def test_google_review_homepage_is_public_and_explains_data_use(self):
+  response=self.anon.get('/about')
+  self.assertEqual(response.status_code,200)
+  self.assertIn('TimeMate',response.text)
+  self.assertIn('只读权限',response.text)
+  self.assertIn('href="/privacy"',response.text)
+  policy=self.anon.get('/privacy').text
+  self.assertIn('gmail.readonly',policy)
+  self.assertIn('Limited Use 要求',policy)
  def post(self,c,path,data,token=''):
   return c.post(path,json=data,headers={'Origin':'http://127.0.0.1:18744','X-Token':token})
  def register(self,c,address):

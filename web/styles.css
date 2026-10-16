@@ -3131,6 +3131,15 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 .connection-welcome footer button { margin:0; padding:9px 14px; border:1px solid #e7eaec; border-radius:8px; background:#252929; color:#fff; font-size:14px; }
 .connection-welcome footer .secondary { background:#fff; color:#70797d; }
 @media(max-width:600px) { .connection-onboarding { right:12px; bottom:12px; width:260px; } .mailbox-provider { font-size:13px; padding:14px 12px; } .connection-welcome { padding:22px 18px; } }
+
+.google-mail-consent { width:min(440px,calc(100% - 32px)); border:1px solid #e1e5e7; border-radius:16px; padding:24px; color:#252b2c; box-shadow:0 18px 56px rgb(22 30 35 / 18%); }
+.google-mail-consent::backdrop { background:rgb(20 27 32 / 34%); backdrop-filter:blur(3px); }
+.google-mail-consent h3 { margin:0 0 12px; font-size:20px; }
+.google-mail-consent p { margin:0 0 12px; color:#59656b; line-height:1.65; }
+.google-mail-consent a { color:#235b4b; text-underline-offset:3px; }
+.google-mail-consent-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:24px; }
+.google-mail-consent-actions button { min-height:40px; padding:0 16px; border:1px solid #dce2e4; border-radius:9px; background:#fff; color:#263238; font:inherit; cursor:pointer; }
+.google-mail-consent-actions #google-mail-consent-continue { border-color:#235b4b; background:#235b4b; color:#fff; }
 /* Mail analysis is chosen inside the service editor. */
 #ai-settings .ai-library-label { margin-top:0; }
 #ai-settings .ai-provider-edit { display:inline-flex; align-items:center; gap:6px; }
