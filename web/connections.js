@@ -1,6 +1,8 @@
 // Connection methods and the persistent, account-scoped setup guide.
 let mailboxManualOpen = false, mailboxMethodsOpen = false, mailboxPageInitialized = false;
 let connectionWelcomeChecked = false, mailboxConnecting = false;
+// Keep direct OAuth wired for the Google review flow, but don't expose it to users yet.
+const MAIL_OAUTH_UI_ENABLED = false;
 const mailboxResults = {
   admin:'需要学校管理员批准 TimeMate 读取邮箱。',
   blocked:'学校限制了此应用的邮箱访问。',
@@ -55,6 +57,8 @@ function renderMailboxConnection(d) {
   $('mail-method-buttons').hidden = direct && !!connection.connected && !reauthorize && !mailboxMethodsOpen;
   $('mail-direct-address').textContent = direct ? connection.account : '';
   $('mail-direct-status').textContent = reauthorize ? '需重新授权' : '已连接';
+  $('mail-oauth-pending').hidden = MAIL_OAUTH_UI_ENABLED || (direct && !reauthorize);
+  $('mail-oauth-help').hidden = !MAIL_OAUTH_UI_ENABLED && !reauthorize;
   const result = $('mail-oauth-result');
   const message = reauthorize ? mailboxResults.expired : mailboxResults[mailboxResult] || '';
   result.hidden = !message; result.textContent = message;
@@ -62,7 +66,7 @@ function renderMailboxConnection(d) {
     $('mail-nav-provider').textContent = connection.provider === 'google' ? 'Google' : 'Microsoft';
     $('mail-nav-status').textContent = reauthorize ? '需重新授权' : '已连接';
   }
-  document.querySelectorAll('[data-mail-oauth]').forEach(b => { b.disabled = mailboxConnecting; });
+  document.querySelectorAll('[data-mail-oauth]').forEach(b => { b.hidden = !MAIL_OAUTH_UI_ENABLED; b.disabled = mailboxConnecting; });
 }
 async function startMailboxOAuth(provider) {
   if (mailboxConnecting) return;
@@ -126,7 +130,7 @@ function renderConnectionOnboarding(d) {
       const mark=element('span',ready?'✓':'○','connection-guide-check');mark.setAttribute('aria-hidden','true');
       row.append(mark,element('span',name),element('small',ready?'已完成':'待完成'));box.append(row);
     }
-    const next = element('button', mail ? '配置 AI' : d.mailConnection?.reauthorize ? '重新授权' : '连接邮箱', 'connection-next');next.type='button';next.onclick=()=>openConnectionStep(mail?'ai':'mail');box.append(next);
+    const next = element('button', mail ? '配置 AI' : d.mailConnection?.reauthorize ? (MAIL_OAUTH_UI_ENABLED ? '重新授权' : '邮箱设置') : '连接邮箱', 'connection-next');next.type='button';next.onclick=()=>openConnectionStep(mail?'ai':'mail');box.append(next);
   }
   if (!connectionWelcomeChecked) {
     connectionWelcomeChecked = true;
