@@ -20,7 +20,7 @@ function openMailboxAccount(id = '') {
   $('school_sender').value = entry?.school_sender || '';
   $('account').value = receiver?.account || '';
   $('mail_provider').value = receiver?.mail_provider || '';
-  $('password').value = ''; delete $('password').dataset.editing;delete $('password').dataset.replacing;
+  $('password').value = ''; delete $('password').dataset.editing;
   savedSecret('password', !!receiver?.connected);
   if (entry) localStorage.setItem(forwardingKey(), 'yes');
   renderMailProvider(); renderMailboxConnection(state);
@@ -227,23 +227,28 @@ function positionConnectionCard() {
 new ResizeObserver(positionConnectionCard).observe($('chat-form'));
 window.addEventListener('resize',positionConnectionCard);
 
-function renderMailPasswordControl() {
-  const field=$('password'),button=$('mail-password-change');
-  button.hidden=field.dataset.saved!=='yes' && field.dataset.replacing!=='yes';
-  button.textContent=field.dataset.replacing==='yes'?'取消':'更换';
-  button.setAttribute('aria-expanded',String(field.dataset.replacing==='yes'));
-}
-function changeMailPassword() {
+// Focusing selects the saved mask; typing replaces it without exposing the stored secret.
+$('password').addEventListener('focus',()=>{
+  if($('password').dataset.saved==='yes') $('password').select();
+});
+$('password').addEventListener('beforeinput',()=>{
   const field=$('password');
-  if(field.dataset.replacing==='yes') {
-    field.value='';delete field.dataset.editing;delete field.dataset.replacing;
-    savedSecret('password',!!connectedReceiver(state,$('account').value));
-  } else {
-    field.dataset.replacing='yes';field.dataset.editing='1';field.dataset.saved='';
-    field.value='';field.readOnly=false;field.placeholder='填写新的客户端授权码';field.focus();
+  if(field.dataset.saved==='yes') {
+    field.value='';field.dataset.saved='';field.dataset.editing='1';
   }
-  receiverRevision++;receiverVerifiedRevision=-1;
-  connectionEdited('mail');renderForwardingForm(state);
+});
+$('password').addEventListener('blur',()=>{
+  const field=$('password');
+  const entry=(state?.mailAccounts||[]).find(item=>item.id===mailEditingId);
+  if(!field.value && entry?.connected && entry.account.toLowerCase()===$('account').value.trim().toLowerCase() && entry.mail_provider===$('mail_provider').value) {
+    delete field.dataset.editing;savedSecret('password',true);renderForwardingForm(state);
+  }
+});
+function forwardingFormSaved(d) {
+  const entry=(d?.mailAccounts||[]).find(item=>item.id===mailEditingId);
+  return !!entry && entry.account.toLowerCase()===$('account').value.trim().toLowerCase() &&
+    entry.mail_provider===$('mail_provider').value && entry.school_sender.toLowerCase()===$('school_sender').value.trim().toLowerCase() &&
+    $('password').dataset.saved==='yes' && localStorage.getItem(forwardingKey())==='yes';
 }
 function forwardingReceiverVerified(d) {
   return receiverVerifiedRevision === receiverRevision || !!(connectedReceiver(d,$('account').value) && $('password').dataset.saved==='yes');
@@ -251,7 +256,6 @@ function forwardingReceiverVerified(d) {
 
 function renderForwardingForm(d) {
   if (!d?.config) return;
-  renderMailPasswordControl();
   const address = $('account').value.trim();
   const verified = forwardingReceiverVerified(d);
   const forwarded = localStorage.getItem(forwardingKey()) === 'yes';
@@ -262,8 +266,9 @@ function renderForwardingForm(d) {
   $('mail-receiver-connect').disabled = receiverBusy || !['qq','netease'].includes($('mail_provider').value) || !address || !($('password').value || $('password').dataset.saved === 'yes');
   $('confirm-forwarding').checked = forwarded;
   $('confirm-forwarding').disabled = !verified || !$('school_sender').value.trim();
-  $('mail-save').textContent=connectionStates.mail==='连接中'?'保存中…':mailEditingId?'保存':'添加邮箱';
-  $('mail-save').disabled = receiverBusy || !verified || !forwarded || !$('school_sender').value.trim() || connectionStates.mail === '连接中';
+  const saved=forwardingFormSaved(d);
+  $('mail-save').textContent=connectionStates.mail==='连接中'?'保存中…':saved?'已保存':mailEditingId?'保存':'添加邮箱';
+  $('mail-save').disabled = saved || receiverBusy || !verified || !forwarded || !$('school_sender').value.trim() || connectionStates.mail === '连接中';
 }
 async function connectForwardingReceiver() {
   if (receiverBusy) return;
@@ -283,7 +288,11 @@ async function connectForwardingReceiver() {
 async function saveForwardingMailbox() {
   if (!forwardingReceiverVerified(state) || !$('confirm-forwarding').checked) return;
   if (!$('school_sender').value.trim() || !$('school_sender').reportValidity()) return;
-  if (await connectionAction('mail','save')) showMailboxList();
+  if(forwardingFormSaved(state)) return;
+  const adding=!mailEditingId;
+  if (await connectionAction('mail','save')) {
+    if(adding) showMailboxList(); else renderMailboxConnection(state);
+  }
 }
 async function copyForwardingAddress() {
   const address = $('mail-forward-target');

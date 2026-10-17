@@ -203,6 +203,7 @@ function connectionEdited(group) {
   connectionBadge(group, false);
   $(group + '-feedback').textContent = '';
   renderFieldStatuses(state);
+  if(group==='mail' && typeof renderForwardingForm==='function') renderForwardingForm(state);
 }
 
 function modelOptions(models, current = '') {
@@ -247,12 +248,10 @@ function editSecret(id) {
 function savedSecret(id, saved) {
   let e = $(id);
   if (e.dataset.editing || e.value && e.dataset.saved !== 'yes') return;
-  e.readOnly = id === 'password' && saved;
+  e.readOnly = false;
   e.dataset.saved = saved ? 'yes' : '';
   e.value = id === 'password' && saved ? '••••••••' : '';
   e.placeholder = saved ? (id === 'password' ? '' : '••••••••') : id === 'password' ? '填写邮箱客户端授权码' : '填写当前服务商的 API Key';
-  if(id==='password' && saved) delete e.dataset.replacing;
-  if(id==='password' && typeof renderMailPasswordControl==='function') renderMailPasswordControl();
 }
 
 function draft(group) {
