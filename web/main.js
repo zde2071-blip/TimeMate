@@ -213,6 +213,31 @@ $('logout').onclick = async () => {
   }
 };
 
+$('open-delete-account').onclick = () => {
+  closeAccountMenu();
+  $('delete-account-feedback').textContent = '';
+  $('delete-account-form').reset();
+  $('delete-account-dialog').showModal();
+  $('delete-account-password').focus();
+};
+
+$('delete-account-form').onsubmit = async e => {
+  e.preventDefault();
+  const button = e.submitter;
+  button.disabled = true;
+  try {
+    const result = await accountRequest('delete-account', { password: $('delete-account-password').value });
+    $('delete-account-dialog').close();
+    if (result.googleRevocationNeeded && !result.googleRevoked) {
+      alert('账号数据已删除，但 Google 授权未能自动撤销。请在 Google 账号的“第三方应用和服务”中移除 TimeMate。');
+    }
+    location.replace('/login');
+  } catch (err) {
+    $('delete-account-feedback').textContent = err.message;
+    button.disabled = false;
+  }
+};
+
 if (location.hash === '#settings') showPage('settings');
 
 $('account').addEventListener('input', () => {

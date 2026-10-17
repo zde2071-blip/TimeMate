@@ -32,6 +32,51 @@ class CloudTests(unittest.TestCase):
   self.assertIn('href="/privacy"',app_page)
   self.assertIn('同意并继续',app_page)
   self.assertIn('只读权限同步 Gmail 收件箱',app_page)
+  self.assertIn('自助删除账号',response.text)
+ def test_account_deletion_removes_only_owner_data_and_revokes_google(self):
+  self.assertEqual(self.post(self.anon,'/api/auth/delete-account',{'password':'test-password-123'}).status_code,401)
+  engine=self.app.store.engine(self.ua)
+  engine_file=engine.RUNTIME.directory/'mail.db'
+  self.assertTrue(engine_file.exists())
+  calendar_url=self.app.store.create_calendar_feed(self.ua,'http://127.0.0.1:18744')
+  with self.app.store.db() as c:
+   encrypted=self.app.store.cipher.encrypt(json.dumps({'refresh_token':'test-refresh-token'}).encode())
+   c.execute('INSERT OR REPLACE INTO credentials VALUES (?,?,?)',(self.ua,'mail-oauth:google',encrypted))
+   c.execute('INSERT INTO mailbox_oauth_attempts VALUES (?,?,?,?,?,?)',('delete-state',self.ua,'test-session','google',b'test',time.time()+600))
+  with self.app.store.db() as c:c.execute('INSERT OR REPLACE INTO attempts VALUES (?,?,?)',(hashlib.sha256(('chat:'+self.ua).encode()).hexdigest(),1,time.time()+600))
+  wrong=self.post(self.a,'/api/auth/delete-account',{'password':'wrong-password'},self.ta)
+  self.assertEqual(wrong.status_code,400)
+  self.assertEqual(self.state(self.a,self.ta).status_code,200)
+  with patch('backend.cloud.build_opener') as opener_factory:
+   opener_factory.return_value.open.return_value.__enter__.return_value.status=200
+   response=self.post(self.a,'/api/auth/delete-account',{'password':'test-password-123'},self.ta)
+  self.assertEqual(response.status_code,200)
+  self.assertTrue(response.json['googleRevocationNeeded'])
+  self.assertTrue(response.json['googleRevoked'])
+  request=opener_factory.return_value.open.call_args.args[0]
+  self.assertEqual(request.full_url,'https://oauth2.googleapis.com/revoke')
+  self.assertIn(b'test-refresh-token',request.data)
+  self.assertEqual(self.state(self.a,self.ta).status_code,401)
+  self.assertEqual(self.state(self.b,self.tb).status_code,200)
+  self.assertFalse(engine_file.exists())
+  with self.app.store.db() as c:
+   for table in ('users','sessions','credentials','resets','calendar_feeds','mailbox_oauth_attempts','email_verifications','password_reset_codes'):
+    column='email' if table in ('email_verifications','password_reset_codes') else 'user_id' if table in ('sessions','credentials','resets','calendar_feeds','mailbox_oauth_attempts') else 'id'
+    self.assertIsNone(c.execute(f'SELECT 1 FROM {table} WHERE {column}=?',('a@example.com' if column=='email' else self.ua,)).fetchone(),table)
+   self.assertEqual({row[0] for row in c.execute('SELECT id FROM users')},{self.ub})
+   self.assertIsNone(c.execute('SELECT 1 FROM attempts WHERE bucket=?',(hashlib.sha256(('chat:'+self.ua).encode()).hexdigest(),)).fetchone())
+  self.assertEqual(self.anon.get(calendar_url.replace('http://127.0.0.1:18744','')).status_code,404)
+ def test_account_deletion_tombstone_recovers_or_finishes_after_restart(self):
+  users=self.app.store.directory/'users';user_dir=users/self.ua;user_dir.mkdir(parents=True)
+  marker=user_dir/'recovery-marker';marker.write_text('keep')
+  tombstone=users/('.deleted-'+self.ua);user_dir.rename(tombstone)
+  from backend.cloud import Store
+  restarted=Store(self.tmp.name,self.key)
+  self.assertEqual((user_dir/'recovery-marker').read_text(),'keep')
+  self.assertFalse(tombstone.exists())
+  deleted_id='0'*32;deleted=users/('.deleted-'+deleted_id);deleted.mkdir();(deleted/'stale').write_text('remove')
+  restarted.cleanup_deleted_directories()
+  self.assertFalse(deleted.exists())
  def test_google_review_homepage_is_public_and_explains_data_use(self):
   response=self.anon.get('/about')
   self.assertEqual(response.status_code,200)

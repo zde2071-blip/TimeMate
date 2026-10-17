@@ -1,11 +1,11 @@
 """Email-verified public web gateway. Each authenticated user owns an isolated engine and DB.
 Run exactly one application process; its scheduler services all user engines.
 """
-import argparse, hashlib, hmac, importlib.util, json, os, re, secrets, sqlite3, threading, time, logging
+import argparse, hashlib, hmac, importlib.util, json, os, re, secrets, shutil, sqlite3, threading, time, logging
 from html import escape
 from contextlib import contextmanager
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlencode
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from urllib.error import HTTPError, URLError
 from cryptography.fernet import Fernet
@@ -89,6 +89,21 @@ class Store:
             CREATE TABLE IF NOT EXISTS password_reset_codes(email TEXT PRIMARY KEY,code_hash TEXT NOT NULL,expires REAL NOT NULL,attempts INTEGER NOT NULL DEFAULT 0);
             CREATE TABLE IF NOT EXISTS calendar_feeds(user_id TEXT PRIMARY KEY,token_hash TEXT UNIQUE NOT NULL,token BLOB NOT NULL);
             ''')
+        self.cleanup_deleted_directories()
+    def cleanup_deleted_directories(self):
+        users=self.directory/'users'
+        if not users.is_dir(): return
+        with self.db() as c: active={r[0] for r in c.execute('SELECT id FROM users')}
+        for path in users.glob('.deleted-*'):
+            uid=path.name.removeprefix('.deleted-')
+            user_dir=users/uid
+            try:
+                if uid in active:
+                    if not user_dir.exists(): path.rename(user_dir)
+                    else: shutil.rmtree(path)
+                    continue
+                shutil.rmtree(path)
+            except OSError: logging.getLogger(__name__).warning('Pending account data cleanup remains on disk.')
     @contextmanager
     def db(self):
         c=sqlite3.connect(self.directory/'accounts.db',timeout=15); c.row_factory=sqlite3.Row
@@ -151,6 +166,54 @@ class Store:
                 engine.ai_services=CloudAI
                 self.engines[uid]=engine
             return self.engines[uid]
+    def delete_account(self,uid):
+        if not isinstance(uid,str) or not re.fullmatch(r'[a-f0-9]{32}',uid): return None
+        with self.lock:
+            engine=self.engines.get(uid)
+            engine_lock=getattr(engine,'LOCK',None)
+            runtime_lock=getattr(getattr(engine,'RUNTIME',None),'request_lock',None)
+            if engine_lock and not engine_lock.acquire(False): return None
+            if runtime_lock and not runtime_lock.acquire(False):
+                if engine_lock: engine_lock.release()
+                return None
+            try:
+                if engine: engine.STATUS.update(auto=False,sync_state='paused',sync_error_code='',sync_message='')
+                users=self.directory/'users'; users.mkdir(parents=True,exist_ok=True,mode=0o700)
+                user_dir=users/uid
+                tombstone=users/('.deleted-'+uid)
+                moved=False
+                if user_dir.exists(): user_dir.rename(tombstone); moved=True
+                try:
+                    with self.db() as c:
+                        c.execute('BEGIN IMMEDIATE')
+                        user=c.execute('SELECT email FROM users WHERE id=?',(uid,)).fetchone()
+                        if not user:
+                            if moved: tombstone.rename(user_dir)
+                            return False
+                        email=user['email']
+                        c.execute('DELETE FROM sessions WHERE user_id=?',(uid,))
+                        c.execute('DELETE FROM credentials WHERE user_id=?',(uid,))
+                        c.execute('DELETE FROM resets WHERE user_id=?',(uid,))
+                        c.execute('DELETE FROM calendar_feeds WHERE user_id=?',(uid,))
+                        c.execute('DELETE FROM mailbox_oauth_attempts WHERE user_id=?',(uid,))
+                        c.execute('DELETE FROM email_verifications WHERE email=?',(email,))
+                        c.execute('DELETE FROM password_reset_codes WHERE email=?',(email,))
+                        for bucket in ('account:','email-code:','password-reset:'):
+                            c.execute('DELETE FROM attempts WHERE bucket=?',(digest(bucket+email),))
+                        c.execute('DELETE FROM attempts WHERE bucket=?',(digest('chat:'+uid),))
+                        c.execute('DELETE FROM users WHERE id=?',(uid,))
+                except Exception:
+                    if moved and tombstone.exists() and not user_dir.exists(): tombstone.rename(user_dir)
+                    raise
+                self.engines.pop(uid,None)
+                if moved:
+                    try: shutil.rmtree(tombstone)
+                    except OSError: logging.getLogger(__name__).warning('Pending account data cleanup remains on disk.')
+                    self.cleanup_deleted_directories()
+                return True
+            finally:
+                if runtime_lock: runtime_lock.release()
+                if engine_lock: engine_lock.release()
     def tick(self):
         with self.db() as c: users=[r[0] for r in c.execute('SELECT id FROM users')]
         for uid in users:
@@ -243,7 +306,9 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         if request.path.startswith('/api/') and not (request.path.startswith('/api/auth/') and request.method=='POST'):
             if not g.auth: return jsonify(error='请先登录。'),401
             if not secrets.compare_digest(request.headers.get('X-Token',''),g.auth['csrf']): return jsonify(error='请刷新页面。'),403
-        if request.path in ('/api/auth/logout','/api/auth/password'):
+        if request.path=='/api/auth/delete-account' and not g.auth:
+            return jsonify(error='请先登录。'),401
+        if request.path in ('/api/auth/logout','/api/auth/password','/api/auth/delete-account'):
             if not g.auth or not secrets.compare_digest(request.headers.get('X-Token',''),g.auth['csrf']): return jsonify(error='请刷新后重试。'),403
     @app.after_request
     def headers(response):
@@ -381,6 +446,27 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
                     c.execute('DELETE FROM sessions WHERE user_id=?',(user['id'],))
                     c.execute('DELETE FROM resets WHERE user_id=?',(user['id'],))
                 return new_session(user['id'])
+            if action=='delete-account':
+                if not g.auth: return jsonify(error='请先登录。'),401
+                with store.db() as c:
+                    user=c.execute('SELECT * FROM users WHERE id=?',(g.auth['user_id'],)).fetchone()
+                    supplied=d.get('password','')
+                    if not user or not isinstance(supplied,str) or len(supplied)>128 or not check_password_hash(user['password'],supplied):
+                        raise ValueError('密码不正确。')
+                    row=c.execute('SELECT value FROM credentials WHERE user_id=? AND identity=?',(user['id'],'mail-oauth:google')).fetchone()
+                    try: google_refresh=json.loads(store.cipher.decrypt(row['value']).decode()).get('refresh_token','') if row else ''
+                    except (ValueError,TypeError): google_refresh=''
+                deleted=store.delete_account(user['id'])
+                if deleted is None: return jsonify(error='有操作正在进行，请稍后重试。'),409
+                if not deleted: return jsonify(error='账号不存在，请重新登录。'),401
+                google_revoked=False
+                if google_refresh:
+                    try:
+                        revoke=Request('https://oauth2.googleapis.com/revoke',data=urlencode({'token':google_refresh}).encode(),headers={'Content-Type':'application/x-www-form-urlencoded'},method='POST')
+                        with build_opener(NoEmailRedirect()).open(revoke,timeout=8) as response: google_revoked=response.status==200
+                    except (HTTPError,URLError,TimeoutError,OSError,ValueError): google_revoked=False
+                response=jsonify(ok=True,googleRevocationNeeded=bool(google_refresh),googleRevoked=google_revoked)
+                response.delete_cookie('mail_session');return response
             if action=='reset':
                 hashed=password_hash(d.get('password'))
                 reset_error=None

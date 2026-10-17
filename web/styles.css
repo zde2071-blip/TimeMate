@@ -3144,3 +3144,8 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 #ai-settings .ai-library-label { margin-top:0; }
 #ai-settings .ai-provider-edit { display:inline-flex; align-items:center; gap:6px; }
 #ai-settings .ai-provider-edit svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.account-danger { color: #a33b35; }
+.account-delete-warning { margin: -8px 0 16px; color: #68737a; }
+.account-delete-submit { background: #a33b35; border-color: #a33b35; }
+#delete-account-feedback { min-height: 0; margin: 8px 0 0; color: #a64b3f; }
+#delete-account-feedback:empty { display: none; }
