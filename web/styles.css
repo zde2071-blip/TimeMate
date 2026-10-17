@@ -3210,16 +3210,17 @@ body.settings-view .settings-nav-copy strong { font-weight:500; }
 .forward-intro { padding:12px 0 21px; }
 .forward-intro h3 { margin:0 0 11px; font-size:21px; font-weight:600; }
 .forward-intro p { margin:0; color:#78828b; font-size:13px; line-height:1.85; }
-.forward-flow { display:grid; grid-template-columns:1fr auto 1fr auto 1fr; align-items:center; gap:12px; padding:22px 24px; margin-bottom:24px; background:#f6f7f8; border-radius:12px; }
-.forward-flow-node { display:grid; justify-items:center; align-content:start; gap:4px; min-width:0; text-align:center; min-height:76px; }
+.forward-flow { display:grid; grid-template-columns:minmax(0,1fr) 80px minmax(0,1fr) 80px minmax(0,1fr); align-items:center; gap:12px; padding:22px 24px; margin-bottom:24px; background:#f6f7f8; border-radius:12px; }
+.forward-flow-node { display:grid; justify-items:center; align-content:start; gap:4px; min-width:0; text-align:center; }
 .forward-flow-node svg { width:20px; height:20px; fill:none; stroke:#78828b; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; margin-bottom:6px; }
 .forward-flow-node strong { font-size:13px; font-weight:500; }
-.forward-flow-node small { color:#78828b; font-size:11px; }
 .forward-flow-arrow { display:grid; justify-items:center; gap:6px; color:#78828b; font-size:11px; }
-.forward-flow-arrow > span:last-child { font-size:20px; line-height:1; }
+.forward-flow-arrow > span { white-space:nowrap; }
+.forward-flow-arrow-shaft { display:block; width:80px; height:12px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
 .forward-step { padding:26px 0; border-top:1px solid #e5e8eb; }
+.forward-step + .forward-step { border-top:0; padding-top:20px; }
 .forward-step-heading { display:flex; align-items:flex-start; gap:11px; margin-bottom:19px; }
-.forward-step-number { display:grid; place-items:center; flex:0 0 27px; height:27px; margin-top:1px; border-radius:8px; background:#f6f7f8; color:#78828b; font-size:12px; font-weight:600; }
+.forward-step-number { display:grid; place-items:center; flex:0 0 27px; height:27px; margin-top:1px; border-radius:8px; background:#eaf5ef; color:#18845b; font-size:12px; font-weight:600; }
 .forward-step-heading h4 { margin:0; font-size:15px; font-weight:600; }
 .forward-step-heading p { margin:5px 0 0; color:#78828b; font-size:12px; line-height:1.7; }
 .forward-receiver-status { margin:3px 0 0 auto; color:#27634e; font-size:12px; white-space:nowrap; }
@@ -3243,10 +3244,24 @@ body.settings-view .settings-nav-copy strong { font-weight:500; }
 .forward-save-row { display:flex; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid #e5e8eb; padding-top:17px; }
 .forward-save-row p { margin:0; font-size:12px; }
 #mail-manual-settings #mail-save { flex:none; width:auto; min-width:96px; padding:10px 16px; margin:0 0 0 auto; border:0; border-radius:8px; background:#27634e; color:#fff; font-size:12px; }
-@media(max-width:600px) { .forward-step-fields { padding-left:0; } .forward-flow { gap:4px; padding:18px 9px; } .forward-flow-node { min-height:72px; } .forward-flow-node strong { font-size:12px; } .forward-flow-arrow { max-width:44px; text-align:center; } #mail-manual-settings .forward-step-fields input:not([type=checkbox]),#mail-manual-settings .forward-step-fields select { font-size:16px; } }
-@media(max-width:380px) { .forward-flow { grid-template-columns:minmax(0,1fr); padding:17px; gap:8px; } .forward-flow-node { display:flex; align-items:center; justify-content:flex-start; flex-wrap:wrap; gap:8px; min-height:0; text-align:left; } .forward-flow-node svg { margin:0; } .forward-flow-arrow { display:flex; flex-direction:row-reverse; justify-content:flex-end; gap:10px; padding-left:2px; max-width:none; } .forward-flow-arrow > span:last-child { transform:rotate(90deg); } }
+@media(max-width:600px) {
+ .forward-step-fields { padding-left:0; }
+ .forward-flow { grid-template-columns:minmax(0,1fr); padding:20px; gap:6px; }
+ .forward-flow-node { display:flex; align-items:center; justify-content:flex-start; gap:10px; text-align:left; }
+ .forward-flow-node svg { margin:0; }
+ .forward-flow-arrow { display:flex; align-items:center; justify-content:flex-start; position:relative; min-height:56px; padding-left:40px; gap:0; }
+ .forward-flow-arrow-shaft { position:absolute; width:56px; height:12px; left:-18px; top:22px; transform:rotate(90deg); }
+ #mail-manual-settings .forward-step-fields input:not([type=checkbox]),#mail-manual-settings .forward-step-fields select { font-size:16px; }
+}
 /* The active forwarding form already provides setup guidance; keep its controls unobstructed. */
 body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([hidden])) .connection-onboarding { display:none; }
 
 #mail-forward-copy { display:flex; align-items:center; gap:5px; }
 #mail-forward-copy svg { width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linejoin:round; }
+
+.settings-detail-heading { gap:18px; }
+.settings-heading-actions { display:flex; align-items:center; justify-content:flex-end; gap:16px; min-width:0; }
+.settings-heading-actions .settings-detail-summary { margin:0; min-width:0; }
+.settings-heading-actions .settings-detail-summary small { max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.settings-heading-actions .settings-summary-status { white-space:nowrap; }
+@media(max-width:760px) { .settings-heading-actions { flex:1; flex-wrap:wrap; gap:8px; } .settings-heading-actions .settings-detail-summary small { max-width:120px; } }
