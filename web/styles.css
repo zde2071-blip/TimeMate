@@ -3289,8 +3289,6 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 .mail-account-empty { padding:20px 0;color:#78828b;font-size:13px; }
 .settings-heading-actions [data-setting-actions="mail"] { display:flex;gap:12px; }
 #mail-account-back { border:0;background:transparent;color:#78828b;padding:8px 0;font-size:12px; }
-#mail-receiver-picker { width:100%;margin-top:8px; }
-#mail-receiver-choice { display:block;margin-bottom:18px; }
 #mail-account-filter { flex:0 1 auto;max-width:55%;border:0;background:transparent;font-size:13px;padding:0 18px 0 0;color:#293238; }
 .mail-list-filter-row:has(#mail-account-filter:not([hidden])) { flex-wrap:wrap;gap:10px; }
 .mail-list-mailbox { display:block;margin-top:7px;color:#78828b;font-size:11px;overflow-wrap:anywhere; }

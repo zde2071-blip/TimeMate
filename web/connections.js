@@ -43,14 +43,6 @@ function renderMailboxAccounts(d) {
     const row=element('button','','mail-account-entry');row.type='button';const copy=element('span','','mail-account-copy');copy.append(element('strong',d.mailConnection.account),element('small','直接连接'));const tail=element('span',d.mailConnection.reauthorize?'需重新授权':'✓ 已连接','settings-entry-connected');row.append(copy,tail,element('span','›','settings-entry-chevron'));row.onclick=()=>{mailboxListOpen=false;mailboxMethodsOpen=false;mailboxManualOpen=false;renderMailboxConnection(state)};list.append(row);
   }
   if (!(d.mailAccounts || []).length && d.mailConnection?.mode!=='oauth') list.append(element('p','尚未添加邮箱','mail-account-empty'));
-  const picker = $('mail-receiver-picker'); picker.replaceChildren();
-  const accounts = [...new Map((d.mailAccounts || []).filter(x=>x.connected && x.mode!=='oauth').map(x=>[x.account,x])).values()];
-  for(const entry of accounts){const option=element('option',entry.account+' · '+(entry.mail_provider==='qq'?'QQ 邮箱':'网易邮箱'));option.value=entry.account;picker.append(option);}
-  const extra=element('option',accounts.length?'＋ 连接其他接收邮箱':'连接接收邮箱');extra.value='';picker.append(extra);
-  const current=accounts.find(x=>x.account.toLowerCase()===$('account').value.trim().toLowerCase() && $('password').dataset.saved==='yes');
-  picker.value=current?.account || '';
-  $('mail-receiver-choice').hidden=!accounts.length;
-  $('mail-receiver-fields').hidden=!!current;
   $('mail-account-new').hidden=!mailboxListOpen;
   $('mail-account-back').hidden=mailboxListOpen;
   $('mail-accounts').hidden=!mailboxListOpen;
@@ -58,13 +50,6 @@ function renderMailboxAccounts(d) {
   if(heading)$('settings-detail-title').textContent=mailboxListOpen?'邮箱':mailEditingId?'编辑邮箱':'添加邮箱';
   document.querySelector('[data-setting-summary="mail"]').hidden=!heading || mailboxListOpen || !mailEditingId;
 }
-$('mail-receiver-picker').onchange = () => {
-  const entry = (state?.mailAccounts || []).find(x=>x.account===$('mail-receiver-picker').value);
-  receiverRevision++; receiverVerifiedRevision=-1;
-  $('account').value=entry?.account||''; $('mail_provider').value=entry?.mail_provider||'';
-  $('password').value=''; delete $('password').dataset.editing; savedSecret('password',!!entry?.connected);
-  connectionEdited('mail');renderMailProvider();renderMailboxConnection(state);
-};
 function matchesMailbox(m) {
   return selectedMailboxId==='all'||m.mailbox_id===selectedMailboxId;
 }
