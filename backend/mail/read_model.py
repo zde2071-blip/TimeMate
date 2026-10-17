@@ -9,7 +9,7 @@ REAL_MAIL = "source NOT IN ('simulation','test_archive')"
 # Original HTML/images and cached translations have dedicated endpoints.
 MAIL_COLUMNS = ('id,subject,sender,date,sent_date,body,result,created,source,'
                 'source_links,source_body,is_read,is_deleted,manual_category,'
-                'display_title,title_version,analysis_attempts,analysis_retry_at,analysis_error')
+                'display_title,title_version,analysis_attempts,analysis_retry_at,analysis_error,mailbox_id,receiving_account')
 VISIBLE_CONFIG = ('account','mail_provider','base','model','school_sender','calendar_method',
                   'calendar_provider','calendar_subscription_confirmed','provider')
 

@@ -645,6 +645,7 @@ function jumpMail(id) {
   mailSearchResolvedQuery = '';
   mailSearchPending = false;
   $('mail-search-input').value = '';
+  if(typeof selectedMailboxId!=='undefined') selectedMailboxId='all';
   selected = m.category;
   selectedCourse = '全部课程';
   activeMailId = id;

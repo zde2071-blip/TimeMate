@@ -177,9 +177,9 @@ def install(app, store, origin):
             data={key:data[key] for key in ('access_token','refresh_token')};data.update(expires_at=expires_at,reauthorize=False)
             # Verify actual mailbox access before storing or replacing a connection.
             save(engine.RUNTIME,provider,data)
-            updated={**engine.CFG,'mail_mode':'oauth','mail_provider':provider,'account':address,'school_sender':'','password':''}
+            updated={**engine.CFG,'mail_direct':json.dumps({'account':address,'mail_provider':provider}),'mail_mode':'oauth','mail_provider':provider,'account':address,'school_sender':'','password':''}
             engine.PREFS.write_text(json.dumps({k:updated[k] for k in engine.DEFAULTS},ensure_ascii=False))
-            engine.CFG.update(updated);engine.STATUS['auto']=False;engine.clear_receiver_health('邮箱已连接。')
+            engine.CFG.update(updated);engine.STATUS.pop('mailboxHealth',None);engine.STATUS['auto']=False;engine.clear_receiver_health('邮箱已连接。')
             return back('success')
         except OAuthError as error: return back(error.kind)
         finally: engine.LOCK.release()
@@ -245,7 +245,9 @@ class OAuthReceiver:
                     encoded=body.get('raw','');raw=base64.urlsafe_b64decode(encoded+'='*((-len(encoded))%4))
                 else: raw=api(provider,'/v1.0/me/messages/'+quote(remote_id,safe='')+'/$value',token,raw=True)
                 if not raw: raise OAuthError('network')
-                _,created=ingest.import_raw(raw,ident,account,source,engine.db,engine.parse_mail)
+                imported,created=ingest.import_raw(raw,ident,account,source,engine.db,engine.parse_mail)
+                from backend.mail.accounts import direct_id
+                with engine.db() as c: c.execute('UPDATE mails SET mailbox_id=? WHERE id=? AND mailbox_id IS NULL',(direct_id(engine.CFG),imported))
                 added+=created
             if new_marker:
                 with engine.db() as c: c.execute('INSERT OR REPLACE INTO oauth_checkpoints VALUES (?,?)',(key,new_marker))

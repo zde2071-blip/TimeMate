@@ -15,6 +15,7 @@ from backend.events import event_join
 from backend.mail import translation as mail_translation
 from backend.core import database as mail_database
 from backend.mail import ingest as mail_ingest
+from backend.mail.accounts import MailAccounts, MultipleReceivers
 from backend.mail import analysis as mail_analysis
 from backend.mail.read_model import MailReadModel, json_object
 from backend.mail.chat import MailChat
@@ -23,10 +24,13 @@ from backend.core import operation_status
 RUNTIME = None
 DB = None
 PREFS = None
-DEFAULTS={'mail_mode':'forward','account':'','mail_provider':'','base':'https://api.deepseek.com','model':'deepseek-flash','school_sender':'','calendar_method':'unset','calendar_provider':'','calendar_subscription_confirmed':'no','provider':'deepseek'}
+DEFAULTS={'mail_direct':'{}','mail_mode':'forward','account':'','mail_provider':'','base':'https://api.deepseek.com','model':'deepseek-flash','school_sender':'','calendar_method':'unset','calendar_provider':'','calendar_subscription_confirmed':'no','provider':'deepseek'}
 CFG={**DEFAULTS,'password':'','key':''}
 LOCK=threading.Lock()
 STATUS={'busy':False,'auto':False}
+
+def mail_accounts():
+    return MailAccounts(db, RUNTIME)
 
 def ai_profiles():
     return AIProfiles(db,RUNTIME,ai_services.validate)
@@ -88,6 +92,12 @@ def initialize(runtime):
     for group,field in [('mail','password'),('ai','key')]:
         CFG[field]=credential_store('load',group,CFG)
     STATUS=runtime.status
+    mail_accounts().adopt(CFG)
+    direct=direct_mail_config()
+    if direct:
+        from backend.mail.accounts import direct_id
+        with db() as c:
+            c.execute('UPDATE mails SET mailbox_id=? WHERE mailbox_id IS NULL AND receiving_account=?',(direct_id(direct),mail_ingest.cursor_key(direct['account'])))
     profiles=ai_profiles()
     profiles.adopt(CFG)
     default=next((item for item in profiles.list() if item['is_default']),None)
@@ -120,12 +130,24 @@ normalize_events = mail_analysis.normalize_events
 def import_uid(conn, cfg, validity, uid, source):
     return mail_ingest.import_uid(conn, cfg, validity, uid, source, db, parse_mail)
 
+def direct_mail_config():
+    if CFG.get('mail_mode')=='oauth': return {**CFG,'_direct':True}
+    saved=json_object(CFG.get('mail_direct'))
+    if saved.get('mail_provider') in ('google','microsoft') and saved.get('account'):
+        return {**CFG,**saved,'mail_mode':'oauth','_direct':True}
+    return None
+
 def mail_receiver():
-    if CFG.get('mail_mode')=='oauth':
-        from backend.mail.oauth import OAuthReceiver
-        # The receiver needs this per-user engine, never a global engine.
-        return OAuthReceiver(SimpleNamespace(CFG=CFG,STATUS=STATUS,RUNTIME=RUNTIME,db=db,parse_mail=parse_mail,analyze_pending=analyze_pending))
-    return mail_ingest.MailReceiver(db, CFG, STATUS, connect_mail, import_uid, close_mail, analyze_pending)
+    from backend.mail.oauth import OAuthReceiver
+    def receiver(cfg,status):
+        if cfg.get('_direct'):
+            return OAuthReceiver(SimpleNamespace(CFG=cfg,STATUS=status,RUNTIME=RUNTIME,db=db,parse_mail=parse_mail,analyze_pending=analyze_pending))
+        return mail_ingest.MailReceiver(db,cfg,status,connect_mail,import_uid,close_mail,analyze_pending)
+    configs=mail_accounts().receivers(CFG)
+    direct=direct_mail_config()
+    if direct: configs.append(direct)
+    if configs: return MultipleReceivers(configs,STATUS,receiver)
+    return receiver(CFG,STATUS)
 
 def mail_analyzer():
     return mail_analysis.MailAnalyzer(db, CFG, STATUS, model_reply, automatic_category_for)
@@ -231,6 +253,9 @@ def model_reply(cfg,prompt,data):
 def connection_draft(group,data,*,require_source=True):
     candidate=CFG.copy()
     baseline=CFG
+    if group=='mail' and 'mailAccountId' in data:
+        baseline={**CFG,**(mail_accounts().get(data['mailAccountId']) if data.get('mailAccountId') else {'account':'','mail_provider':'','school_sender':'','password':''})}
+        candidate.update(baseline)
     if group=='ai' and 'profileId' in data:
         baseline=ai_profiles().get(data['profileId']) if data.get('profileId') else {**CFG,'key':''}
         candidate.update({k:baseline[k] for k in ('provider','base','model','key')})
@@ -238,9 +263,12 @@ def connection_draft(group,data,*,require_source=True):
     for k in keys:
         if k in data and isinstance(data[k],str): candidate[k]=data[k].strip()
     secret='password' if group=='mail' else 'key'
-    same=(candidate['account']==CFG['account'] and candidate['mail_provider']==CFG['mail_provider']) if group=='mail' else (candidate['provider']==baseline['provider'] and candidate['base'].rstrip('/')==baseline['base'].rstrip('/'))
+    same=(candidate['account'].lower()==baseline['account'].lower() and candidate['mail_provider']==baseline['mail_provider']) if group=='mail' else (candidate['provider']==baseline['provider'] and candidate['base'].rstrip('/')==baseline['base'].rstrip('/'))
     if not isinstance(data.get(secret),str) or not data[secret].strip(): candidate[secret]=baseline[secret] if same else ''
     if group=='mail':
+        candidate['account']=candidate['account'].lower()
+        if not candidate.get('password'):
+            candidate['password']=RUNTIME.credential('load',credential_id('mail',candidate))
         account=candidate['account'].lower()
         inferred='qq' if account.endswith(('@qq.com','@foxmail.com')) else 'netease' if account.endswith(('@163.com','@126.com')) else ''
         if not candidate['mail_provider']: candidate['mail_provider']=inferred
@@ -266,12 +294,23 @@ def save_connection(group,data):
         if group=='ai': ai_services.validate(candidate)
         keys=('account','mail_provider','school_sender','password') if group=='mail' else ('provider','base','model','key')
         updated={**CFG,**{k:candidate[k] for k in keys}}
-        if group=='mail': updated['mail_mode']='forward'
+        if group=='mail':
+            direct=direct_mail_config()
+            if direct: updated['mail_direct']=json.dumps({k:direct[k] for k in ('account','mail_provider')})
+            updated['mail_mode']='forward'
         secret_field='password' if group=='mail' else 'key'
-        credential_store('save',group,updated,updated[secret_field])
+        if group=='mail':
+            ident=data.get('mailAccountId')
+            if 'mailAccountId' not in data:
+                ident=next((x['id'] for x in mail_accounts().list() if x['school_sender'].lower()==candidate['school_sender'].lower()),None)
+            mail_accounts().save(candidate,ident)
+            STATUS.pop('mailboxHealth',None)
+        else: credential_store('save',group,updated,updated[secret_field])
         PREFS.write_text(json.dumps({k:updated[k] for k in DEFAULTS},ensure_ascii=False))
         CFG.update({k:updated[k] for k in keys})
-        if group=='mail': CFG['mail_mode']='forward'
+        if group=='mail':
+            CFG['mail_mode']='forward'
+            CFG['mail_direct']=updated['mail_direct']
         if group=='ai':
             profiles=ai_profiles()
             default=next((item for item in profiles.list() if item['is_default']),None)
@@ -558,9 +597,17 @@ class APIHandler:
             if self.path == '/api/state':
                 data=reader.state()
                 data['aiProfiles']=ai_profiles().list()
+                for profile in data['aiProfiles']:
+                    profile['connected']=bool(ai_profiles().get(profile['id'])['key'])
+                data['mailAccounts']=mail_accounts().list()
+                data['ready']['mail']=any(x['connected'] for x in data['mailAccounts']) or data['ready']['mail']
                 from backend.mail.oauth import connection_state
-                data['mailConnection']=connection_state(SimpleNamespace(CFG=CFG,RUNTIME=RUNTIME))
-                if CFG.get('mail_mode')=='oauth': data['ready']['mail']=data['mailConnection']['connected']
+                direct=direct_mail_config()
+                data['mailConnection']=connection_state(SimpleNamespace(CFG=direct or CFG,RUNTIME=RUNTIME))
+                if direct:
+                    from backend.mail.accounts import direct_id
+                    data['mailAccounts'].append({'id':direct_id(direct),'school_sender':direct['account'],'account':direct['account'],'mail_provider':direct['mail_provider'],'mode':'oauth','connected':data['mailConnection']['connected']})
+                if CFG.get('mail_mode')=='oauth': data['ready']['mail']=data['mailConnection']['connected'] or any(x['connected'] for x in data['mailAccounts'])
                 return self.reply(200,data)
             if self.path == '/api/ai/profiles': return self.reply(200,{'profiles':ai_profiles().list()})
             if self.path == '/api/updates': return self.reply(200, reader.updates())

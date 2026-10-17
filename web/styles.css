@@ -3274,3 +3274,52 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 .settings-heading-actions [data-setting-summary="mail"] .settings-summary-status.is-connected { color:#27634e; }
 .settings-heading-actions [data-setting-summary="mail"] .settings-summary-status.is-connected::before { content:"✓"; margin-right:5px; }
 .settings-heading-actions [data-setting-actions="mail"] { display:none; }
+
+/* Mailbox and AI entries share the same full-row navigation. */
+#mail-accounts h4 { margin:0 0 12px; font-size:14px; font-weight:500; }
+.mail-account-entry,#ai-settings .settings-clickable-entry { display:flex;align-items:center;gap:15px;width:100%;min-width:0;padding:21px 0;margin:0;border:0;border-radius:0;background:transparent;text-align:left;cursor:pointer;color:inherit; }
+.mail-account-entry:hover,#ai-settings .settings-clickable-entry:hover { background:#f6f7f8; }
+.mail-account-mark { display:grid;place-items:center;flex:none;width:40px;height:40px;border:1px solid #e7eaec;background:#f6f7f8;border-radius:10px;color:#78828b;font-size:21px; }
+.mail-account-copy,#ai-settings .ai-provider-copy { min-width:0;flex:1;display:block; }
+.mail-account-copy strong { display:block;font-size:14px;font-weight:500;overflow-wrap:anywhere; }
+.mail-account-copy small { display:block;font-size:12px;color:#78828b;margin-top:4px; }
+.settings-entry-tail { flex:none;display:flex;align-items:center;gap:22px;margin-left:auto; }
+.settings-entry-connected { color:#18845b;font-size:12px;white-space:nowrap; }
+.settings-entry-chevron { color:#78828b;font-size:21px;line-height:1; }
+.mail-account-empty { padding:20px 0;color:#78828b;font-size:13px; }
+.settings-heading-actions [data-setting-actions="mail"] { display:flex;gap:12px; }
+#mail-account-back { border:0;background:transparent;color:#78828b;padding:8px 0;font-size:12px; }
+#mail-receiver-picker { width:100%;margin-top:8px; }
+#mail-receiver-choice { display:block;margin-bottom:18px; }
+#mail-account-filter { flex:0 1 auto;max-width:55%;border:0;background:transparent;font-size:13px;padding:0 18px 0 0;color:#293238; }
+.mail-list-filter-row:has(#mail-account-filter:not([hidden])) { flex-wrap:wrap;gap:10px; }
+.mail-list-mailbox { display:block;margin-top:7px;color:#78828b;font-size:11px;overflow-wrap:anywhere; }
+.mail-list-item.selected .mail-list-mailbox { color:rgba(255,255,255,.8); }
+/* Keep the approved flow horizontal, including in compact settings panes. */
+.forward-flow { grid-template-columns:minmax(0,1fr) 80px minmax(0,1fr) 80px minmax(0,1fr); }
+.forward-flow-node { display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:24px 22px 20px;align-items:center;justify-items:center;gap:7px;text-align:center; }
+.forward-flow-node svg { grid-row:auto; }
+.forward-flow-arrow { display:grid;grid-template-rows:22px 20px;align-self:end;align-items:center;justify-items:center;gap:7px;padding:0;min-height:0;position:static; }
+.forward-flow-arrow-shaft { position:static;transform:none;width:80px;height:12px; }
+@media(max-width:1050px) {
+ .forward-flow { grid-template-columns:minmax(0,1fr) 60px minmax(0,1fr) 60px minmax(0,1fr);gap:6px;padding:20px 10px; }
+ .forward-flow-node { grid-template-rows:24px 36px 40px;row-gap:5px; }
+ .forward-flow-node strong,.forward-flow-node small { white-space:normal;line-height:1.5; }
+ .forward-flow-arrow { grid-template-rows:36px 40px;gap:5px; }
+ .forward-flow-arrow-shaft { width:60px; }
+}
+@media(max-width:600px) {
+ .forward-flow { grid-template-columns:minmax(0,1fr) 36px minmax(0,1fr) 36px minmax(0,1fr);gap:4px; }
+ .forward-flow-node { grid-template-rows:24px 40px 60px; }
+ .forward-flow-arrow { grid-template-rows:40px 60px; }
+ .forward-flow-arrow>span { white-space:normal;text-align:center;font-size:11px; }
+ .forward-flow-arrow-shaft { width:36px; }
+ .mail-account-entry,#ai-settings .settings-clickable-entry { flex-wrap:wrap;gap:10px; }
+ .mail-account-copy,#ai-settings .ai-provider-copy { flex:1;min-width:130px; }
+ .settings-entry-tail { margin-left:55px;width:calc(100% - 55px);justify-content:space-between; }
+ #mail-account-filter { max-width:100%; }
+}
+#mail-accounts { border:0;border-radius:0;padding:0;margin:0;background:transparent;box-shadow:none; }
+.mail-account-mark svg { width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round; }
+#mail-account-new { background:#252a2b;border-color:#252a2b;color:#fff; }
+[data-setting-summary="ai"] { display:none; }

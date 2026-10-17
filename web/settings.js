@@ -58,15 +58,12 @@ function renderAIProfiles(data) {
   for (const profile of aiProfiles) {
     const title = providers[profile.provider]?.name || profile.provider;
     const models = aiProfileModels(profile);
-    const row = element('article', '', 'ai-provider-row');
-    const mark = element('span', profile.provider === 'deepseek' ? 'DS' : profile.provider === 'qwen' ? 'Q' : title[0], 'ai-provider-mark'); mark.setAttribute('aria-hidden', 'true');
-    const copy = element('div', '', 'ai-provider-copy');
-    copy.append(element('strong', title), element('small', models.length > 2 ? `已启用 ${models.length} 个模型` : models.map(id=>aiModelName(profile,id)).join(' · ')));
-    const edit = element('button', '', 'ai-provider-edit');
-    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('aria-hidden','true');
-    const lines = document.createElementNS('http://www.w3.org/2000/svg', 'path');lines.setAttribute('d','M4 6h7m4 0h5M4 12h2m4 0h10M4 18h10m4 0h2M11 3v6M7 9v6M16 15v6');icon.append(lines);
-    edit.append(icon,element('span','编辑')); edit.type = 'button'; edit.setAttribute('aria-label', '编辑' + title); edit.onclick = () => openAIProfile(profile.id);
-    row.append(mark, copy, edit); list.append(row);
+    const row = element('button', '', 'ai-provider-row settings-clickable-entry'); row.type='button';
+    row.setAttribute('aria-label','设置 '+title); row.onclick=()=>openAIProfile(profile.id);
+    const mark=element('span',profile.provider==='deepseek'?'DS':profile.provider==='qwen'?'Q':title[0],'ai-provider-mark');mark.setAttribute('aria-hidden','true');
+    const copy=element('span','','ai-provider-copy');copy.append(element('strong',title),element('small',models.length>2?`已启用 ${models.length} 个模型`:models.map(id=>aiModelName(profile,id)).join(' · ')));
+    const tail=element('span','','settings-entry-tail');tail.append(element('span',profile.connected?'✓ 已连接':'未连接',profile.connected?'settings-entry-connected':'meta'),element('span','›','settings-entry-chevron'));
+    row.append(mark,copy,tail);list.append(row);
   }
   $('ai-nav-provider').textContent = aiProfiles.length ? aiProfiles.map(p => providers[p.provider]?.name || p.provider).filter((v,i,a) => a.indexOf(v) === i).join(' · ') : '尚未设置';
   void loadAIModelNames(aiProfiles);
@@ -260,6 +257,7 @@ function draft(group) {
   let keys = group === 'mail' ? ['account', 'mail_provider', 'school_sender', 'password'] : ['provider', 'base', 'model', 'key'];
   const result = Object.fromEntries(keys.map(k => [k, $(k).dataset.saved === 'yes' ? '' : $(k).value.trim()]));
   if (group === 'ai' && typeof aiEditingId !== 'undefined') Object.assign(result, {profileId:aiEditingId || '',name:providers[$('provider').value]?.name || $('provider').value,models:aiModelDraft.filter(m => m.enabled).map(m => m.id),modelNames:aiModelNamesDraft,makeDefault:!!aiMailModelDraft});
+  if(group==='mail' && typeof mailEditingId!=='undefined') result.mailAccountId=mailEditingId||'';
   return result;
 }
 
@@ -562,7 +560,7 @@ async function exportCalendar(data) {
 }
 
 function forwardingKey() {
-  return 'mail-forwarding-confirmed:' + ($('account').value || '').trim().toLowerCase() + ':' + ($('school_sender').value || '').trim().toLowerCase();
+  return 'mail-forwarding-confirmed:' + loginEmail + ':' + ($('account').value || '').trim().toLowerCase() + ':' + ($('school_sender').value || '').trim().toLowerCase();
 }
 
 async function loadSetupGuide(url) {

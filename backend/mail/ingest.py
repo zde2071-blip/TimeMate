@@ -79,11 +79,17 @@ def import_uid(conn,cfg,validity,uid,source,database,parse):
     ident=mail_id(cfg['account'],validity,uid)
     with database() as c:
         if c.execute('SELECT 1 FROM mails WHERE id=?',(ident,)).fetchone(): return ident,False
-    if not matches_school_sender(mail_sender(conn,uid),cfg['school_sender']): return None,False
+    sender=mail_sender(conn,uid)
+    sources=cfg.get('_mail_sources') or [{'id':None,'address':cfg['school_sender']}]
+    matched=next((item for item in sources if matches_school_sender(sender,item['address'])),None)
+    if not matched: return None,False
     chunks=checked(conn.uid('FETCH',str(uid),'(BODY.PEEK[])'))
     raw=b''.join(x[1] for x in chunks if isinstance(x,tuple))
     if not raw: raise RuntimeError('未能读取邮件正文，将在下次检查时重试')
-    return import_raw(raw,ident,cfg['account'],source,database,parse)
+    result=import_raw(raw,ident,cfg['account'],source,database,parse)
+    if matched.get('id'):
+        with database() as c: c.execute('UPDATE mails SET mailbox_id=? WHERE id=? AND mailbox_id IS NULL',(matched['id'],result[0]))
+    return result
 
 def import_raw(raw,ident,receiving_account,source,database,parse):
     fingerprint=hashlib.sha256(raw).hexdigest()
@@ -304,7 +310,7 @@ class MailReceiver:
                 self.close(conn)
         analyzed, failed = self.analyze_pending()
         self.status.update(analysis_queue_counts(self.database))
-        message = (f'检查完成：检查 {checked_count} 封邮件，{matched} 封匹配学校邮箱，'
+        message = (f'检查完成：检查 {checked_count} 封邮件，{matched} 封匹配相应邮箱，'
                    f'新增 {added} 封，自动分析 {analyzed} 封' + analysis_retry_message(failed))
         operation_status.finish(self.status, message, added=added, success=analyzed, failed=failed)
         return message

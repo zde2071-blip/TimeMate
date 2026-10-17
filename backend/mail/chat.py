@@ -90,7 +90,7 @@ class MailChat:
             total = connection.execute(
                 f"SELECT COUNT(*) FROM mails WHERE is_deleted=0 AND {REAL_MAIL} AND result IS NOT NULL").fetchone()[0]
             rows = connection.execute(
-                f"SELECT id,subject,display_title,sender,sent_date,date,result FROM mails WHERE is_deleted=0 AND {REAL_MAIL} AND result IS NOT NULL ORDER BY COALESCE(sent_date,date) DESC").fetchall()
+                f"SELECT id,subject,display_title,sender,sent_date,date,result,(SELECT school_sender FROM mail_accounts WHERE mail_accounts.id=mails.mailbox_id) AS mailbox FROM mails WHERE is_deleted=0 AND {REAL_MAIL} AND result IS NOT NULL ORDER BY COALESCE(sent_date,date) DESC").fetchall()
         candidates = []
         terms = _terms(question)
         for row in rows:
@@ -105,6 +105,7 @@ class MailChat:
                 'id': row['id'],
                 'title': (row['display_title'] or row['subject'] or '无主题')[:240],
                 'sender': (row['sender'] or '')[:160],
+                'mailbox': (row['mailbox'] or '')[:254],
                 'date': (row['sent_date'] or row['date'] or '')[:40],
                 'category': str(result.get('category') or '未分类')[:40],
                 'summary': str(result.get('summary') or '')[:500],
@@ -112,7 +113,7 @@ class MailChat:
                 'events': clean_events,
                 'analyzed': bool(result),
             }
-            searchable_title = ' '.join((mail['title'], mail['sender'], mail['category'])).lower()
+            searchable_title = ' '.join((mail['title'], mail['sender'], mail['category'], mail['mailbox'])).lower()
             searchable_content = ' '.join((mail['date'], mail['summary'], mail['action'], json.dumps(mail['events'], ensure_ascii=False))).lower()
             relevance = sum(4 for term in terms if term in searchable_title) + sum(2 for term in terms if term in searchable_content)
             candidates.append((relevance, mail['date'], mail))

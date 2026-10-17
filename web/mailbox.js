@@ -38,7 +38,7 @@ function renderCourses(d) {
   box.replaceChildren();
   box.hidden = selected !== '课程与教学';
   if (box.hidden) return;
-  let items = d.mails.filter(m => m.category === '课程与教学' && matchesMailSearch(m)),
+  let items = d.mails.filter(m => m.category === '课程与教学' && matchesMailbox(m) && matchesMailSearch(m)),
     codes = [...new Set([...items.flatMap(courseCodes), ...(d.courseCodes || []).map(code => code.replace(/([A-Z]{3})(\d{3})/, '$1 $2'))])].sort();
   if (items.some(m => !courseCodes(m).length)) codes.push('未识别课程');
   if (selectedCourse !== '全部课程' && !codes.includes(selectedCourse)) selectedCourse = '全部课程';
@@ -303,7 +303,7 @@ function renderMailDetail(m, d, written) {
 
 }
 function visibleMails(d) {
-  return d.mails.filter(m => matchesMailSearch(m) && (selected === '全部' || m.category === selected) && (selected !== '课程与教学' || matchesCourse(m, selectedCourse)));
+  return d.mails.filter(m => matchesMailbox(m) && matchesMailSearch(m) && (selected === '全部' || m.category === selected) && (selected !== '课程与教学' || matchesCourse(m, selectedCourse)));
 }
 function selectMailInList(id, index, shift, visible, checked = null) {
   if (shift && lastSelectedMailIndex !== null && checked !== false) {
@@ -391,6 +391,7 @@ function render() {
   if (!state) return;
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(updateMailWorkspaceHeight);
   let d = state;
+  renderMailboxPicker(d);
   $('filters').replaceChildren();
   const categorySelect = element('select');
   categorySelect.setAttribute('aria-label', '邮件分类');
@@ -407,7 +408,7 @@ function render() {
   renderCourses(d);
   const listScroll = $('mails').scrollTop;
   $('mails').replaceChildren();
-  let mails = d.mails.filter(m => matchesMailSearch(m) && (selected === '全部' || m.category === selected) && (selected !== '课程与教学' || matchesCourse(m, selectedCourse)));
+  let mails = d.mails.filter(m => matchesMailbox(m) && matchesMailSearch(m) && (selected === '全部' || m.category === selected) && (selected !== '课程与教学' || matchesCourse(m, selectedCourse)));
   let searching = !!mailSearchQuery.trim();
   $('mail-search-clear').hidden = !mailSearchQuery;
   $('mail-search-status').hidden = !searching;
@@ -420,7 +421,7 @@ function render() {
   }
   if (!mails.some(m => m.id === activeMailId)) activeMailId = mails[0].id;
   let written = new Map((d.calendarEvents || []).map(x => [x.mail_id + ':' + x.event_index, x]));
-  const filterKey = [selected, selectedCourse, mailSearchQuery].join('|');
+  const filterKey = [selectedMailboxId, selected, selectedCourse, mailSearchQuery].join('|');
   if (filterKey !== mailRenderFilter) {
     mailRenderFilter = filterKey;
     mailRenderLimit = 50;
@@ -457,6 +458,7 @@ function render() {
     if (row.querySelector('input')) categoryRow.append(row.querySelector('input'));
     categoryRow.append(element('span', m.category, 'mail-list-category'), element('time', mailListDateLabel(m), 'mail-list-date'));
     content.append(categoryRow, element('div', mailListTitle(m), 'mail-list-title'));
+    if ((d.mailAccounts||[]).length>1 && mailboxAddress(m)) content.append(element('small',mailboxAddress(m),'mail-list-mailbox'));
     row.append(content);
     let selectMail = e => {
       if (typeof mailSelectionMode !== 'undefined' && mailSelectionMode) {

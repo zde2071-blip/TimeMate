@@ -2,7 +2,7 @@ import os,sys,tempfile,time,secrets
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from cryptography.fernet import Fernet
-from flask import redirect
+from flask import redirect,g,jsonify
 from werkzeug.serving import make_server
 from backend.cloud import create_app,digest,password_hash
 from backend.mail import oauth
@@ -26,6 +26,14 @@ with tempfile.TemporaryDirectory() as directory:
   engine.ai_services.complete=staticmethod(lambda *args,**kwargs:{'ok':True})
   engine.ai_services.list_models=staticmethod(lambda *args,**kwargs:['fixture-model','second-service-a','second-service-b'])
   r=redirect('/#settings');r.set_cookie('mail_session',session,httponly=True,samesite='Lax');return r
+ @app.post('/fixture-mails')
+ def fixture_mails():
+  if not g.auth:return jsonify(error='login required'),401
+  engine=app.store.engine(g.auth['user_id'])
+  for index,account in enumerate(engine.mail_accounts().list()):
+   with engine.db() as c:
+    c.execute('INSERT OR IGNORE INTO mails(id,subject,sender,date,body,created,source,mailbox_id) VALUES(?,?,?,?,?,?,?,?)',('fixture-'+account['id'],'Notice '+str(index+1),account['school_sender'],'2026-10-17','Fixture mail body',time.time(),'manual',account['id']))
+  return jsonify(ok=True)
  server=make_server('127.0.0.1',0,app,threaded=True)
  origin='http://127.0.0.1:'+str(server.server_port);app.config['MAIL_ALLOWED_ORIGINS']={origin}
  # create_app's canonical redirect is irrelevant to the fixture; callbacks are

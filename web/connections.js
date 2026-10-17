@@ -1,3 +1,86 @@
+// Multiple source mailboxes reuse the approved forwarding setup below.
+let mailboxListOpen = true, mailEditingId = null;
+let selectedMailboxId = 'all';
+function connectedReceiver(d, address) {
+  return (d?.mailAccounts || []).find(x => x.connected && x.mode!=='oauth' && x.account.toLowerCase() === address.trim().toLowerCase());
+}
+function showMailboxList() {
+  mailboxListOpen = true; mailboxManualOpen = false; mailboxDirectOpen = false;
+  mailEditingId = null; renderMailboxConnection(state);
+}
+function openMailboxAccount(id = '') {
+  if (receiverBusy || connectionStates.mail === '连接中') return;
+  const entry = (state?.mailAccounts || []).find(x => x.id === id);
+  if(entry?.mode==='oauth'){mailboxListOpen=false;mailEditingId=entry.id;mailboxMethodsOpen=false;mailboxManualOpen=false;mailboxDirectOpen=false;renderMailboxConnection(state);return;}
+  mailEditingId = id; mailboxListOpen = false; mailboxManualOpen = !!entry;
+  mailboxDirectOpen = false; mailboxMethodsOpen = !entry;
+  receiverRevision++; receiverVerifiedRevision = -1;
+  connectionStates.mail = ''; $('mail-feedback').textContent = '';
+  const receiver = entry || (state?.mailAccounts || []).find(x => x.connected && x.mode!=='oauth');
+  $('school_sender').value = entry?.school_sender || '';
+  $('account').value = receiver?.account || '';
+  $('mail_provider').value = receiver?.mail_provider || '';
+  $('password').value = ''; delete $('password').dataset.editing;
+  savedSecret('password', !!receiver?.connected);
+  if (entry) localStorage.setItem(forwardingKey(), 'yes');
+  renderMailProvider(); renderMailboxConnection(state);
+}
+function renderMailboxAccounts(d) {
+  const list = $('mail-account-list'); list.replaceChildren();
+  for (const entry of d.mailAccounts || []) {
+    const row = element('button', '', 'mail-account-entry'); row.type = 'button';
+    row.setAttribute('aria-label', '设置 ' + entry.school_sender);
+    const icon = element('span', '', 'mail-account-mark');icon.setAttribute('aria-hidden','true');icon.append($('settings-nav-mail').querySelector('svg').cloneNode(true));
+    const copy = element('span', '', 'mail-account-copy');
+    copy.append(element('strong',entry.school_sender),element('small',entry.mode==='oauth'?'直接连接':'转发接入'));
+    const tail = element('span','','settings-entry-tail');
+    const health = d.status?.mailboxHealth?.[entry.account.toLowerCase()];
+    const failed = ['paused','error','retrying'].includes(health?.sync_state);
+    tail.append(element('span',entry.connected && !failed ? '✓ 已连接' : failed ? '连接异常' : '未连接',entry.connected && !failed ? 'settings-entry-connected' : 'meta'),element('span','›','settings-entry-chevron'));
+    row.append(icon,copy,tail); row.onclick=()=>openMailboxAccount(entry.id); list.append(row);
+  }
+  if(d.mailConnection?.mode==='oauth' && !(d.mailAccounts||[]).some(x=>x.mode==='oauth')){
+    const row=element('button','','mail-account-entry');row.type='button';const copy=element('span','','mail-account-copy');copy.append(element('strong',d.mailConnection.account),element('small','直接连接'));const tail=element('span',d.mailConnection.reauthorize?'需重新授权':'✓ 已连接','settings-entry-connected');row.append(copy,tail,element('span','›','settings-entry-chevron'));row.onclick=()=>{mailboxListOpen=false;mailboxMethodsOpen=false;mailboxManualOpen=false;renderMailboxConnection(state)};list.append(row);
+  }
+  if (!(d.mailAccounts || []).length && d.mailConnection?.mode!=='oauth') list.append(element('p','尚未添加邮箱','mail-account-empty'));
+  const picker = $('mail-receiver-picker'); picker.replaceChildren();
+  const accounts = [...new Map((d.mailAccounts || []).filter(x=>x.connected && x.mode!=='oauth').map(x=>[x.account,x])).values()];
+  for(const entry of accounts){const option=element('option',entry.account+' · '+(entry.mail_provider==='qq'?'QQ 邮箱':'网易邮箱'));option.value=entry.account;picker.append(option);}
+  const extra=element('option',accounts.length?'＋ 连接其他接收邮箱':'连接接收邮箱');extra.value='';picker.append(extra);
+  const current=accounts.find(x=>x.account.toLowerCase()===$('account').value.trim().toLowerCase() && $('password').dataset.saved==='yes');
+  picker.value=current?.account || '';
+  $('mail-receiver-choice').hidden=!accounts.length;
+  $('mail-receiver-fields').hidden=!!current;
+  $('mail-account-new').hidden=!mailboxListOpen;
+  $('mail-account-back').hidden=mailboxListOpen;
+  $('mail-accounts').hidden=!mailboxListOpen;
+  const heading=$('settings-nav-mail').getAttribute('aria-current')==='page';
+  if(heading)$('settings-detail-title').textContent=mailboxListOpen?'邮箱':mailEditingId?'编辑邮箱':'添加邮箱';
+  document.querySelector('[data-setting-summary="mail"]').hidden=!heading || mailboxListOpen || !mailEditingId;
+}
+$('mail-receiver-picker').onchange = () => {
+  const entry = (state?.mailAccounts || []).find(x=>x.account===$('mail-receiver-picker').value);
+  receiverRevision++; receiverVerifiedRevision=-1;
+  $('account').value=entry?.account||''; $('mail_provider').value=entry?.mail_provider||'';
+  $('password').value=''; delete $('password').dataset.editing; savedSecret('password',!!entry?.connected);
+  connectionEdited('mail');renderMailProvider();renderMailboxConnection(state);
+};
+function matchesMailbox(m) {
+  return selectedMailboxId==='all'||m.mailbox_id===selectedMailboxId;
+}
+function mailboxAddress(m) {
+  return (state?.mailAccounts || []).find(x=>x.id===m.mailbox_id)?.school_sender || '';
+}
+function renderMailboxPicker(d) {
+  const picker=$('mail-account-filter'),entries=d.mailAccounts||[];
+  if (!entries.some(x=>x.id===selectedMailboxId)) selectedMailboxId='all';
+  picker.replaceChildren();const all=element('option','全部邮箱');all.value='all';picker.append(all);
+  for(const entry of entries){const option=element('option',entry.school_sender);option.value=entry.id;picker.append(option);}
+  picker.value=selectedMailboxId;picker.hidden=entries.length<2;
+  if(!picker.hidden) fitMailCategorySelect(picker);
+  picker.onchange=()=>{selectedMailboxId=picker.value;activeMailId=null;selectedMailIds.clear();render();};
+}
+
 // Connection methods and the persistent, account-scoped setup guide.
 let mailboxManualOpen = false, mailboxDirectOpen = false, mailboxMethodsOpen = false, mailboxPageInitialized = false;
 let connectionWelcomeChecked = false, mailboxConnecting = false;
@@ -24,31 +107,28 @@ function connectionStorage(action, key, value) {
   try { return localStorage[action]('timemate-connection:' + loginEmail + ':' + key, value); } catch (_) { return null; }
 }
 function showMailboxMethods(change = false) {
-  mailboxManualOpen = false; mailboxDirectOpen = false; mailboxMethodsOpen = change;
+  mailboxListOpen = false; mailboxManualOpen = false; mailboxDirectOpen = false; mailboxMethodsOpen = change;
   renderMailboxConnection(state);
 }
 function showDirectMailbox() {
+  mailboxListOpen = false;
   mailboxManualOpen = false; mailboxDirectOpen = true;
   renderMailboxConnection(state);
 }
 function showManualMailbox() {
+  mailboxListOpen = false;
   mailboxManualOpen = true; mailboxDirectOpen = false;
-  if (state?.mailConnection?.mode === 'oauth') {
-    receiverRevision++; receiverVerifiedRevision = -1;
-    // Do not reuse the direct account as a forwarding recipient or its secret.
-    $('account').value = ''; $('password').value = ''; $('password').dataset.saved = '';
-    $('mail_provider').value = ''; renderMailProvider();
-  }
+  if (mailEditingId?.startsWith('oauth:')) { openMailboxAccount();mailboxManualOpen=true; }
   renderMailboxConnection(state);
 }
 function renderMailboxConnection(d) {
   if (!d?.config) return;
   const connection = d.mailConnection || {};
   if (!mailboxPageInitialized) {
-    mailboxManualOpen = connection.mode !== 'oauth' && !!d.config.account;
+    mailboxManualOpen = false;
     mailboxPageInitialized = true;
   }
-  const direct = connection.mode === 'oauth';
+  const direct = connection.mode === 'oauth' && !!mailEditingId?.startsWith('oauth:');
   const reauthorize = connection.reauthorize || direct && d.status?.sync_error_code === 'mail_authentication_failed';
   const methodsVisible = !direct || mailboxMethodsOpen || reauthorize;
   $('mail-manual-settings').hidden = !mailboxManualOpen;
@@ -71,6 +151,8 @@ function renderMailboxConnection(d) {
   }
   document.querySelectorAll('[data-mail-oauth]').forEach(b => { b.hidden = !MAIL_OAUTH_UI_ENABLED; b.disabled = mailboxConnecting; });
   renderForwardingForm(d);
+  renderMailboxAccounts(d);
+  if(mailboxListOpen){$('mail-manual-settings').hidden=true;$('mail-connection-methods').hidden=true;$('mail-save').hidden=true;}
 }
 async function startMailboxOAuth(provider) {
   if (mailboxConnecting) return;
@@ -102,7 +184,7 @@ document.querySelectorAll('[data-mail-oauth]').forEach(button => button.onclick 
 });
 function openConnectionStep(group) {
   showPage('settings'); selectConnectionSettings(group);
-  if (group === 'mail') renderMailboxConnection(state);
+  if (group === 'mail') { if (!(state?.mailAccounts||[]).length && state?.mailConnection?.mode!=='oauth') openMailboxAccount(); else showMailboxList(); }
 }
 function closeConnectionWelcome() {
   $('connection-welcome').close();
@@ -160,10 +242,9 @@ new ResizeObserver(positionConnectionCard).observe($('chat-form'));
 window.addEventListener('resize',positionConnectionCard);
 
 function forwardingReceiverVerified(d) {
-  return receiverVerifiedRevision === receiverRevision || !!(d?.ready?.mail && d.mailConnection?.mode !== 'oauth' &&
-    $('account').value.trim() === d.config.account && $('mail_provider').value === d.config.mail_provider &&
-    $('password').dataset.saved === 'yes' && !$('password').value);
+  return receiverVerifiedRevision === receiverRevision || !!(connectedReceiver(d,$('account').value) && $('password').dataset.saved==='yes' && !$('password').value);
 }
+
 function renderForwardingForm(d) {
   if (!d?.config) return;
   const address = $('account').value.trim();
@@ -176,6 +257,7 @@ function renderForwardingForm(d) {
   $('mail-receiver-connect').disabled = receiverBusy || !['qq','netease'].includes($('mail_provider').value) || !address || !($('password').value || $('password').dataset.saved === 'yes');
   $('confirm-forwarding').checked = forwarded;
   $('confirm-forwarding').disabled = !verified || !$('school_sender').value.trim();
+  $('mail-save').textContent=connectionStates.mail==='连接中'?'保存中…':mailEditingId?'保存':'添加邮箱';
   $('mail-save').disabled = receiverBusy || !verified || !forwarded || !$('school_sender').value.trim() || connectionStates.mail === '连接中';
 }
 async function connectForwardingReceiver() {
@@ -193,10 +275,10 @@ async function connectForwardingReceiver() {
   } catch (error) { box.textContent = error.message; }
   finally { receiverBusy = false; renderForwardingForm(state); }
 }
-function saveForwardingMailbox() {
+async function saveForwardingMailbox() {
   if (!forwardingReceiverVerified(state) || !$('confirm-forwarding').checked) return;
   if (!$('school_sender').value.trim() || !$('school_sender').reportValidity()) return;
-  return connectionAction('mail','save');
+  if (await connectionAction('mail','save')) showMailboxList();
 }
 async function copyForwardingAddress() {
   const address = $('mail-forward-target');

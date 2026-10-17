@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const source=fs.readFileSync('web/main.js','utf8');
 const nodes=new Map();const $=id=>{if(!nodes.has(id))nodes.set(id,{value:'',dataset:{},setAttribute(k,v){this[k]=v}});return nodes.get(id)};
 const requests=[];let fails=false;
-const ctx=vm.createContext({$,token:'test',aiRevision:0,state:{ready:{mail:true,ai:true}},connectionStates:{mail:'',ai:''},connectionBadge:()=>{},document:{querySelectorAll:()=>[]},refresh:async()=>true,fetch:async(path)=>{requests.push(path);return {ok:!(fails&&path.endsWith('/test')),json:async()=>({error:'连接失败'})}}});
+const ctx=vm.createContext({$,loginEmail:'fixture@example.com',token:'test',aiRevision:0,state:{ready:{mail:true,ai:true}},connectionStates:{mail:'',ai:''},connectionBadge:()=>{},document:{querySelectorAll:()=>[]},refresh:async()=>true,fetch:async(path)=>{requests.push(path);return {ok:!(fails&&path.endsWith('/test')),json:async()=>({error:'连接失败'})}}});
 vm.runInContext(require('./ui_source').functions("connectionBadge", "connectionEdited"),ctx);
 vm.runInContext(require('./ui_source').functions("editSecret", "savedSecret", "draft", "renderMailProvider", "mailProviderChanged", "renderFieldStatuses", "connectionAction"),ctx);
 async function run(){

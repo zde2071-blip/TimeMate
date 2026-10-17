@@ -86,7 +86,7 @@ async function refresh() {
       initialized = true;
     }
     renderAIProfiles(d);
-    savedSecret('password', d.ready?.mail && $('account').value === d.config.account);
+    savedSecret('password', !!connectedReceiver(d,$('account').value));
     const editingProfile = aiProfiles.find(item => item.id === aiEditingId);
     savedSecret('key', !!editingProfile && $('provider').value === editingProfile.provider && $('base').value === editingProfile.base);
     connectionBadge('mail', d.ready?.mail);
@@ -108,7 +108,7 @@ async function refresh() {
     if (mailSearchQuery.trim() && previousRevision !== d.revision) resolveMailSearch();
     renderSetupGuide(d);
     renderFieldStatuses(d);
-    let signature = JSON.stringify([d.mails, d.eventSourceMails, d.calendarEvents, d.pins, d.eventOverrides, d.eventLinks, d.courseCodes, calendarMethod, Math.floor(Date.now() / 60000)]);
+    let signature = JSON.stringify([d.mails, d.eventSourceMails, d.calendarEvents, d.pins, d.eventOverrides, d.eventLinks, d.courseCodes, d.mailAccounts, calendarMethod, Math.floor(Date.now() / 60000)]);
     if (signature !== last) {
       render();
       last = signature;
