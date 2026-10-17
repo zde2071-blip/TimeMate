@@ -1,7 +1,7 @@
 // Connection methods and the persistent, account-scoped setup guide.
-let mailboxManualOpen = false, mailboxMethodsOpen = false, mailboxPageInitialized = false;
+let mailboxManualOpen = false, mailboxDirectOpen = false, mailboxMethodsOpen = false, mailboxPageInitialized = false;
 let connectionWelcomeChecked = false, mailboxConnecting = false;
-// Keep direct OAuth wired for the Google review flow, but don't expose it to users yet.
+// Show the direct-connection choice; keep authorization behind the launch placeholder until approved.
 const MAIL_OAUTH_UI_ENABLED = false;
 const mailboxResults = {
   admin:'需要邮箱管理员批准 TimeMate 访问此邮箱。',
@@ -23,11 +23,15 @@ function connectionStorage(action, key, value) {
   try { return localStorage[action]('timemate-connection:' + loginEmail + ':' + key, value); } catch (_) { return null; }
 }
 function showMailboxMethods(change = false) {
-  mailboxManualOpen = false; mailboxMethodsOpen = change;
+  mailboxManualOpen = false; mailboxDirectOpen = false; mailboxMethodsOpen = change;
+  renderMailboxConnection(state);
+}
+function showDirectMailbox() {
+  mailboxManualOpen = false; mailboxDirectOpen = true;
   renderMailboxConnection(state);
 }
 function showManualMailbox() {
-  mailboxManualOpen = true;
+  mailboxManualOpen = true; mailboxDirectOpen = false;
   if (state?.mailConnection?.mode === 'oauth') {
     // Do not reuse the direct account as a forwarding recipient or its secret.
     $('account').value = ''; $('password').value = ''; $('password').dataset.saved = '';
@@ -48,10 +52,11 @@ function renderMailboxConnection(d) {
   $('mail-manual-settings').hidden = !mailboxManualOpen;
   $('mail-connection-methods').hidden = mailboxManualOpen;
   $('mail-save').hidden = !mailboxManualOpen;
-  $('mail-direct-account').hidden = !direct || mailboxMethodsOpen;
-  $('mail-direct-method').hidden = !MAIL_OAUTH_UI_ENABLED || !methodsVisible;
-  $('mail-forward-method').hidden = !methodsVisible;
-  $('mail-method-buttons').hidden = direct && !!connection.connected && !reauthorize && !mailboxMethodsOpen;
+  $('mail-direct-account').hidden = !direct || mailboxMethodsOpen || mailboxDirectOpen;
+  $('mail-method-choices').hidden = !methodsVisible || mailboxDirectOpen;
+  $('mail-direct-setup').hidden = !mailboxDirectOpen;
+  $('mail-direct-coming').hidden = MAIL_OAUTH_UI_ENABLED;
+  $('mail-method-buttons').hidden = !MAIL_OAUTH_UI_ENABLED;
   $('mail-direct-address').textContent = direct ? connection.account : '';
   $('mail-direct-status').textContent = reauthorize ? '需重新授权' : '已连接';
   const result = $('mail-oauth-result');
