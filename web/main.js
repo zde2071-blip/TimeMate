@@ -8,7 +8,7 @@ window.fetch = async (...args) => {
 
 initEventMenus();
 
-selectConnectionSettings('mail');
+selectConnectionSettings('account');
 
 $('mail-settings-toggle').onclick = () => {
   let menu = $('mail-settings-menu'),
@@ -126,6 +126,7 @@ async function refresh() {
 }
 
 $('account-email').textContent = loginEmail;
+$('settings-account-email').textContent = loginEmail;
 
 if (domain === 'qq.com') {
   providerMark = 'QQ';

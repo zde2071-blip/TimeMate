@@ -126,7 +126,7 @@ let setupGuideRevision = 0;
 const setupGuideCache = new Map();
 
 function showPage(name) {
-  if (name === 'settings' && !document.querySelector('.settings-nav-item[aria-current="page"]')) selectConnectionSettings('mail');
+  if (name === 'settings' && !document.querySelector('.settings-nav-item[aria-current="page"]')) selectConnectionSettings('account');
   for (let page of ['important', 'mail', 'chat', 'settings']) {
     $(page + '-page').hidden = page !== name;
     $('nav-' + page).classList.toggle('is-active', page === name);
@@ -154,6 +154,7 @@ function showPage(name) {
 
 function selectConnectionSettings(group) {
   const labels = {
+    account: ['账户', ''],
     mail: ['邮箱', ''],
     ai: ['AI 服务', ''],
     calendar: ['日历', '设置日历订阅方式']
@@ -163,7 +164,10 @@ function selectConnectionSettings(group) {
     const selected = key === group;
     $('settings-nav-' + key)?.setAttribute('aria-current', selected ? 'page' : 'false');
     $(key + '-settings').hidden = !selected;
-    document.querySelector('[data-setting-actions="' + key + '"]').hidden = !selected;
+    const actions = document.querySelector('[data-setting-actions="' + key + '"]');
+    if (actions) actions.hidden = !selected;
+    const summary = document.querySelector('[data-setting-summary="' + key + '"]');
+    if (summary) summary.hidden = !selected;
   }
   $('settings-detail-title').textContent = labels[group][0];
   $('settings-detail-description').textContent = labels[group][1];

@@ -3171,3 +3171,36 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 .account-delete-submit { background: #a33b35; border-color: #a33b35; }
 #delete-account-feedback { min-height: 0; margin: 8px 0 0; color: #a64b3f; }
 #delete-account-feedback:empty { display: none; }
+
+/* Settings follow the same rail / navigation / detail palette as the mailbox. */
+body.settings-view .app-rail { background:#e7e9eb; border-right-color:#e4e6e8; }
+body.settings-view .app-rail .rail-item:hover,body.settings-view .app-rail .account-avatar:hover { background:#dfe2e4; }
+body.settings-view .settings-nav { background:#f3f4f5; padding:28px 12px; border-right-color:#e4e6e8; }
+.settings-nav-group { margin:0 0 28px; padding:0; border:0; border-radius:0; background:transparent; }
+.settings-nav-label { margin:0 12px 10px; color:#858d92; font-size:12px; font-weight:500; }
+body.settings-view .settings-nav-item { min-height:46px; margin:2px 0; gap:10px; }
+body.settings-view .settings-nav-item:hover { background:#e9ebed; }
+body.settings-view .settings-nav-item[aria-current="page"] { background:#e2e5e7; }
+body.settings-view .settings-nav-copy strong { font-weight:500; }
+.settings-detail-summary { display:flex; align-items:center; gap:10px; margin-top:8px; }
+.settings-detail-summary small,.settings-detail-summary .settings-summary-status { font-size:12px; font-weight:400; color:#78818a; }
+.settings-detail-summary .settings-summary-status { padding-left:10px; border-left:1px solid #dfe3e5; }
+.account-settings-content { max-width:760px; }
+.account-settings-row { display:flex; align-items:center; justify-content:space-between; gap:20px; min-height:98px; padding:22px 0; border-bottom:1px solid #e8eaec; }
+.account-settings-row h4 { margin:0; font-size:14px; font-weight:500; color:#29333b; }
+.account-settings-row p { margin:8px 0 0; font-size:13px; color:#78818a; overflow-wrap:anywhere; line-height:1.6; }
+.account-settings-row > div { min-width:0; }
+.settings-account-action { flex:none; margin:0; padding:9px 14px; border:1px solid #e1e5e7; border-radius:8px; background:#fff; color:#29333b; font-size:13px; cursor:pointer; }
+.settings-account-action:hover { background:#f5f6f7; }
+.account-settings-danger { margin-top:32px; }
+.account-settings-danger .account-danger { color:#b44949; }
+@media(max-width:760px) {
+ body.settings-view .settings-nav { padding:10px; gap:14px; }
+ .settings-nav-group { display:flex; align-items:center; flex:none; gap:4px; margin:0; }
+ .settings-nav-label { margin:0 8px 0 2px; white-space:nowrap; }
+ body.settings-view .settings-nav-item { min-width:0; width:auto; flex:none; min-height:42px; padding:8px 12px; gap:7px; }
+ .account-settings-row { gap:12px; }
+ .settings-account-action { padding:9px 12px; }
+}
+
+.app-rail:has(.account-menu:not([hidden])) { z-index:45; }
