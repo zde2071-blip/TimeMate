@@ -3095,17 +3095,21 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 .chat-model-menu { flex:0 1 auto; }
 .chat-main { grid-template-columns:minmax(0,1fr); }
 
-/* Approved connection picker and lower-right setup card. */
-#mail-connection-methods { max-width:410px; }
+/* Mail connection choices: direct authorization first, forwarding as fallback. */
+#mail-connection-methods { max-width:460px; }
+.mail-connection-method { padding:17px 0 20px; border-bottom:1px solid #e7eaec; }
+.mail-method-heading { display:flex; align-items:center; gap:9px; font-size:15px; }
+.mail-method-heading > span { padding:3px 7px; border-radius:999px; background:#eaf5ef; color:#18845b; font-size:11px; font-weight:500; }
+.mail-connection-method > p { margin:7px 0 14px; color:#70797d; font-size:13px; line-height:1.6; }
 .mailbox-provider { display:flex; align-items:center; gap:14px; width:100%; padding:15px 18px; margin:0 0 12px; border:1px solid #e7eaec; border-radius:10px; background:#fff; color:#252b2c; font-size:14px; text-align:left; }
 .mailbox-provider > span:first-child { width:22px; flex:none; font-size:18px; font-weight:600; text-align:center; }
 .mailbox-provider > span:last-child { margin-left:auto; color:#70797d; }
 .mailbox-provider:hover { background:#f3f4f5; }
 #mail-connection-methods .text-button,.mailbox-back { border:0; background:transparent; color:#70797d; padding:6px 0; margin:5px 0; font-size:13px; }
-#mail-connection-methods .mailbox-other { display:block; margin-top:13px; }
-#mail-oauth-result { font-size:13px; color:#70797d; line-height:1.7; padding:0 0 22px; }
-#mail-oauth-help { margin-top:14px; }
-#mail-connection-explanation,.mailbox-manual-note { color:#70797d; font-size:13px; line-height:1.7; }
+#mail-connection-methods .mailbox-other { display:block; margin:0; color:#245b4a; }
+#mail-oauth-result { margin:14px 0 0; font-size:13px; color:#70797d; line-height:1.7; }
+#mail-oauth-help { margin-top:6px; }
+.mailbox-manual-note { color:#70797d; font-size:13px; line-height:1.7; }
 #mail-direct-account strong { display:block; font-size:17px; margin-bottom:8px; overflow-wrap:anywhere; }
 #mail-direct-status { display:block; color:#18845b; font-size:13px; margin-bottom:16px; }
 #mail-manual-settings .mailbox-manual-note { margin:10px 0 24px; }

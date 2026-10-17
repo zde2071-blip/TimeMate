@@ -282,7 +282,7 @@ function renderMailProvider() {
     event.preventDefault();
     openSetupGuide(provider === 'netease' ? 'netease' : 'qq');
   };
-  $('forwarding-title').textContent = '设置学校邮件自动转发';
+  $('forwarding-title').textContent = '设置邮件自动转发';
   $('confirm-forwarding').disabled = !$('school_sender').value.trim() || !$('account').value.trim();
 }
 
@@ -582,7 +582,7 @@ function closeSetupGuide() {
 async function openSetupGuide(kind) {
   const guides = {
     outlook: {
-      title: '设置学校邮件自动转发至接收邮箱',
+      title: '设置邮件自动转发至接收邮箱',
       url: '/assets/guides/outlook.html',
       links: []
     },

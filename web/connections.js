@@ -4,11 +4,11 @@ let connectionWelcomeChecked = false, mailboxConnecting = false;
 // Keep direct OAuth wired for the Google review flow, but don't expose it to users yet.
 const MAIL_OAUTH_UI_ENABLED = false;
 const mailboxResults = {
-  admin:'需要学校管理员批准 TimeMate 读取邮箱。',
-  blocked:'学校限制了此应用的邮箱访问。',
+  admin:'需要邮箱管理员批准 TimeMate 访问此邮箱。',
+  blocked:'此邮箱的安全策略阻止了 TimeMate 访问。',
   cancel:'连接已取消，可以重新尝试。',
   network:'连接暂时失败，请重试。',
-  permission:'尚未取得读取邮箱的权限，请重新授权或联系学校 IT。',
+  permission:'尚未取得读取邮箱的权限，请重新授权。',
   expired:'邮箱授权已失效，请重新连接。',
   invalid:'授权已失效，请重新连接。',
   unavailable:'此连接方式暂未启用，请使用其他连接方式。',
@@ -35,12 +35,6 @@ function showManualMailbox() {
   }
   renderMailboxConnection(state);
 }
-function showMailboxHelp() {
-  $('mail-connection-help').hidden = !$('mail-connection-help').hidden;
-  $('mail-connection-explanation').textContent = mailboxResult === 'admin'
-    ? '请向学校 IT 申请批准 TimeMate，并附上授权页面的错误信息。'
-    : '登录窗口关闭或未返回结果时可重试。若学校限制直连，请联系学校 IT；转发也需学校允许。';
-}
 function renderMailboxConnection(d) {
   if (!d?.config) return;
   const connection = d.mailConnection || {};
@@ -50,18 +44,20 @@ function renderMailboxConnection(d) {
   }
   const direct = connection.mode === 'oauth';
   const reauthorize = connection.reauthorize || direct && d.status?.sync_error_code === 'mail_authentication_failed';
+  const methodsVisible = !direct || mailboxMethodsOpen || reauthorize;
   $('mail-manual-settings').hidden = !mailboxManualOpen;
   $('mail-connection-methods').hidden = mailboxManualOpen;
   $('mail-save').hidden = !mailboxManualOpen;
   $('mail-direct-account').hidden = !direct || mailboxMethodsOpen;
+  $('mail-direct-method').hidden = !MAIL_OAUTH_UI_ENABLED || !methodsVisible;
+  $('mail-forward-method').hidden = !methodsVisible;
   $('mail-method-buttons').hidden = direct && !!connection.connected && !reauthorize && !mailboxMethodsOpen;
   $('mail-direct-address').textContent = direct ? connection.account : '';
   $('mail-direct-status').textContent = reauthorize ? '需重新授权' : '已连接';
-  $('mail-oauth-pending').hidden = MAIL_OAUTH_UI_ENABLED || (direct && !reauthorize);
-  $('mail-oauth-help').hidden = !MAIL_OAUTH_UI_ENABLED && !reauthorize;
   const result = $('mail-oauth-result');
   const message = reauthorize ? mailboxResults.expired : mailboxResults[mailboxResult] || '';
   result.hidden = !message; result.textContent = message;
+  $('mail-oauth-help').hidden = !message || mailboxResult === 'cancel';
   if (direct) {
     $('mail-nav-provider').textContent = connection.provider === 'google' ? 'Google' : 'Microsoft';
     $('mail-nav-status').textContent = reauthorize ? '需重新授权' : '已连接';
