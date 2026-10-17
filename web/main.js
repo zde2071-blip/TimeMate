@@ -86,7 +86,8 @@ async function refresh() {
       initialized = true;
     }
     renderAIProfiles(d);
-    savedSecret('password', !!connectedReceiver(d,$('account').value));
+    const editingMailbox=(d.mailAccounts||[]).find(item=>item.id===mailEditingId);
+    savedSecret('password', !!editingMailbox && editingMailbox.account.toLowerCase()===$('account').value.trim().toLowerCase() && !!connectedReceiver(d,$('account').value));
     const editingProfile = aiProfiles.find(item => item.id === aiEditingId);
     savedSecret('key', !!editingProfile && $('provider').value === editingProfile.provider && $('base').value === editingProfile.base);
     connectionBadge('mail', d.ready?.mail);

@@ -7,7 +7,7 @@ vm.runInContext(require('./ui_source').functions("connectionBadge", "connectionE
 vm.runInContext(require('./ui_source').functions("editSecret", "savedSecret", "draft", "renderMailProvider", "mailProviderChanged", "renderFieldStatuses", "connectionAction"),ctx);
 async function run(){
  $('account').value='test@qq.com';$('school_sender').value='test@school.edu';
- ctx.savedSecret('password',true);assert.equal($('password').value,'');assert.equal($('password').readOnly,false);assert.equal(ctx.draft('mail').password,'','saved credential is retained without sending the masked display');
+ ctx.savedSecret('password',true);assert.equal($('password').value,'••••••••');assert.equal($('password').readOnly,true);assert.equal(ctx.draft('mail').password,'','saved credential is retained without sending the masked display');
  $('password').value='new-secret';$('password').dataset.saved='';$('password').dataset.editing='1';ctx.savedSecret('password',true);assert.equal($('password').value,'new-secret','polling preserves unsaved replacement');
  $('mail-settings').open=true;fails=true;await ctx.connectionAction('mail','save');assert.deepEqual(requests,['/api/settings/mail/test'],'failed validation must not save');assert.equal($('password').value,'new-secret');assert.equal($('mail-settings').open,true);assert.equal($('mail-save').textContent,'保存设置');
  requests.length=0;fails=false;await ctx.connectionAction('mail','save');assert.deepEqual(requests,['/api/settings/mail/test','/api/settings/mail']);assert.equal($('password').value,'');assert.equal($('mail-settings').open,true,'saving keeps the selected settings panel in place');assert.equal($('mail-save').textContent,'已保存');assert.equal($('mail-feedback').textContent,'');

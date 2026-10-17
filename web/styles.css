@@ -3321,3 +3321,6 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 .mail-account-mark svg { width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round; }
 #mail-account-new { background:#252a2b;border-color:#252a2b;color:#fff; }
 [data-setting-summary="ai"] { display:none; }
+#mail-password-change { flex:none;margin:0;padding:8px 12px;border:0;background:transparent;color:#27634e;font-size:12px;white-space:nowrap; }
+#password[readonly] { color:#78828b;cursor:default; }
+[data-setting-summary="mail"] { display:none; }
