@@ -3122,7 +3122,15 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 .mailbox-manual-note { color:#70797d; font-size:13px; line-height:1.7; }
 #mail-direct-account strong { display:block; font-size:17px; margin-bottom:8px; overflow-wrap:anywhere; }
 #mail-direct-status { display:block; color:#18845b; font-size:13px; margin-bottom:16px; }
-#mail-manual-settings .mailbox-manual-note { margin:10px 0 24px; }
+#mail-manual-settings { max-width:760px; }
+#mail-manual-settings .mailbox-manual-note { margin:10px 0 26px; }
+.mail-forward-step { display:flex; align-items:flex-start; gap:12px; margin:0 0 22px; }
+.mail-forward-step-number { display:grid; place-items:center; flex:0 0 26px; height:26px; border-radius:50%; background:#f1f3f2; color:#59665f; font-size:13px; font-weight:600; }
+.mail-forward-step h4 { margin:1px 0 6px; color:#252b2c; font-size:15px; font-weight:600; }
+.mail-forward-step p { margin:0; color:#78817d; font-size:13px; line-height:1.65; }
+.mail-forward-step-second { border-top:1px solid #e7eaec; padding-top:26px; margin-top:26px; }
+#mail-manual-settings .setting-input-row > .field-status { flex-basis:32px; width:32px; }
+
 .connection-onboarding { position:fixed; z-index:35; right:24px; bottom:24px; width:280px; max-width:calc(100vw - 90px); box-sizing:border-box; padding:17px 18px; border:1px solid #e7eaec; border-radius:13px; background:#fff; color:#252b2c; box-shadow:0 8px 28px #14202615; }
 .connection-onboarding[hidden] { display:none; }
 .connection-guide-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:13px; }

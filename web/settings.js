@@ -272,9 +272,9 @@ function renderMailProvider() {
   status.className = 'field-status' + (selected ? ' success' : '');
   status.title = selected ? '已选择邮箱服务商' : '请选择邮箱服务商';
   $('mail-save').disabled = !selected;
-  $('account-label').textContent = provider === 'qq' ? 'QQ 邮箱' : provider === 'netease' ? '网易邮箱' : '接收邮箱';
+  $('account-label').textContent = '接收邮箱';
   $('account').placeholder = provider === 'qq' ? '完整 QQ 邮箱地址' : provider === 'netease' ? '完整网易邮箱地址（163.com 或 126.com）' : '完整邮箱地址';
-  $('password-mail-label').textContent = provider === 'qq' ? 'QQ 邮箱授权码' : provider === 'netease' ? '网易邮箱客户端授权码' : '邮箱客户端授权码';
+  $('password-mail-label').textContent = 'IMAP 授权码';
   $('mail-nav-provider').textContent = provider === 'qq' ? 'QQ 邮箱' : provider === 'netease' ? '网易邮箱' : '尚未设置';
   $('mail-auth-guide').textContent = '如何获取 ↗';
   $('mail-auth-guide').href = provider === 'netease' ? '/assets/guides/netease.html' : '/assets/guides/qq.html';
