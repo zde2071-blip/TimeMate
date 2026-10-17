@@ -3211,10 +3211,11 @@ body.settings-view .settings-nav-copy strong { font-weight:500; }
 .forward-intro h3 { margin:0 0 11px; font-size:21px; font-weight:600; }
 .forward-intro p { margin:0; color:#78828b; font-size:13px; line-height:1.85; }
 .forward-flow { display:grid; grid-template-columns:minmax(0,1fr) 80px minmax(0,1fr) 80px minmax(0,1fr); align-items:center; gap:12px; padding:22px 24px; margin-bottom:24px; background:#f6f7f8; border-radius:12px; }
-.forward-flow-node { display:grid; justify-items:center; align-content:start; gap:4px; min-width:0; text-align:center; }
-.forward-flow-node svg { width:20px; height:20px; fill:none; stroke:#78828b; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; margin-bottom:6px; }
-.forward-flow-node strong { font-size:13px; font-weight:500; }
-.forward-flow-arrow { display:grid; justify-items:center; gap:6px; color:#78828b; font-size:11px; }
+.forward-flow-node { display:grid; grid-template-rows:24px 22px 20px; align-items:center; justify-items:center; gap:7px; min-width:0; text-align:center; }
+.forward-flow-node svg { width:20px; height:20px; fill:none; stroke:#78828b; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; margin:0; }
+.forward-flow-node strong { font-size:13px; font-weight:500; line-height:22px; white-space:nowrap; }
+.forward-flow-node small { color:#78828b; font-size:11px; line-height:20px; white-space:nowrap; }
+.forward-flow-arrow { display:grid; grid-template-rows:22px 20px; align-self:end; align-items:center; justify-items:center; gap:7px; color:#78828b; font-size:11px; }
 .forward-flow-arrow > span { white-space:nowrap; }
 .forward-flow-arrow-shaft { display:block; width:80px; height:12px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
 .forward-step { padding:26px 0; border-top:1px solid #e5e8eb; }
@@ -3247,8 +3248,8 @@ body.settings-view .settings-nav-copy strong { font-weight:500; }
 @media(max-width:600px) {
  .forward-step-fields { padding-left:0; }
  .forward-flow { grid-template-columns:minmax(0,1fr); padding:20px; gap:6px; }
- .forward-flow-node { display:flex; align-items:center; justify-content:flex-start; gap:10px; text-align:left; }
- .forward-flow-node svg { margin:0; }
+ .forward-flow-node { grid-template-columns:20px minmax(0,1fr); grid-template-rows:22px 20px; justify-items:start; column-gap:12px; row-gap:2px; text-align:left; }
+ .forward-flow-node svg { grid-row:1 / 3; margin:0; }
  .forward-flow-arrow { display:flex; align-items:center; justify-content:flex-start; position:relative; min-height:56px; padding-left:40px; gap:0; }
  .forward-flow-arrow-shaft { position:absolute; width:56px; height:12px; left:-18px; top:22px; transform:rotate(90deg); }
  #mail-manual-settings .forward-step-fields input:not([type=checkbox]),#mail-manual-settings .forward-step-fields select { font-size:16px; }
@@ -3265,3 +3266,11 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 .settings-heading-actions .settings-detail-summary small { max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .settings-heading-actions .settings-summary-status { white-space:nowrap; }
 @media(max-width:760px) { .settings-heading-actions { flex:1; flex-wrap:wrap; gap:8px; } .settings-heading-actions .settings-detail-summary small { max-width:120px; } }
+
+/* Keep the mailbox identity and connection state together in the heading. */
+.settings-heading-actions [data-setting-summary="mail"] { gap:12px; padding:9px 13px; border:1px solid #e7eaec; border-radius:10px; background:#f8f9fa; }
+.settings-heading-actions [data-setting-summary="mail"] small { font-size:13px; font-weight:500; color:#39434a; }
+.settings-heading-actions [data-setting-summary="mail"] .settings-summary-status { font-size:12px; padding-left:12px; }
+.settings-heading-actions [data-setting-summary="mail"] .settings-summary-status.is-connected { color:#27634e; }
+.settings-heading-actions [data-setting-summary="mail"] .settings-summary-status.is-connected::before { content:"✓"; margin-right:5px; }
+.settings-heading-actions [data-setting-actions="mail"] { display:none; }
