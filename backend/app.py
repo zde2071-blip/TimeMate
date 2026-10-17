@@ -228,7 +228,7 @@ def model_reply(cfg,prompt,data):
             raise UserFacingError('当前模型或接口不支持这次图片输入，请在账户设置中选择支持图片识别的模型，或改用文字。') from None
         raise
 
-def connection_draft(group,data):
+def connection_draft(group,data,*,require_source=True):
     candidate=CFG.copy()
     baseline=CFG
     if group=='ai' and 'profileId' in data:
@@ -247,7 +247,7 @@ def connection_draft(group,data):
         if candidate['mail_provider'] not in ('qq','netease'): raise UserFacingError('请选择 QQ 邮箱或网易邮箱。')
         allowed=('@qq.com','@foxmail.com') if candidate['mail_provider']=='qq' else ('@163.com','@126.com')
         if not account.endswith(allowed) or '@' not in account: raise UserFacingError('邮箱地址与所选邮箱服务商不匹配。')
-        if not parseaddr(candidate['school_sender'])[1] or '@' not in candidate['school_sender']: raise UserFacingError('请填写完整学校邮箱。')
+        if require_source and (not parseaddr(candidate['school_sender'])[1] or '@' not in candidate['school_sender']): raise UserFacingError('请填写需要处理邮件的完整邮箱地址。')
         if not candidate['password']: raise UserFacingError('请填写邮箱客户端授权码。')
     else: ai_services.validate(candidate,model=False)
     return candidate
@@ -283,7 +283,7 @@ def save_connection(group,data):
     finally: LOCK.release()
 
 def test_mail_connection(data):
-    candidate=connection_draft('mail',data)
+    candidate=connection_draft('mail',data,require_source=False)
     conn=None
     try:
         conn=imaplib.IMAP4_SSL(mail_ingest.mail_server(candidate),993,ssl_context=ssl.create_default_context(cafile=certifi.where()),timeout=15)

@@ -1,6 +1,7 @@
 // Connection methods and the persistent, account-scoped setup guide.
 let mailboxManualOpen = false, mailboxDirectOpen = false, mailboxMethodsOpen = false, mailboxPageInitialized = false;
 let connectionWelcomeChecked = false, mailboxConnecting = false;
+let receiverRevision = 0, receiverVerifiedRevision = -1, receiverBusy = false;
 // Show the direct-connection choice; keep authorization behind the launch placeholder until approved.
 const MAIL_OAUTH_UI_ENABLED = false;
 const mailboxResults = {
@@ -33,6 +34,7 @@ function showDirectMailbox() {
 function showManualMailbox() {
   mailboxManualOpen = true; mailboxDirectOpen = false;
   if (state?.mailConnection?.mode === 'oauth') {
+    receiverRevision++; receiverVerifiedRevision = -1;
     // Do not reuse the direct account as a forwarding recipient or its secret.
     $('account').value = ''; $('password').value = ''; $('password').dataset.saved = '';
     $('mail_provider').value = ''; renderMailProvider();
@@ -68,6 +70,7 @@ function renderMailboxConnection(d) {
     $('mail-nav-status').textContent = reauthorize ? '需重新授权' : '已连接';
   }
   document.querySelectorAll('[data-mail-oauth]').forEach(b => { b.hidden = !MAIL_OAUTH_UI_ENABLED; b.disabled = mailboxConnecting; });
+  renderForwardingForm(d);
 }
 async function startMailboxOAuth(provider) {
   if (mailboxConnecting) return;
@@ -155,3 +158,58 @@ function positionConnectionCard() {
 }
 new ResizeObserver(positionConnectionCard).observe($('chat-form'));
 window.addEventListener('resize',positionConnectionCard);
+
+function forwardingReceiverVerified(d) {
+  return receiverVerifiedRevision === receiverRevision || !!(d?.ready?.mail && d.mailConnection?.mode !== 'oauth' &&
+    $('account').value.trim() === d.config.account && $('mail_provider').value === d.config.mail_provider &&
+    $('password').dataset.saved === 'yes' && !$('password').value);
+}
+function renderForwardingForm(d) {
+  if (!d?.config) return;
+  const address = $('account').value.trim();
+  const verified = forwardingReceiverVerified(d);
+  const forwarded = localStorage.getItem(forwardingKey()) === 'yes';
+  $('mail-forward-target').value = address;
+  $('mail-forward-copy').disabled = !address;
+  $('mail-receiver-status').hidden = !verified;
+  $('mail-receiver-connect').textContent = receiverBusy ? '连接中…' : verified ? '重新连接' : '连接邮箱';
+  $('mail-receiver-connect').disabled = receiverBusy || !['qq','netease'].includes($('mail_provider').value) || !address || !($('password').value || $('password').dataset.saved === 'yes');
+  $('confirm-forwarding').checked = forwarded;
+  $('confirm-forwarding').disabled = !verified || !$('school_sender').value.trim();
+  $('mail-save').disabled = receiverBusy || !verified || !forwarded || !$('school_sender').value.trim() || connectionStates.mail === '连接中';
+}
+async function connectForwardingReceiver() {
+  if (receiverBusy) return;
+  const revision = receiverRevision;
+  const data = draft('mail');
+  const box = $('mail-receiver-feedback');
+  receiverBusy = true; box.textContent = ''; renderForwardingForm(state);
+  try {
+    const response = await fetch('/api/settings/mail/test', {method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify(data)});
+    const result = await response.json();
+    if (!response.ok) throw Error(result.error || '邮箱连接失败，请检查 IMAP 授权码。');
+    if (revision !== receiverRevision) throw Error('邮箱信息已更改，请重新连接。');
+    receiverVerifiedRevision = revision;
+  } catch (error) { box.textContent = error.message; }
+  finally { receiverBusy = false; renderForwardingForm(state); }
+}
+function saveForwardingMailbox() {
+  if (!forwardingReceiverVerified(state) || !$('confirm-forwarding').checked) return;
+  if (!$('school_sender').value.trim() || !$('school_sender').reportValidity()) return;
+  return connectionAction('mail','save');
+}
+async function copyForwardingAddress() {
+  const address = $('mail-forward-target');
+  if (!address.value) return;
+  try {
+    try { await navigator.clipboard.writeText(address.value); }
+    catch (_) { address.select(); if (!document.execCommand('copy')) throw Error('copy'); }
+    $('mail-forward-copy').querySelector('span').textContent = '已复制';
+  } catch (_) { notify('复制失败，请手动复制地址'); }
+}
+for (const id of ['account','password','mail_provider']) $(id).addEventListener(id === 'mail_provider' ? 'change' : 'input', () => {
+  receiverRevision++; receiverVerifiedRevision = -1;
+  $('mail-receiver-feedback').textContent = '';
+  $('mail-forward-copy').querySelector('span').textContent = '复制';
+  renderForwardingForm(state);
+});

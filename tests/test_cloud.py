@@ -12,6 +12,22 @@ class CloudTests(unittest.TestCase):
   self.a=self.app.test_client();self.b=self.app.test_client();self.anon=self.app.test_client()
   self.ta,self.ua=self.register(self.a,'a@example.com');self.tb,self.ub=self.register(self.b,'b@example.com')
  def tearDown(self):self.tmp.cleanup()
+ def test_receiver_can_be_verified_before_source_is_configured(self):
+  engine=self.app.store.engine(self.ua)
+  conn=Mock()
+  conn.login.return_value=('OK',[b'ok'])
+  conn.select.return_value=('OK',[b'0'])
+  data={'mail_provider':'qq','account':'receiver@qq.com','password':'fixture-code'}
+  with patch.object(engine.imaplib,'IMAP4_SSL',return_value=conn):
+   response=self.post(self.a,'/api/settings/mail/test',data,self.ta)
+  self.assertEqual(response.status_code,200,response.text)
+  self.assertNotEqual(self.state(self.a,self.ta).json['config']['account'],'receiver@qq.com')
+  response=self.post(self.a,'/api/settings/mail',data,self.ta)
+  self.assertEqual(response.status_code,400)
+  self.assertIn('需要处理邮件',response.json['error'])
+  response=self.post(self.a,'/api/settings/mail',{**data,'school_sender':'source@example.com'},self.ta)
+  self.assertEqual(response.status_code,200,response.text)
+  self.assertEqual(self.state(self.a,self.ta).json['config']['school_sender'],'source@example.com')
  def test_only_versioned_public_guide_images_are_cached(self):
   root=Path(self.app.static_folder)
   image=next((root/'outlook-forwarding').glob('*.webp'))

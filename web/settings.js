@@ -187,7 +187,7 @@ $('ai-profile-delete').onclick = async () => {
 function connectionBadge(group, ready) {
   const button = $(group + '-save');
   const connected = ready && !['未保存', '失败'].includes(connectionStates[group]);
-  button.textContent = group === 'ai' ? '保存' : connectionStates[group] === '连接中' ? '连接中…' : connected ? '✓ 已连接' : '连接并保存';
+  button.textContent = group === 'ai' ? '保存' : connectionStates[group] === '连接中' ? '保存中…' : connected ? '已保存' : '保存设置';
   const summary = $(group + '-nav-status');
   if (summary) {
     summary.textContent = connectionStates[group] === '连接中' ? '连接中' :
@@ -267,12 +267,12 @@ function renderMailProvider() {
   const provider = $('mail_provider').value,
     selected = provider === 'qq' || provider === 'netease',
     status = $('mail-provider-status');
-  $('mail-provider-fields').hidden = !selected;
+  $('mail-provider-fields').hidden = false;
   status.textContent = selected ? '✓' : '○';
   status.className = 'field-status' + (selected ? ' success' : '');
   status.title = selected ? '已选择邮箱服务商' : '请选择邮箱服务商';
   $('mail-save').disabled = !selected;
-  $('account-label').textContent = '接收邮箱';
+  $('account-label').textContent = '接收邮箱地址';
   $('account').placeholder = provider === 'qq' ? '完整 QQ 邮箱地址' : provider === 'netease' ? '完整网易邮箱地址（163.com 或 126.com）' : '完整邮箱地址';
   $('password-mail-label').textContent = 'IMAP 授权码';
   $('mail-nav-provider').textContent = provider === 'qq' ? 'QQ 邮箱' : provider === 'netease' ? '网易邮箱' : '尚未设置';
@@ -284,6 +284,7 @@ function renderMailProvider() {
   };
   $('forwarding-title').textContent = '设置邮件自动转发';
   $('confirm-forwarding').disabled = !$('school_sender').value.trim() || !$('account').value.trim();
+  if (typeof renderForwardingForm === 'function') renderForwardingForm(state);
 }
 
 function mailProviderChanged() {
@@ -395,6 +396,7 @@ async function connectionAction(group, action) {
   } finally {
     controls.forEach(x => x.disabled = false);
     if (group === 'ai') { aiProfileBusy = false; renderAIModelOptions(); }
+    if (group === 'mail' && typeof renderForwardingForm === 'function') renderForwardingForm(state);
   }
 }
 
@@ -639,12 +641,9 @@ function renderSetupGuide(d) {
   if (!d?.config) return;
   const forwarded = localStorage.getItem(forwardingKey()) === 'yes';
   const button = $('confirm-forwarding');
-  button.textContent = forwarded ? '✓ 已确认' : '○ 未确认';
-  button.className = 'forwarding-status' + (forwarded ? ' success' : '');
+  button.checked = forwarded;
   button.disabled = !$('school_sender').value.trim() || !$('account').value.trim();
-  button.setAttribute('aria-pressed', String(forwarded));
-  button.title = forwarded ? '已确认设置转发，点击取消确认' : '点击确认已设置转发';
-  button.setAttribute('aria-label', button.title);
+  if (typeof renderForwardingForm === 'function') renderForwardingForm(d);
 }
 
 async function accountRequest(action, data) {
