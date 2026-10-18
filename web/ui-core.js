@@ -157,7 +157,7 @@ function selectConnectionSettings(group) {
     account: ['账户', ''],
     mail: ['邮箱', ''],
     ai: ['AI 服务', ''],
-    calendar: ['日历', '设置日历订阅方式']
+    calendar: ['日历', '']
   };
   if (!labels[group]) return;
   for (const key of Object.keys(labels)) {

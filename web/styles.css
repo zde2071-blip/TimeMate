@@ -3016,8 +3016,6 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 }
 
 /* AI service library: shared connection, enabled models, independent mail selection. */
-#settings-page[data-setting-open="ai"] .settings-detail-heading p { display:none; }
-#settings-page[data-setting-open="ai"] .settings-detail-heading { align-items:center; margin-bottom:0; padding-bottom:26px; }
 #ai-profile-new { background:#252929; color:#fff; border:1px solid #252929; border-radius:8px; padding:8px 13px; margin:0; font-size:14px; }
 #ai-settings .ai-mail-model { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:23px 0; border-bottom:1px solid #e7eaea; }
 #ai-settings .ai-mail-model label { margin:0; color:#252929; font-size:14px; font-weight:500; }
@@ -3077,7 +3075,6 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 #ai-settings .ai-provider-edit { display:inline-flex; align-items:center; gap:6px; padding:7px 9px; border:1px solid #e8ebed; border-radius:7px; color:#252b2c; }
 #ai-settings .ai-provider-copy strong { font-weight:500; }
 #ai-settings .ai-provider-copy small { margin-top:4px; }
-#settings-page[data-setting-open="ai"] .settings-detail-heading { border-bottom:0; }
 .chat-model-group { padding:10px 12px 4px; color:#727b7b; font-size:12px; }
 @media(max-width:600px) {
   #ai-settings .ai-mail-model { flex-direction:column; align-items:flex-start; gap:12px; padding:20px 0; }
@@ -3322,3 +3319,96 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 #mail-account-new { background:#252a2b;border-color:#252a2b;color:#fff; }
 [data-setting-summary="ai"] { display:none; }
 [data-setting-summary="mail"] { display:none; }
+
+
+/* Shared presentation for the three basic settings; each keeps its own workflow. */
+#settings-page:is([data-setting-open="mail"], [data-setting-open="ai"], [data-setting-open="calendar"]) {
+  --settings-text: #293238;
+  --settings-muted: #78828b;
+  --settings-line: #e5e8eb;
+}
+#settings-page:is([data-setting-open="mail"], [data-setting-open="ai"], [data-setting-open="calendar"]) .settings-detail-heading {
+  align-items: center;
+  min-height: 62px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--settings-line);
+}
+#settings-page:is([data-setting-open="mail"], [data-setting-open="ai"], [data-setting-open="calendar"]) #settings-detail-description { display: none; }
+#settings-page :is(#mail-account-new, #ai-profile-new, #calendar-connect) {
+  width: auto;
+  min-height: 40px;
+  margin: 0;
+  padding: 9px 14px;
+  border: 1px solid #252a2b;
+  border-radius: 8px;
+  background: #252a2b;
+  color: #fff;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+#settings-page :is(#mail-account-new, #ai-profile-new, #calendar-connect):hover { background: #343a3c; }
+#settings-page :is(#mail-accounts h4, #ai-settings .ai-library-label, #calendar-settings .settings-section-label) {
+  margin: 0 0 12px;
+  color: var(--settings-muted);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+}
+#settings-page :is(.mail-account-entry, #ai-settings .settings-clickable-entry) {
+  gap: 14px;
+  padding: 20px 12px;
+  border-radius: 8px;
+}
+#settings-page :is(.mail-account-mark, #ai-settings .ai-provider-mark) {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--settings-line);
+  border-radius: 10px;
+  background: #f6f7f8;
+  color: var(--settings-text);
+  font-size: 15px;
+}
+#settings-page :is(.mail-account-copy, #ai-settings .ai-provider-copy) strong {
+  color: var(--settings-text);
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 500;
+}
+#settings-page :is(.mail-account-copy, #ai-settings .ai-provider-copy) small {
+  margin-top: 4px;
+  color: var(--settings-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+#calendar-settings .field-heading { justify-content: space-between; gap: 12px; margin: 0 0 7px; }
+#calendar-settings label { margin: 0 0 7px; font-size: 12px; }
+#calendar-settings .field-heading label { margin: 0; }
+#calendar-settings .field-heading .text-button { color: #27634e; font-size: 12px; }
+#calendar-settings .setting-input-row { margin: 0 0 20px; }
+#calendar-settings .setting-input-row > :is(input, select) {
+  height: 41px;
+  padding: 9px 12px;
+  border: 1px solid var(--settings-line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+#calendar-settings .setting-input-row > .field-status { flex: 0 0 32px; width: 32px; }
+#calendar-settings #calendar-subscription .setting-input-row { gap: 0; border: 1px solid var(--settings-line); border-radius: 8px; background: #f6f7f8; }
+#calendar-settings #calendar-url { border: 0; background: transparent; }
+#calendar-settings #calendar-subscription .field-status { flex-basis: auto; width: auto; }
+#calendar-settings .calendar-copy { margin: 0; padding: 9px 12px; border: 0; background: transparent; color: var(--settings-text); font-size: 12px; }
+#settings-page [data-setting-summary="calendar"] { gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+#settings-page [data-setting-summary="calendar"] small { color: var(--settings-text); font-size: 12px; }
+#settings-page [data-setting-summary="calendar"] .settings-summary-status { border: 0; padding: 0; color: var(--settings-muted); font-size: 12px; }
+#settings-page [data-setting-summary="calendar"] .settings-summary-status.is-connected { display: none; }
+#settings-page #calendar-connect[aria-pressed="true"] { background: #eaf5ef; border-color: transparent; color: #18845b; }
+#settings-page :is(#calendar-feedback, #ai-library-feedback):empty { display: none; }
+@media(max-width:600px) {
+  #settings-page:is([data-setting-open="mail"], [data-setting-open="ai"], [data-setting-open="calendar"]) .settings-detail-heading { flex-wrap: wrap; gap: 12px; }
+  #settings-page .settings-heading-actions { flex: 0 1 auto; margin-left: auto; }
+  #settings-page :is(.mail-account-entry, #ai-settings .settings-clickable-entry) { padding: 16px 4px; gap: 12px; }
+  #settings-page .settings-entry-tail { margin-left: 52px; width: calc(100% - 52px); }
+  #calendar-settings .setting-input-row > :is(input, select) { font-size: 16px; }
+}
