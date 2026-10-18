@@ -118,7 +118,7 @@ function showSetup() {
   showPage('settings');
   if (!state?.ready?.mail) selectConnectionSettings('mail');
   else if (!state?.ready?.ai) selectConnectionSettings('ai');
-  else if (state?.config?.calendar_subscription_confirmed !== 'yes') selectConnectionSettings('calendar');
+  else if (!calendarProfiles(state?.config || {}).some(profile => profile.confirmed === 'yes')) selectConnectionSettings('calendar');
 }
 
 let setupGuideRevision = 0;

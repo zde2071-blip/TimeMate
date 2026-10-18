@@ -19,12 +19,12 @@ from backend.mail.accounts import MailAccounts, MultipleReceivers
 from backend.mail import analysis as mail_analysis
 from backend.mail.read_model import MailReadModel, json_object
 from backend.mail.chat import MailChat
-from backend.core import operation_status
+from backend.core import operation_status, calendar_settings
 # An engine is initialized only with an authenticated user's runtime.
 RUNTIME = None
 DB = None
 PREFS = None
-DEFAULTS={'mail_direct':'{}','mail_mode':'forward','account':'','mail_provider':'','base':'https://api.deepseek.com','model':'deepseek-flash','school_sender':'','calendar_method':'unset','calendar_provider':'','calendar_subscription_confirmed':'no','provider':'deepseek'}
+DEFAULTS={'calendar_subscriptions':'[]','mail_direct':'{}','mail_mode':'forward','account':'','mail_provider':'','base':'https://api.deepseek.com','model':'deepseek-flash','school_sender':'','calendar_method':'unset','calendar_provider':'','calendar_subscription_confirmed':'no','provider':'deepseek'}
 CFG={**DEFAULTS,'password':'','key':''}
 LOCK=threading.Lock()
 STATUS={'busy':False,'auto':False}
@@ -685,19 +685,7 @@ class APIHandler:
             elif self.path=='/api/calendar/export':
                 return self.reply(200,{'ics':export_calendar_event(d)})
             elif self.path=='/api/calendar/settings':
-                method=d.get('calendar_method')
-                allowed=('unset','ics','subscribe')
-                if method not in allowed: raise UserFacingError('请选择有效的日历添加方式。')
-                provider=d.get('calendar_provider',CFG['calendar_provider'])
-                if provider not in ('','apple','outlook'): raise UserFacingError('请选择 Apple 或 Outlook 日历。')
-                confirmed=d.get('calendar_subscription_confirmed')
-                if confirmed not in (None,'yes','no'): raise UserFacingError('订阅状态无效。')
-                if confirmed=='yes' and (method!='subscribe' or not provider): raise UserFacingError('请先选择日历并完成订阅。')
-                if method!=CFG['calendar_method'] or provider!=CFG['calendar_provider']:
-                    CFG['calendar_subscription_confirmed']='no'
-                CFG['calendar_method']=method
-                CFG['calendar_provider']=provider
-                if confirmed is not None: CFG['calendar_subscription_confirmed']=confirmed
+                CFG.update(calendar_settings.update(CFG,d))
                 PREFS.write_text(json.dumps({k:CFG[k] for k in DEFAULTS},ensure_ascii=False))
                 STATUS['message']='日历偏好已保存。你在邮件处理中点击“加入日程安排”后，日程才会同步或导出。'
             elif self.path=='/api/auto':

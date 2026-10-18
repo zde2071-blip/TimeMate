@@ -3335,7 +3335,7 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
   border-bottom: 1px solid var(--settings-line);
 }
 #settings-page:is([data-setting-open="mail"], [data-setting-open="ai"], [data-setting-open="calendar"]) #settings-detail-description { display: none; }
-#settings-page :is(#mail-account-new, #ai-profile-new, #calendar-connect) {
+#settings-page :is(#mail-account-new, #ai-profile-new, #calendar-profile-new) {
   width: auto;
   min-height: 40px;
   margin: 0;
@@ -3348,7 +3348,7 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
   line-height: 20px;
   white-space: nowrap;
 }
-#settings-page :is(#mail-account-new, #ai-profile-new, #calendar-connect):hover { background: #343a3c; }
+#settings-page :is(#mail-account-new, #ai-profile-new, #calendar-profile-new):hover { background: #343a3c; }
 #settings-page :is(#mail-accounts h4, #ai-settings .ai-library-label, #calendar-settings .settings-section-label) {
   margin: 0 0 12px;
   color: var(--settings-muted);
@@ -3356,12 +3356,12 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
   line-height: 20px;
   font-weight: 400;
 }
-#settings-page :is(.mail-account-entry, #ai-settings .settings-clickable-entry) {
+#settings-page :is(.mail-account-entry, #ai-settings .settings-clickable-entry, .calendar-provider-row) {
   gap: 14px;
   padding: 20px 12px;
   border-radius: 8px;
 }
-#settings-page :is(.mail-account-mark, #ai-settings .ai-provider-mark) {
+#settings-page :is(.mail-account-mark, #ai-settings .ai-provider-mark, .calendar-provider-mark) {
   width: 40px;
   height: 40px;
   border: 1px solid var(--settings-line);
@@ -3370,45 +3370,80 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
   color: var(--settings-text);
   font-size: 15px;
 }
-#settings-page :is(.mail-account-copy, #ai-settings .ai-provider-copy) strong {
+#settings-page :is(.mail-account-copy, #ai-settings .ai-provider-copy, .calendar-provider-copy) strong {
   color: var(--settings-text);
   font-size: 14px;
   line-height: 21px;
   font-weight: 500;
 }
-#settings-page :is(.mail-account-copy, #ai-settings .ai-provider-copy) small {
+#settings-page :is(.mail-account-copy, #ai-settings .ai-provider-copy, .calendar-provider-copy) small {
   margin-top: 4px;
   color: var(--settings-muted);
   font-size: 12px;
   line-height: 18px;
 }
-#calendar-settings .field-heading { justify-content: space-between; gap: 12px; margin: 0 0 7px; }
-#calendar-settings label { margin: 0 0 7px; font-size: 12px; }
-#calendar-settings .field-heading label { margin: 0; }
-#calendar-settings .field-heading .text-button { color: #27634e; font-size: 12px; }
-#calendar-settings .setting-input-row { margin: 0 0 20px; }
-#calendar-settings .setting-input-row > :is(input, select) {
+#calendar-profile-dialog .field-heading { justify-content: space-between; gap: 12px; margin: 0 0 7px; }
+#calendar-profile-dialog label { margin: 0 0 7px; font-size: 12px; }
+#calendar-profile-dialog .field-heading label { margin: 0; }
+#calendar-profile-dialog .field-heading .text-button { color: #27634e; font-size: 12px; }
+#calendar-profile-dialog .setting-input-row { margin: 0 0 20px; }
+#calendar-profile-dialog .setting-input-row > :is(input, select) {
   height: 41px;
   padding: 9px 12px;
   border: 1px solid var(--settings-line);
   border-radius: 8px;
   font-size: 13px;
 }
-#calendar-settings .setting-input-row > .field-status { flex: 0 0 32px; width: 32px; }
-#calendar-settings #calendar-subscription .setting-input-row { gap: 0; border: 1px solid var(--settings-line); border-radius: 8px; background: #f6f7f8; }
-#calendar-settings #calendar-url { border: 0; background: transparent; }
-#calendar-settings #calendar-subscription .field-status { flex-basis: auto; width: auto; }
-#calendar-settings .calendar-copy { margin: 0; padding: 9px 12px; border: 0; background: transparent; color: var(--settings-text); font-size: 12px; }
+#calendar-profile-dialog .setting-input-row > .field-status { flex: 0 0 32px; width: 32px; }
+#calendar-profile-dialog #calendar-subscription .setting-input-row { gap: 0; border: 1px solid var(--settings-line); border-radius: 8px; background: #f6f7f8; }
+#calendar-profile-dialog #calendar-url { border: 0; background: transparent; }
+#calendar-profile-dialog #calendar-subscription .field-status { flex-basis: auto; width: auto; }
+#calendar-profile-dialog .calendar-copy { margin: 0; padding: 9px 12px; border: 0; background: transparent; color: var(--settings-text); font-size: 12px; }
 #settings-page [data-setting-summary="calendar"] { gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 #settings-page [data-setting-summary="calendar"] small { color: var(--settings-text); font-size: 12px; }
 #settings-page [data-setting-summary="calendar"] .settings-summary-status { border: 0; padding: 0; color: var(--settings-muted); font-size: 12px; }
 #settings-page [data-setting-summary="calendar"] .settings-summary-status.is-connected { display: none; }
-#settings-page #calendar-connect[aria-pressed="true"] { background: #eaf5ef; border-color: transparent; color: #18845b; }
+#settings-page #calendar-profile-new[aria-pressed="true"] { background: #eaf5ef; border-color: transparent; color: #18845b; }
 #settings-page :is(#calendar-feedback, #ai-library-feedback):empty { display: none; }
 @media(max-width:600px) {
   #settings-page:is([data-setting-open="mail"], [data-setting-open="ai"], [data-setting-open="calendar"]) .settings-detail-heading { flex-wrap: wrap; gap: 12px; }
   #settings-page .settings-heading-actions { flex: 0 1 auto; margin-left: auto; }
-  #settings-page :is(.mail-account-entry, #ai-settings .settings-clickable-entry) { padding: 16px 4px; gap: 12px; }
+  #settings-page :is(.mail-account-entry, #ai-settings .settings-clickable-entry, .calendar-provider-row) { padding: 16px 4px; gap: 12px; }
   #settings-page .settings-entry-tail { margin-left: 52px; width: calc(100% - 52px); }
-  #calendar-settings .setting-input-row > :is(input, select) { font-size: 16px; }
+  #calendar-profile-dialog .setting-input-row > :is(input, select) { font-size: 16px; }
+}
+
+/* Calendar entries use the same list navigation and focused editor as other integrations. */
+[data-setting-summary="calendar"] { display: none; }
+#calendar-settings .settings-section-label { margin: 0 0 12px; color: #78828b; font-size: 13px; line-height: 20px; font-weight: 400; }
+.calendar-provider-row { display: flex; align-items: center; gap: 14px; width: 100%; margin: 0; border: 0; background: transparent; color: #293238; text-align: left; cursor: pointer; }
+.calendar-provider-row:hover { background: #f6f7f8; }
+.calendar-provider-mark { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border: 1px solid #e5e8eb; border-radius: 10px; background: #f6f7f8; color: #293238; }
+.calendar-provider-mark svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.calendar-provider-copy { min-width: 0; flex: 1; }
+.calendar-provider-copy strong { display: block; }
+.calendar-entry-pending { color: #78828b; font-size: 12px; white-space: nowrap; }
+#calendar-profile-dialog { width: min(520px,calc(100vw - 24px)); max-height: calc(100dvh - 32px); padding: 23px 25px; overflow: auto; border: 1px solid #e8ebed; border-radius: 15px; background: #fff; color: #293238; box-shadow: 0 20px 70px #0002; }
+#calendar-profile-dialog::backdrop { background: #1b27272d; backdrop-filter: blur(3px); }
+.calendar-profile-heading { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 24px; }
+.calendar-profile-identity { display: flex; align-items: center; gap: 11px; }
+#calendar-profile-dialog h2 { margin: 0; font-size: 18px; font-weight: 600; }
+#calendar-profile-dialog .calendar-provider-mark { width: 33px; height: 33px; border-radius: 9px; }
+#calendar-profile-dialog .modal-close-x { position: static; width: 28px; height: 28px; margin: 0; padding: 0; border: 0; background: transparent; color: #78828b; font-size: 23px; }
+#calendar-profile-dialog .setting-input-row > select { padding-right: 36px; }
+#calendar-profile-dialog .setting-input-row > select:disabled { opacity: 1; color: #293238; background-color: #f6f7f8; }
+#calendar-profile-dialog #calendar-subscription { margin-top: 20px; }
+#calendar-profile-dialog #calendar-subscription > label { display: block; }
+#calendar-profile-dialog #calendar-feedback { color: #78828b; font-size: 12px; margin: 14px 0 0; }
+#calendar-profile-dialog #calendar-feedback:empty { display: none; }
+.calendar-profile-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; border-top: 1px solid #e8ebed; margin-top: 24px; padding-top: 19px; }
+.calendar-profile-actions button { margin: 0; padding: 8px 13px; border: 1px solid #e7eaea; border-radius: 8px; background: #fff; color: #293238; font-size: 14px; }
+.calendar-profile-actions #calendar-connect { background: #252929; color: #fff; border-color: #252929; }
+.calendar-profile-actions #calendar-connect[aria-pressed="true"] { background: #fff; color: #78828b; border-color: #e7eaea; }
+#calendar-profile-dialog .field-status { flex: 0 0 32px; width: 32px; }
+@media(max-width:600px) {
+  .calendar-provider-row { flex-wrap: wrap; }
+  .calendar-provider-copy { flex: 1; min-width: 130px; }
+  #calendar-profile-dialog { padding: 20px 16px; }
+  #calendar-profile-dialog input, #calendar-profile-dialog select { font-size: 16px; }
 }

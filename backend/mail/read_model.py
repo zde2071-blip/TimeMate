@@ -11,7 +11,7 @@ MAIL_COLUMNS = ('id,subject,sender,date,sent_date,body,result,created,source,'
                 'source_links,source_body,is_read,is_deleted,manual_category,'
                 'display_title,title_version,analysis_attempts,analysis_retry_at,analysis_error,mailbox_id,receiving_account')
 VISIBLE_CONFIG = ('account','mail_provider','base','model','school_sender','calendar_method',
-                  'calendar_provider','calendar_subscription_confirmed','provider')
+                  'calendar_provider','calendar_subscription_confirmed','calendar_subscriptions','provider')
 
 
 def json_object(value):
@@ -32,7 +32,7 @@ class MailReadModel:
 
     def revision(self, connection):
         revision = connection.execute('SELECT revision FROM state_revision WHERE id=1').fetchone()[0]
-        visible = {key:self.config[key] for key in VISIBLE_CONFIG}
+        visible = {key:self.config.get(key, '[]' if key == 'calendar_subscriptions' else '') for key in VISIBLE_CONFIG}
         # Credential presence affects ready state; values never enter the response.
         identity = json.dumps([revision,visible,bool(self.config['password']),bool(self.config['key'])],sort_keys=True)
         return hashlib.sha256(identity.encode()).hexdigest()
@@ -73,7 +73,7 @@ class MailReadModel:
         for row in sources: row.pop('_sort_timestamp', None)
         data.update(mails=mails, eventSourceMails=sources, pins=pins, calendarEvents=written,
                     eventOverrides=overrides,eventLinks=links,courseCodes=courses,
-                    config={key:self.config[key] for key in VISIBLE_CONFIG},providers=self.providers,
+                    config={key:self.config.get(key, '[]' if key == 'calendar_subscriptions' else '') for key in VISIBLE_CONFIG},providers=self.providers,
                     ready={'mail':bool(self.config['account'] and self.config['password'] and self.config['school_sender']),
                            'ai':bool(self.config['base'] and self.config['model'] and self.config['key'])})
         return data

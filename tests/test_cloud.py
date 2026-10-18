@@ -537,6 +537,35 @@ class CloudTests(unittest.TestCase):
   restarted=create_app(self.tmp.name,self.key)
   restarted.config['SERVER_NAME']='127.0.0.1:18744'
   self.assertIn('课程会议',restarted.test_client().get(path).text)
+ def test_multiple_calendars_keep_independent_status_and_feed(self):
+  def save(provider, ident='', confirmed=None):
+   data={'calendar_method':'subscribe','calendar_provider':provider,'calendarProfileId':ident}
+   if confirmed is not None:data['calendar_subscription_confirmed']=confirmed
+   return self.post(self.a,'/api/calendar/settings',data,self.ta)
+  self.assertEqual(save('apple').status_code,200)
+  url=self.post(self.a,'/api/calendar/subscription',{},self.ta).json['url']
+  self.assertEqual(save('apple','apple','yes').status_code,200)
+  self.assertEqual(save('outlook').status_code,200)
+  self.assertEqual(self.post(self.a,'/api/calendar/subscription',{},self.ta).json['url'],url)
+  rows=json.loads(self.state(self.a,self.ta).json['config']['calendar_subscriptions'])
+  self.assertEqual(rows,[{'provider':'apple','confirmed':'yes'},{'provider':'outlook','confirmed':'no'}])
+  self.assertEqual(save('outlook','outlook','yes').status_code,200)
+  self.assertEqual(save('apple','apple','no').status_code,200)
+  restarted=create_app(self.tmp.name,self.key)
+  rows=json.loads(restarted.store.engine(self.ua).CFG['calendar_subscriptions'])
+  self.assertEqual(rows,[{'provider':'apple','confirmed':'no'},{'provider':'outlook','confirmed':'yes'}])
+  self.assertEqual(json.loads(self.state(self.b,self.tb).json['config']['calendar_subscriptions']),[])
+  before=self.state(self.a,self.ta).json['config']
+  for provider,ident in [('apple',''),('apple','outlook'),('unknown','')]:
+   self.assertEqual(save(provider,ident).status_code,400)
+   self.assertEqual(self.state(self.a,self.ta).json['config'],before)
+
+ def test_old_calendar_migrates_when_another_calendar_is_added(self):
+  engine=self.app.store.engine(self.ua)
+  engine.CFG.update(calendar_method='subscribe',calendar_provider='apple',calendar_subscription_confirmed='yes')
+  self.assertEqual(self.post(self.a,'/api/calendar/settings',{'calendar_method':'subscribe','calendar_provider':'outlook','calendarProfileId':''},self.ta).status_code,200)
+  self.assertEqual(json.loads(self.state(self.a,self.ta).json['config']['calendar_subscriptions']),[{'provider':'apple','confirmed':'yes'},{'provider':'outlook','confirmed':'no'}])
+
  def test_calendar_provider_and_user_confirmation_persist(self):
   self.assertEqual(self.post(self.a,'/api/calendar/settings',{'calendar_method':'subscribe','calendar_provider':'apple'},self.ta).status_code,200)
   self.assertEqual(self.state(self.a,self.ta).json['config']['calendar_subscription_confirmed'],'no')
