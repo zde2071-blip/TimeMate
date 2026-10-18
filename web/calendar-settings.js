@@ -39,6 +39,8 @@ function renderCalendarSettings(cfg, url) {
   $('calendar-profile-new').title = rows.length >= 2 ? '已添加所有支持的日历' : '';
   const current = rows.find(row => row.provider === calendarProfileId);
   const confirmed = current?.confirmed === 'yes';
+  $('calendar-profile-remove').hidden = !current;
+  $('calendar-profile-remove').disabled = calendarBusy;
   if (calendarProfileId) $('calendar_provider').value = calendarProfileId;
   $('calendar_provider').disabled = !!calendarProfileId || calendarBusy;
   for (const option of $('calendar_provider').options) {
@@ -153,6 +155,31 @@ async function confirmCalendar() {
     } else {
       $('calendar-feedback').textContent = $('settings-status').textContent || '日历状态未保存，请重试。';
     }
+  } finally {
+    calendarBusy = false;
+    renderCalendarSettings(calendarConfig, calendarUrl);
+  }
+}
+
+async function removeCalendarProfile() {
+  const provider = calendarProfileId;
+  if (calendarBusy || !calendarProfiles(calendarConfig).some(row => row.provider === provider)) return;
+  if (!window.confirm('移除 ' + calendarProviderName(provider) + '？\n已有事项会保留。如需停止同步，请在日历应用中取消订阅。')) return;
+  calendarBusy = true;
+  renderCalendarSettings(calendarConfig, calendarUrl);
+  try {
+    const response = await fetch('/api/calendar/remove', {
+      method: 'POST', headers: {'Content-Type': 'application/json', 'X-Token': token},
+      body: JSON.stringify({calendarProfileId: provider})
+    });
+    const result = await response.json();
+    if (!response.ok) throw Error(result.error || '日历未移除，请重试。');
+    calendarProfileId = null;
+    calendarEditing = false;
+    if (!(await refresh())) throw Error('日历已移除，请刷新页面查看。');
+    $('calendar-profile-dialog').close();
+  } catch (error) {
+    $('calendar-feedback').textContent = error.message;
   } finally {
     calendarBusy = false;
     renderCalendarSettings(calendarConfig, calendarUrl);

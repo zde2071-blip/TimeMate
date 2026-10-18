@@ -58,3 +58,20 @@ def update(config, data):
     return {'calendar_method': method, 'calendar_provider': provider,
             'calendar_subscription_confirmed': confirmed if confirmed is not None else previous,
             'calendar_subscriptions': json.dumps(rows, ensure_ascii=False)}
+
+
+def remove(config, data):
+    provider = data.get('calendarProfileId')
+    if provider not in PROVIDERS:
+        raise UserFacingError('请选择要移除的日历。')
+    rows = subscriptions(config)
+    if not any(row['provider'] == provider for row in rows):
+        raise UserFacingError('此日历不存在，请返回列表重新选择。')
+    remaining = [row for row in rows if row['provider'] != provider]
+    selected = next((row for row in remaining if row['provider'] == config.get('calendar_provider')), None)
+    selected = selected or (remaining[0] if remaining else None)
+    # Never revoke the shared feed or remove approved events for a single app.
+    return {'calendar_method': 'subscribe' if remaining else 'unset',
+            'calendar_provider': selected['provider'] if selected else '',
+            'calendar_subscription_confirmed': selected['confirmed'] if selected else 'no',
+            'calendar_subscriptions': json.dumps(remaining, ensure_ascii=False)}

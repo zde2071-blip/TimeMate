@@ -560,6 +560,35 @@ class CloudTests(unittest.TestCase):
    self.assertEqual(save(provider,ident).status_code,400)
    self.assertEqual(self.state(self.a,self.ta).json['config'],before)
 
+ def test_remove_calendar_preserves_others_feed_and_events(self):
+  def save(client,token,provider):
+   return self.post(client,'/api/calendar/settings',{'calendar_method':'subscribe','calendar_provider':provider,'calendarProfileId':'','calendar_subscription_confirmed':'yes'},token)
+  self.assertEqual(save(self.a,self.ta,'apple').status_code,200)
+  self.assertEqual(save(self.a,self.ta,'outlook').status_code,200)
+  self.assertEqual(save(self.b,self.tb,'apple').status_code,200)
+  url=self.post(self.a,'/api/calendar/subscription',{},self.ta).json['url']
+  engine=self.app.store.engine(self.ua)
+  with engine.db() as c:
+   c.execute("INSERT INTO calendar_events(mail_id,event_index,status,detail,created) VALUES('retained',0,'subscribed','{}',0)")
+  self.assertEqual(self.post(self.a,'/api/calendar/remove',{'calendarProfileId':'apple'},self.ta).status_code,200)
+  cfg=self.state(self.a,self.ta).json['config']
+  self.assertEqual(json.loads(cfg['calendar_subscriptions']),[{'provider':'outlook','confirmed':'yes'}])
+  self.assertEqual(cfg['calendar_provider'],'outlook')
+  self.assertEqual(self.post(self.a,'/api/calendar/subscription',{},self.ta).json['url'],url)
+  self.assertEqual(len(json.loads(self.state(self.b,self.tb).json['config']['calendar_subscriptions'])),1)
+  for ident in ('apple','unknown',None):
+   self.assertEqual(self.post(self.a,'/api/calendar/remove',{'calendarProfileId':ident},self.ta).status_code,400)
+   self.assertEqual(self.state(self.a,self.ta).json['config'],cfg)
+  self.assertEqual(self.post(self.a,'/api/calendar/remove',{'calendarProfileId':'outlook'},self.ta).status_code,200)
+  restarted=create_app(self.tmp.name,self.key)
+  remaining=restarted.store.engine(self.ua).CFG
+  self.assertEqual(remaining['calendar_method'],'unset')
+  self.assertEqual(remaining['calendar_provider'],'')
+  self.assertEqual(json.loads(remaining['calendar_subscriptions']),[])
+  with engine.db() as c:self.assertEqual(c.execute('SELECT COUNT(*) FROM calendar_events').fetchone()[0],1)
+  self.assertEqual(save(self.a,self.ta,'apple').status_code,200)
+  self.assertEqual(self.post(self.a,'/api/calendar/subscription',{},self.ta).json['url'],url)
+
  def test_old_calendar_migrates_when_another_calendar_is_added(self):
   engine=self.app.store.engine(self.ua)
   engine.CFG.update(calendar_method='subscribe',calendar_provider='apple',calendar_subscription_confirmed='yes')

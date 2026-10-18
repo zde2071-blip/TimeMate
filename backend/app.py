@@ -684,6 +684,10 @@ class APIHandler:
             elif self.path=='/api/events/extract': job(lambda:extract_events(d['id']))
             elif self.path=='/api/calendar/export':
                 return self.reply(200,{'ics':export_calendar_event(d)})
+            elif self.path=='/api/calendar/remove':
+                CFG.update(calendar_settings.remove(CFG,d))
+                PREFS.write_text(json.dumps({k:CFG[k] for k in DEFAULTS},ensure_ascii=False))
+                STATUS['message']='日历已移除。'
             elif self.path=='/api/calendar/settings':
                 CFG.update(calendar_settings.update(CFG,d))
                 PREFS.write_text(json.dumps({k:CFG[k] for k in DEFAULTS},ensure_ascii=False))
