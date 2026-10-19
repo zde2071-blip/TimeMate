@@ -2,9 +2,13 @@
 const {chromium}=require('playwright');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict');
+async function newChat(page){
+ if(!await page.locator('#chat-new').isVisible())await page.locator('#chat-history-expand').click();
+ await page.locator('#chat-new').click();
+}
 (async()=>{
  const server=spawn(path.resolve('.venv/bin/python'),['tests/chat_browser_server.py'],{cwd:process.cwd(),stdio:['ignore','pipe','pipe']});
- let browser,errors=[],serverLog='';
+ let browser,currentPage,errors=[],serverLog='';
  server.stderr.on('data',chunk=>serverLog+=chunk);
  try {
   const origin=await new Promise((resolve,reject)=>{
@@ -14,7 +18,8 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
   });
   browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
   for (const width of [1440,390]) {
-   const page=await browser.newPage({viewport:{width,height:1000}});
+   const page=await browser.newPage({viewport:{width,height:1000}});currentPage=page;page.setDefaultTimeout(12000);
+   console.log(width+': opening chat');
    page.on('pageerror',error=>errors.push(error.message));
    await page.goto(origin+'/fixture-login');
    await page.locator('#connection-welcome').waitFor({state:'visible'});
@@ -22,13 +27,14 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.locator('.connection-collapse').click();
    await page.locator('#nav-chat').click();
    await page.locator('#chat-input').waitFor({state:'visible'});
-   await page.locator('#chat-new').click();
+   await newChat(page);
    assert.equal(await page.locator('#chat-approval-name').textContent(),'逐项确认');
    // Build a readable exam image using the browser, then send it through the actual upload path.
    const imagePage=await browser.newPage({viewport:{width:800,height:500}});
    await imagePage.setContent('<html><meta charset="utf-8"><body style="padding:40px;font:24px sans-serif"><h1>考试与提交安排</h1><p>ISA104 项目：2026年10月25日23:59截止</p><p>SOE104 考试：2026年10月26日09:00—11:00</p><p>地点：FB308</p></body></html>');
    const image=await imagePage.screenshot();await imagePage.close();
    assert.equal(await page.locator('#chat-form #chat-approval-menu').count(),1);
+   console.log(width+': composer available');
    await page.locator('#chat-approval-menu summary').click();
    await page.getByText('整理出事项，由你逐条点击添加。',{exact:true}).waitFor({state:'visible'});
    await page.locator('[data-approval-mode=confirm]').click();
@@ -39,7 +45,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.locator('#settings-page').waitFor({state:'visible'});
    assert.equal(await page.locator('.settings-nav-item[aria-current="page"]').getAttribute('data-setting'),'ai');
    await page.locator('#nav-chat').click();
-   await page.locator('#chat-new').click();
+   await newChat(page);
    // Exercise the browser paste event with the same files/items data used by Cmd/Ctrl+V.
    await page.locator('#chat-input').fill('图片');
    await page.locator('#chat-input').evaluate((input,encoded)=>{
@@ -56,49 +62,82 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    assert.equal(await page.locator('.chat-attachment').count(),0);
    await page.locator('#chat-input').fill('');
 
-   await page.locator('#chat-image-input').setInputFiles({name:'考试安排.png',mimeType:'image/png',buffer:image});
-   await page.locator('.chat-attachment').waitFor();
+   await page.locator('#chat-image-input').setInputFiles([{name:'考试安排.png',mimeType:'image/png',buffer:image},{name:'课程安排.png',mimeType:'image/png',buffer:image}]);
+   await page.locator('#chat-input').fill('整理这两张图片的多项考试');
    await page.locator('#chat-send').click();
-   await page.locator('.chat-event-card').first().waitFor();
-   assert.equal(await page.locator('.chat-event-list').evaluate(node=>getComputedStyle(node).borderTopWidth),'0px','event list must not inherit a nested panel border');
-   assert.equal(await page.locator('.chat-event-add').count(),2);
+   console.log(width+': sent multi-item material');
+   await page.locator('.chat-compact-events').waitFor();
+   assert.equal(await page.locator('.chat-compact-row').count(),5,'long material starts compact');
+   await page.getByRole('button',{name:'展开其余 3 项',exact:true}).click();
+   assert.equal(await page.locator('.chat-compact-row').count(),8);
+   assert.equal(await page.locator('.chat-sent-images img').count(),2);
+   const user=await page.locator('.is-user .chat-message-content').first().boundingBox();
+   const assistant=await page.locator('.is-assistant .chat-message-content').first().boundingBox();
+   assert.ok(user.x>assistant.x,'user messages align right');
+   assert.ok((await page.locator('.chat-compact-events').textContent()).includes('时间待定'));
+   assert.equal((await page.locator('.chat-compact-events').textContent()).includes('00:00'),false);
+   const firstIds=await page.locator('.chat-compact-row').evaluateAll(rows=>rows.map(row=>row.dataset.proposalId).sort());
+   await page.locator('#chat-input').fill('统一2026年，最后一项我稍后填写');await page.locator('#chat-send').click();
+   await page.getByText('年份已确认。第8项的具体日期是什么时候？',{exact:true}).waitFor();
+   assert.equal(await page.locator('.chat-compact-events').count(),1,'follow-up moves one live list instead of duplicating cards');
+   // Expanding is retained by the stable first ID, but tolerate initial ordering.
+   if(await page.getByRole('button',{name:'展开其余 3 项',exact:true}).isVisible())await page.getByRole('button',{name:'展开其余 3 项',exact:true}).click();
+   const finalIds=await page.locator('.chat-compact-row').evaluateAll(rows=>rows.map(row=>row.dataset.proposalId).sort());
+   assert.deepEqual(finalIds,firstIds,'follow-up preserves proposal IDs');
+   await page.getByRole('button',{name:'编辑 课程 8 考试',exact:true}).click();
+   assert.equal(await page.locator('#chat-edit-start').inputValue(),'','unknown date must not be guessed');
+   await page.locator('#chat-edit-start').fill('2026-11-08');
+   await page.locator('#chat-event-edit-save').click();
+   await page.locator('#chat-event-editor').waitFor({state:'hidden'});
+   await page.getByRole('checkbox',{name:'选择 课程 1 考试',exact:true}).uncheck();
+   await page.getByRole('button',{name:'添加所选 (7)',exact:true}).click();
+   await page.waitForFunction(()=>document.querySelectorAll('.chat-compact-saved').length===7);
+   await page.getByRole('checkbox',{name:'选择 课程 1 考试',exact:true}).check();
+   await page.getByRole('button',{name:'添加所选 (1)',exact:true}).click();
+   await page.waitForFunction(()=>document.querySelectorAll('.chat-compact-saved').length===8);
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-chat-actions-ready-${width}.png`)});
-   assert.equal(await page.locator('.chat-attachment').count(),0);
-   await page.locator('.chat-event-add').first().click();
-   await page.locator('.chat-event-state').first().waitFor();
-   assert.equal(await page.locator('.chat-event-add').count(),1);
    await page.reload();await page.locator('#nav-chat').click();
-   await page.locator('.chat-event-state').first().waitFor();
-   assert.equal(await page.locator('.chat-event-add').count(),1,'pending action survives reload');
-   await page.locator('.chat-event-add').click();
-   await page.waitForFunction(()=>document.querySelectorAll('.chat-event-state').length===2);
+   await page.locator('.chat-compact-events').waitFor();
+   assert.equal(await page.locator('.chat-batch-add').textContent(),'已添加');
+   // Search/filter and collapse are usable on both desktop and the mobile drawer.
+   if(!await page.locator('#chat-history-search').isVisible())await page.locator('#chat-history-expand').click();
+   await page.locator('#chat-history-search').fill('不存在的对话');
+   await page.getByText('没有匹配的对话',{exact:true}).waitFor();
+   assert.equal(await page.locator('.chat-history-row').count(),0);
+   await page.locator('#chat-history-search').fill('多项');
+   assert.equal(await page.locator('.chat-history-row').count(),1);
+   await page.locator('#chat-history-collapse').click();
+   assert.equal(await page.locator('.chat-history-pane').isVisible(),false);
+   await page.reload();await page.locator('#nav-chat').click();
+   assert.equal(await page.locator('.chat-history-pane').isVisible(),false,'collapse preference survives reload');
    await page.locator('#nav-important').click();
    await page.getByRole('button',{name:'日程安排',exact:true}).click();
-   await page.locator('.important-source-title').filter({hasText:'SOE104'}).first().waitFor({state:'visible'});
-   await page.locator('.important-source-title').filter({hasText:'SOE104'}).first().click();
+   await page.locator('.important-source-title').filter({hasText:'课程 1'}).first().waitFor({state:'visible'});
+   await page.locator('.important-source-title').filter({hasText:'课程 1'}).first().click();
    await page.locator('#chat-input').waitFor({state:'visible'});
-   await page.locator('#chat-new').click();
+   await newChat(page);
    await page.locator('#chat-approval-menu summary').click();
    await page.locator('[data-approval-mode=auto]').click();
    await page.locator('#chat-input').fill('整理并加入这些事项');await page.locator('#chat-send').click();
-   await page.locator('.chat-event-state').first().waitFor();
-   assert.equal(await page.locator('.chat-event-add').count(),0,'automatic mode avoids confirmation for exact duplicates');
-   const labels=await page.locator('.chat-event-state').allTextContents();
-   assert.ok(labels.every(text=>text.includes('已有相同事项')));
-   await page.locator('#chat-new').click();
-   await page.locator('#chat-input').fill('整理这个不完整的考试时间');await page.locator('#chat-send').click();
-   await page.getByRole('button',{name:'补充信息',exact:true}).waitFor();
-   assert.equal(await page.locator('.chat-event-add').count(),0,'missing end time never writes in auto mode');
+   await page.locator('.chat-compact-saved').first().waitFor();
+   await newChat(page);
+   await page.locator('#chat-input').fill('整理并加入这些事项');await page.locator('#chat-send').click();
+   await page.getByText('已有相同事项',{exact:true}).first().waitFor();
+   assert.equal(await page.locator('.chat-compact-saved').count(),2);
+   await newChat(page);
+   await page.locator('#chat-input').fill('只知道日期');await page.locator('#chat-send').click();
+   await page.getByText('这些日程没有具体钟点，要先按日期添加并标记“时间待定”吗？',{exact:false}).waitFor();
+   assert.equal(await page.locator('.chat-compact-saved').count(),0,'date-only activity needs consent in auto mode');
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-chat-actions-${width}.png`)});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no horizontal overflow');
-   await page.locator('#chat-new').click();
+   await newChat(page);
    await page.locator('#chat-image-input').setInputFiles({name:'考试.png',mimeType:'image/png',buffer:image});
    await page.locator('.chat-attachment').waitFor();
    await page.locator('#chat-input').fill('不支持图片');await page.locator('#chat-send').click();
    await page.getByText('当前模型或接口不支持这次图片输入',{exact:false}).waitFor();
    assert.equal(await page.locator('.chat-attachment').count(),1,'failed request keeps attachment for retry');
 
-   await page.locator('#chat-new').click();
+   await newChat(page);
    await page.locator('#chat-model-menu summary').click();
    await page.locator('#chat-model-settings').click();
    await page.locator('#ai-profile-new').click();
@@ -110,11 +149,11 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.locator('.ai-provider-row').waitFor();
    assert.equal(await page.locator('.ai-library-label').textContent(),'我的模型');
    assert.equal(await page.locator('#ai-settings #ai-mail-model').count(),0,'mail analysis is only inside editor');
-   assert.equal(await page.locator('.ai-provider-edit svg').count(),1,'edit control includes icon');
+   assert.equal(await page.locator('.ai-provider-row .settings-entry-connected').count(),1,'service row keeps its connection status');
    assert.equal(await page.locator('.ai-provider-row').evaluate(node=>getComputedStyle(node).borderBottomWidth),'0px');
    const mailBefore='first-model';
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-ai-library-${width}.png`)});
-   await page.getByRole('button',{name:'编辑DeepSeek',exact:true}).click();
+   await page.getByRole('button',{name:'设置 DeepSeek',exact:true}).click();
    assert.equal(await page.locator('#key').inputValue(),'');
    assert.equal(await page.locator('#ai-model-tab').getAttribute('aria-selected'),'true');
    assert.equal(await page.locator('.ai-mail-choice[aria-pressed=true]').getAttribute('data-model'),mailBefore,'first added model is mail default');
@@ -149,12 +188,12 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    assert.equal(await page.locator('#key').isVisible(),true,'replacement can be reopened');
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-ai-connection-${width}.png`)});
    await page.getByRole('button',{name:'取消',exact:true}).click();
-   await page.getByRole('button',{name:'编辑DeepSeek',exact:true}).click();
+   await page.getByRole('button',{name:'设置 DeepSeek',exact:true}).click();
    assert.equal(await page.locator('.ai-mail-choice[aria-pressed=true]').getAttribute('data-model'),mailBefore,'cancel discards default change');
    assert.equal(await page.locator('#key').inputValue(),'','cancel discards unsaved replacement key');
    await page.locator('#ai-profile-dialog .modal-close-x').click();
    await page.locator('#nav-chat').click();
-   await page.locator('#chat-new').click();
+   await newChat(page);
    await page.locator('#chat-model-menu summary').click();
    assert.equal(await page.locator('.chat-model-settings-footer').evaluate(n=>getComputedStyle(n).borderTopWidth),'1px','settings is separated from models');
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-model-menu-${width}.png`)});
@@ -163,7 +202,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.locator('#chat-input').fill('查询当前连接');await page.locator('#chat-send').click();
    await page.getByText('当前模型：second-model',{exact:true}).waitFor();
    await page.locator('#chat-model-menu summary').click();await page.locator('#chat-model-settings').click();
-   await page.getByRole('button',{name:'编辑DeepSeek',exact:true}).click();
+   await page.getByRole('button',{name:'设置 DeepSeek',exact:true}).click();
    assert.equal(await page.locator('.ai-mail-choice[aria-pressed=true]').getAttribute('data-model'),mailBefore,'chat selection leaves mail analysis unchanged');
    await page.locator('.ai-mail-choice[data-model="second-model"]').click();
    await page.locator('#ai-save').click();
@@ -205,6 +244,9 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
    await page.close();
   }
   assert.deepEqual(errors,[]);
+ } catch(error) {
+  if(currentPage){await currentPage.screenshot({path:path.join(os.tmpdir(),'timemate-chat-failure.png')}).catch(()=>{});console.error('PAGE ERRORS:',errors);console.error(serverLog.slice(-5000));}
+  throw error;
  } finally {
   if(browser)await browser.close();
   server.kill('SIGTERM');

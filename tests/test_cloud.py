@@ -193,6 +193,29 @@ class CloudTests(unittest.TestCase):
   self.assertEqual(self.post(self.a,'/api/chat/events/add',{'padding':'x'*21_000},self.ta).status_code,413)
   self.assertEqual(self.post(self.a,'/api/chat',{'message':'x'*10_000_000},self.ta).status_code,413)
   self.assertEqual(self.post(self.anon,'/api/chat',{'images':[{'dataUrl':image}]}).status_code,401)
+ def test_chat_drafts_batch_and_image_cache_stay_private(self):
+  import base64
+  from tests.test_chat_actions import EXAM
+  engine=self.app.store.engine(self.ua)
+  engine.CFG.update(key='configured-test-key',model='test-model')
+  image='data:image/png;base64,'+base64.b64encode(b'\x89PNG\r\n\x1a\n'+b'0'*30).decode()
+  with patch.object(engine.ai_services,'complete',return_value={'reply':'整理好了。','events':[EXAM]}):
+   first=self.post(self.a,'/api/chat',{'images':[{'dataUrl':image,'name':'考试.png'}]},self.ta)
+  self.assertEqual(first.status_code,200)
+  ident=first.json['events'][0]['id'];cid=first.json['conversationId']
+  for route,data in [('/api/chat/events/batch',{'ids':[ident]}),('/api/chat/events/edit',{'id':ident,'fields':{'title':'跨用户修改'}})]:
+   self.assertEqual(self.post(self.b,route,data,self.tb).status_code,400)
+   self.assertEqual(self.post(self.anon,route,data).status_code,401)
+  with self.app.store.db() as c:
+   encrypted=c.execute('SELECT value FROM credentials WHERE user_id=? AND identity=?',(self.ua,'chat-images:'+cid)).fetchone()[0]
+  self.assertNotIn(image.encode(),encrypted)
+  self.assertNotIn(image,self.app.store.engine(self.ua).DB.read_bytes().decode('latin1'))
+  self.assertEqual(self.b.get('/api/chat/conversation?id='+cid,headers={'X-Token':self.tb}).status_code,400)
+  result=self.post(self.a,'/api/chat/events/batch',{'ids':[ident]},self.ta)
+  self.assertEqual(result.status_code,200);self.assertEqual(result.json['events'][0]['status'],'added')
+  self.post(self.a,'/api/chat/delete',{'id':cid},self.ta)
+  with self.app.store.db() as c:
+   self.assertIsNone(c.execute('SELECT 1 FROM credentials WHERE identity=?',('chat-images:'+cid,)).fetchone())
  def test_external_javascript_and_page_token(self):
   response=self.anon.get('/main.js')
   self.assertEqual(response.status_code,200)

@@ -4,7 +4,7 @@ import sqlite3
 import threading
 from backend.mail import titles as mail_titles
 from backend.mail import dates as mail_dates
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 MAIL_COLUMNS = {
     'original': 'TEXT', 'source_links': 'TEXT',
     'source': "TEXT NOT NULL DEFAULT 'manual'",
@@ -101,6 +101,10 @@ def initialize(connection):
             connection.execute('CREATE INDEX IF NOT EXISTS mails_mailbox ON mails(mailbox_id)')
             for action in ('INSERT','UPDATE','DELETE'):
                 connection.execute(f"CREATE TRIGGER IF NOT EXISTS revision_mail_accounts_{action.lower()} AFTER {action} ON mail_accounts BEGIN UPDATE state_revision SET revision=revision+1 WHERE id=1; END")
+        if version < 11:
+            connection.execute("CREATE TABLE IF NOT EXISTS chat_workspaces(conversation_id TEXT PRIMARY KEY, data TEXT NOT NULL DEFAULT '{}')")
+            if 'batch_id' not in {row[1] for row in connection.execute('PRAGMA table_info(chat_event_proposals)')}:
+                connection.execute("ALTER TABLE chat_event_proposals ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''")
         connection.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
         connection.commit()
     except Exception:

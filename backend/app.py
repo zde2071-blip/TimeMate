@@ -375,6 +375,7 @@ def export_calendar_event(data):
     normalized=normalize_events([data])
     if not normalized or not normalized[0]['end']: raise UserFacingError('请核对日程标题和起止时间。')
     event=normalized[0]
+    if event['allDay'] and data.get('timePrecision')=='date': event['title']+='（时间待定）'
     def escape(value):
         return str(value).replace('\\','\\\\').replace('\r\n','\n').replace('\r','\n').replace('\n','\\n').replace(';','\\;').replace(',','\\,')
     start=datetime.fromisoformat(event['start']); end=datetime.fromisoformat(event['end'])
@@ -591,7 +592,7 @@ class APIHandler:
                 row['links'] = []
             return row
         reader = MailReadModel(db, CFG, STATUS, ai_services.PROVIDERS, decorate)
-        chat = MailChat(db, CFG, model_reply)
+        chat = MailChat(db, CFG, model_reply, RUNTIME.credential if RUNTIME else None)
         query = getattr(self, 'query', {})
         try:
             if self.path == '/api/state':
@@ -657,11 +658,15 @@ class APIHandler:
                 save_ai_profile({**profile,'profileId':profile['id'],'model':d['model'],'makeDefault':True})
                 return self.reply(200,{'ok':True})
             elif self.path=='/api/chat':
-                return self.reply(200,MailChat(db,chat_config(d),model_reply).send(d))
+                return self.reply(200,MailChat(db,chat_config(d),model_reply, RUNTIME.credential if RUNTIME else None).send(d))
+            elif self.path=='/api/chat/events/edit':
+                return self.reply(200,MailChat(db,CFG,model_reply).edit_event(d))
+            elif self.path=='/api/chat/events/batch':
+                return self.reply(200,MailChat(db,CFG,model_reply).add_events(d))
             elif self.path=='/api/chat/events/add':
-                return self.reply(200,MailChat(db,CFG,model_reply).add_event(d))
+                return self.reply(200,MailChat(db,CFG,model_reply, RUNTIME.credential if RUNTIME else None).add_event(d))
             elif self.path=='/api/chat/delete':
-                MailChat(db,CFG,model_reply).delete(d.get('id'))
+                MailChat(db,CFG,model_reply, RUNTIME.credential if RUNTIME else None).delete(d.get('id'))
                 return self.reply(200,{'ok':True})
             elif self.path=='/api/pin':
                 update_pin(d)

@@ -1,9 +1,10 @@
 // Saved deadlines, calendar events and explicit source-mail links.
 
-function formatEventTime(start, end, allDay) {
+function formatEventTime(start, end, allDay, timePrecision) {
   let begin = String(start || ''),
     finish = String(end || '');
   if (!begin) return '时间待确认';
+  if (timePrecision === 'date' && allDay) return begin.slice(0,10) + ' · 时间待定';
   if (allDay) {
     let first = begin.slice(0, 10),
       last = finish.slice(0, 10);
@@ -29,7 +30,7 @@ function eventContent(event, action, locationFallback = '待确认', deadlineRem
   }
   copy.append(title);
   if (action && action !== event.title) copy.append(element('p', '待办：' + action, 'meta'));
-  if (event.kind === '截止') copy.append(element('p', '截止时间：' + (event.allDay ? String(event.start || '').slice(0, 10) : String(event.start || '').slice(0, 16).replace('T', ' ')), 'meta'));else copy.append(element('p', '时间：' + formatEventTime(event.start, event.end, event.allDay), 'meta'));
+  if (event.kind === '截止') copy.append(element('p', '截止时间：' + (event.allDay ? String(event.start || '').slice(0, 10) : String(event.start || '').slice(0, 16).replace('T', ' ')), 'meta'));else copy.append(element('p', '时间：' + formatEventTime(event.start, event.end, event.allDay, event.timePrecision), 'meta'));
   let location = event.location || locationFallback;
   if (location) copy.append(element('p', '地点：' + location, 'meta'));
   return copy;
