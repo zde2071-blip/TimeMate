@@ -146,10 +146,10 @@ function mailEventParts(event, action, location, item, busy) {
   heading.append(edit);
   const details = element('div', '', 'mail-event-details');
   if (action && action !== event.title) details.append(element('p', '待办：' + action, 'meta mail-event-action'));
-  const time = event.kind === '截止' ? (event.allDay ? String(event.start || '').slice(0, 10) : String(event.start || '').slice(0, 16).replace('T', ' ')) : formatEventTime(event.start, event.end, event.allDay, event.timePrecision);
+  const time = eventTimeLabel(event);
   const date = element('p', '', 'meta mail-event-meta');
-  date.setAttribute('aria-label', (event.kind === '截止' ? '截止时间：' : '时间：') + time);
-  date.append(eventIcon('calendar'), element('span', (event.kind === '截止' ? '截止时间：' : '时间：') + time));
+  date.setAttribute('aria-label', time);
+  date.append(eventIcon('clock'), element('span', time));
   details.append(date);
   if (location) {
     const place = element('p', '', 'meta mail-event-meta');

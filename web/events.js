@@ -4,7 +4,7 @@ function formatEventTime(start, end, allDay, timePrecision) {
   let begin = String(start || ''),
     finish = String(end || '');
   if (!begin) return '时间待确认';
-  if (timePrecision === 'date' && allDay) return begin.slice(0,10) + ' · 时间待定';
+  if (timePrecision === 'date' && allDay) return begin.slice(0,10) + '（时间待定）';
   if (allDay) {
     let first = begin.slice(0, 10),
       last = finish.slice(0, 10);
@@ -16,14 +16,21 @@ function formatEventTime(start, end, allDay, timePrecision) {
     return first + (last && last > first ? '–' + last : '') + '（全天）';
   }
   let first = begin.slice(0, 16).replace('T', ' ');
-  if (!finish) return first + ' · 结束时间待补充';
+  if (!finish) return first + '（结束时间待补充）';
   return first + '–' + (finish.slice(0, 10) === begin.slice(0, 10) ? finish.slice(11, 16) : finish.slice(0, 16).replace('T', ' '));
+}
+function eventTimeLabel(event) {
+  if (event.kind === '截止') {
+    const start = String(event.start || '');
+    return (event.allDay ? start.slice(0, 10) : start.slice(0, 16).replace('T', ' ')) + '（截止）';
+  }
+  return formatEventTime(event.start, event.end, event.allDay, event.timePrecision);
 }
 function eventIcon(name) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   for (const [key, value] of Object.entries({viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', 'stroke-width':'1.7', 'stroke-linecap':'round', 'stroke-linejoin':'round', 'aria-hidden':'true'})) svg.setAttribute(key, value);
   const paths = {
-    calendar: ['M5 5h14a2 2 0 0 1 2 2v13H3V7a2 2 0 0 1 2-2Z', 'M8 3v4M16 3v4M3 11h18M8 15h2M14 15h2'],
+    clock: ['M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z', 'M12 7v5l3 2'],
     location: ['M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z', 'M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z'],
     edit: ['m16 3 5 5-12 12-6 1 1-6L16 3Z', 'm13 6 5 5'],
     plus: ['M12 5v14M5 12h14'],
@@ -58,9 +65,9 @@ function eventContent(event, action, locationFallback = '待确认', deadlineRem
     todo.append(eventIcon('todo'), element('span', action));
     copy.append(todo);
   }
-  const time = event.kind === '截止' ? '截止时间：' + (event.allDay ? String(event.start || '').slice(0, 10) : String(event.start || '').slice(0, 16).replace('T', ' ')) : '时间：' + formatEventTime(event.start, event.end, event.allDay, event.timePrecision);
+  const time = eventTimeLabel(event);
   const date = element('p', '', 'meta important-card-meta important-card-time');
-  date.append(eventIcon('calendar'), element('span', time));
+  date.append(eventIcon('clock'), element('span', time));
   copy.append(date);
   let location = event.location || locationFallback;
   if (location) {

@@ -25,6 +25,9 @@ const path = require('node:path'), os = require('node:os'), assert = require('no
       assert.equal(await rows.count(), 2);
       const first = rows.first();
       const [date, place] = await first.locator('.mail-event-meta').all();
+      assert.equal(await date.textContent(), '2026-10-23 14:00–15:00');
+      assert.equal(await rows.nth(1).locator('.mail-event-meta').first().textContent(), '2026-10-30 23:59（截止）');
+      assert.equal(await date.locator('svg').innerHTML(), await rows.nth(1).locator('.mail-event-meta svg').first().innerHTML());
       const dateBox = await date.boundingBox(), placeBox = await place.boundingBox();
       assert.ok(placeBox.y >= dateBox.y + dateBox.height - 1, 'date and location are separate lines');
       const edit = first.getByRole('button', {name: '编辑事项：ADS102 课堂测试', exact: true});
@@ -62,16 +65,16 @@ const path = require('node:path'), os = require('node:os'), assert = require('no
       const deadline = rows.nth(1);
       await deadline.getByRole('button', {name: '加入截止事项', exact: true}).click();
       await deadline.locator('.mail-event-saved').getByText('已添加', {exact: true}).waitFor();
-      // Approved important cards: identical calendar icons, distinct labels, working menus/source.
+      // Approved important cards: identical clock icons, compact time text, working menus/source.
       await page.locator('#nav-important').click();
       await page.mouse.move(width - 5, 10);
       const scheduleCard = page.locator('.calendar-entry.schedule');
       const deadlineCard = page.locator('.calendar-entry.deadline');
       await scheduleCard.waitFor();
       await deadlineCard.waitFor();
-      assert.match(await scheduleCard.locator('.important-card-time').textContent(), /^时间：/);
-      assert.match(await deadlineCard.locator('.important-card-time').textContent(), /^截止时间：/);
-      assert.equal(await scheduleCard.locator('.important-card-time svg').innerHTML(), await deadlineCard.locator('.important-card-time svg').innerHTML(), 'schedule and deadline use one calendar icon');
+      assert.equal(await scheduleCard.locator('.important-card-time').textContent(), '2026-10-23 14:00–15:00');
+      assert.equal(await deadlineCard.locator('.important-card-time').textContent(), '2026-10-30 23:59（截止）');
+      assert.equal(await scheduleCard.locator('.important-card-time svg').innerHTML(), await deadlineCard.locator('.important-card-time svg').innerHTML(), 'schedule and deadline use one clock icon');
       for (const card of [scheduleCard, deadlineCard]) {
         const titleBox = await card.locator('.event-copy>strong').boundingBox();
         const menuBox = await card.locator('.event-manage>summary').boundingBox();
