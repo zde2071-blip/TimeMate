@@ -2898,7 +2898,7 @@ body.mail-layout .summary-heading { color:#7a8791; font-size:12px; margin:0 0 12
 body.mail-layout .summary-text { color:#29333b; font-size:15px; line-height:1.9; margin:0; }
 body.mail-layout .todo-divider { border:0; border-top:1px solid #e9ebee; margin:28px 0 24px; }
 body.mail-layout .event-row { display:flex; flex-direction:column; align-items:stretch; gap:10px; margin:0; padding:16px 0 20px; }
-body.mail-layout .event-row + .event-row { border-top:1px solid #e5e8ea; padding-top:20px; }
+body.mail-layout .event-row + .event-row { padding-top:20px; }
 body.mail-layout .event-row span { flex:initial; min-width:0; }
 body.mail-layout .event-row strong { color:#29333b; font-size:15px; }
 body.mail-layout .event-row .meta { color:#7a8791; font-size:13px; }
@@ -2966,7 +2966,8 @@ body.mail-layout .inline-mail-source .meta { color:#7a8791; font-size:12px; }
 #chat-model-name { max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .chat-model-options { position:absolute; z-index:5; right:0; bottom:calc(100% + 12px); width:220px; padding:6px; border:1px solid #e4e6e8; border-radius:12px; background:#fff; box-shadow:0 6px 28px #00000015; }
 #chat-model-current { display:block; padding:9px; color:#788188; overflow-wrap:anywhere; font-size:12px; }
-.chat-composer-footer #chat-model-settings { display:block; width:100%; padding:9px; text-align:left; background:transparent; color:#344047; font-size:13px; }
+.chat-composer-footer #chat-model-settings { display:flex; align-items:center; gap:8px; width:100%; padding:9px; text-align:left; background:transparent; color:#344047; font-size:13px; }
+.chat-composer-footer #chat-model-settings svg { width:18px; height:18px; }
 .chat-composer-footer #chat-model-settings:hover { background:#f3f4f5; }
 .chat-model-settings-footer { border-top:1px solid #e4e6e8; margin-top:6px; padding-top:6px; }
 .chat-composer-footer #chat-send { display:grid; place-items:center; flex:none; width:36px; height:36px; padding:7px; border-radius:50%; background:#263238; color:white; }
@@ -3483,7 +3484,8 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 #chat-history-search { min-width:0;width:100%;height:36px;margin:0;padding:8px 10px;border:1px solid #e4e6e8;border-radius:8px;background:#fafbfb;color:#293238;font-size:13px; }
 .chat-sidebar-toggle { display:grid;place-items:center;flex:none;width:32px;height:32px;margin:0;padding:6px;border:0;border-radius:7px;background:transparent;color:#78828b; }
 .chat-sidebar-toggle svg { width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round; }
-#chat-new { margin:0;padding:10px;text-align:left;background:transparent;color:#293238;font-size:13px; }
+#chat-new { display:flex;align-items:center;gap:9px;margin:0;padding:10px;text-align:left;background:transparent;color:#293238;font-size:13px; }
+#chat-new svg { flex:none;width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round; }
 .chat-header { min-height:52px;border:0;padding:12px 0 4px; }
 .chat-message.is-user { display:flex;flex-direction:column;align-items:flex-end; }
 .chat-message.is-user .chat-message-label { display:none; }
