@@ -134,6 +134,48 @@ function mailActionIcon(action) {
   }
   return svg;
 }
+function mailEventIcon(name) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  for (const [key, value] of Object.entries({viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', 'stroke-width':'1.7', 'stroke-linecap':'round', 'stroke-linejoin':'round', 'aria-hidden':'true'})) svg.setAttribute(key, value);
+  const paths = {
+    calendar: ['M5 5h14a2 2 0 0 1 2 2v13H3V7a2 2 0 0 1 2-2Z', 'M8 3v4M16 3v4M3 11h18M8 15h2M14 15h2'],
+    location: ['M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z', 'M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z'],
+    edit: ['m16 3 5 5-12 12-6 1 1-6L16 3Z', 'm13 6 5 5'],
+    plus: ['M12 5v14M5 12h14'],
+    check: ['m5 12 4 4L19 6']
+  };
+  for (const d of paths[name] || []) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
+}
+function mailEventParts(event, action, location, item, busy) {
+  const heading = element('div', '', 'mail-event-heading');
+  heading.append(element('strong', event.title || '事项'));
+  const edit = element('button', '', 'mail-event-edit');
+  edit.type = 'button';
+  edit.setAttribute('aria-label', '编辑事项：' + (event.title || '事项'));
+  edit.append(mailEventIcon('edit'), element('span', '编辑'));
+  edit.disabled = busy;
+  edit.onclick = () => openEventEditor(item);
+  heading.append(edit);
+  const details = element('div', '', 'mail-event-details');
+  if (action && action !== event.title) details.append(element('p', '待办：' + action, 'meta mail-event-action'));
+  const time = event.kind === '截止' ? (event.allDay ? String(event.start || '').slice(0, 10) : String(event.start || '').slice(0, 16).replace('T', ' ')) : formatEventTime(event.start, event.end, event.allDay, event.timePrecision);
+  const date = element('p', '', 'meta mail-event-meta');
+  date.setAttribute('aria-label', (event.kind === '截止' ? '截止时间：' : '时间：') + time);
+  date.append(mailEventIcon('calendar'), element('span', time));
+  details.append(date);
+  if (location) {
+    const place = element('p', '', 'meta mail-event-meta');
+    place.setAttribute('aria-label', '地点：' + location);
+    place.append(mailEventIcon('location'), element('span', location));
+    details.append(place);
+  }
+  return {heading, details};
+}
 function renderMailSelection(d) {
   let pane = $('mail-detail-pane');
   pane.replaceChildren();
@@ -224,13 +266,24 @@ function renderMailDetail(m, d, written) {
         row = element('div', '', 'event-row'),
         isDeadline = event.kind === '截止';
       let itemAction = eventAction(event, v);
-      let copy = eventContent(event, itemAction, event.location || (events.length === 1 && v.location && v.location !== '未说明' ? v.location : '待确认'));
-      row.append(copy);
       let target = eventTarget(d, m.id, i),
         saved = written.get(target.id + ':' + target.index);
+      const parts = mailEventParts(event, itemAction, event.location || (events.length === 1 && v.location && v.location !== '未说明' ? v.location : '待确认'), {
+        mail_id: target.id, index: target.index, kind: isDeadline ? 'deadline' : 'schedule', event, action: itemAction
+      }, d.status.busy);
+      const body = element('div', '', 'mail-event-body'),
+        controls = element('div', '', 'event-row-controls');
+      body.append(parts.details, controls);
+      row.append(parts.heading, body);
       if (isDeadline) {
         let pin = d.pins.find(p => p.mail_id === target.id && p.event_index === target.index && ['active', 'completed'].includes(p.state));
-        let b = element('button', pin ? '取消加入截止事项' : '加入截止事项', 'secondary');
+        let b = element('button', pin ? '取消加入截止事项' : '', pin ? 'secondary mail-event-cancel' : 'mail-event-add');
+        if (!pin) b.append(mailEventIcon('plus'), element('span', '加入截止事项'));
+        if (pin) {
+          const status = element('span', '', 'mail-event-saved');
+          status.append(mailEventIcon('check'), element('span', pin.state === 'completed' ? '已完成' : '已添加'));
+          controls.append(status);
+        }
         b.onclick = () => pin ? call('/api/pin', {
           id: target.id,
           index: target.index,
@@ -242,22 +295,24 @@ function renderMailDetail(m, d, written) {
           ...data,
           action: 'pin'
         }));
-        let controls = element('div', '', 'event-row-controls');
         controls.append(b);
-        row.append(controls);
       } else {
         if (saved && saved.status === 'subscribed') {
-          let cancel = element('button', '取消同步日历', 'secondary');
+          const status = element('span', '', 'mail-event-saved');
+          status.append(mailEventIcon('check'), element('span', '已添加'));
+          controls.append(status);
+          let cancel = element('button', '取消同步日历', 'secondary mail-event-cancel');
           cancel.onclick = () => call('/api/calendar/cancel', {
             id: target.id,
             index: target.index
           });
-          row.append(cancel);
+          controls.append(cancel);
         } else {
-          let b = element('button', '加入日程安排', 'secondary task');
+          let b = element('button', '', 'mail-event-add task');
+          b.append(mailEventIcon('plus'), element('span', '加入日程安排'));
           b.disabled = d.status.busy;
           b.onclick = () => addSchedule(m, event, i);
-          row.append(b);
+          controls.append(b);
         }
       }
       (visibleIndex < 3 ? a : overflow).append(row);
@@ -286,16 +341,28 @@ function renderMailDetail(m, d, written) {
   if (mailReadingId !== m.id) { mailReadingId = m.id; mailReadingMode = 'summary'; }
   const tabs = element('nav', '', 'mail-reading-tabs');
   tabs.setAttribute('aria-label', '阅读模式');
+  tabs.setAttribute('role', 'tablist');
   const source = previousSource?.dataset.mailId === String(m.id) ? previousSource : element('div', '', 'inline-mail-source');
   source.dataset.mailId = m.id;
   for (const [mode, label] of [['summary', '摘要与事项'], ['original', '原邮件']]) {
     const tab = element('button', label, mode === mailReadingMode ? 'active' : '');
+    tab.type = 'button';
+    tab.id = 'mail-reading-' + mode + '-tab';
+    tab.dataset.readingMode = mode;
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-controls', 'mail-reading-' + mode + '-panel');
+    tab.setAttribute('aria-selected', String(mode === mailReadingMode));
     tab.setAttribute('aria-pressed', String(mode === mailReadingMode));
     tab.onclick = () => { mailReadingMode = mode; renderMailDetail(m, d, written); };
     tabs.append(tab);
   }
   a.hidden = mailReadingMode !== 'summary';
   source.hidden = mailReadingMode !== 'original';
+  for (const [panel, mode] of [[a, 'summary'], [source, 'original']]) {
+    panel.id = 'mail-reading-' + mode + '-panel';
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', 'mail-reading-' + mode + '-tab');
+  }
   card.append(tabs, a, source);
   pane.append(card);
   fitMailCategorySelect(heading.querySelector('.mail-detail-category-select'));

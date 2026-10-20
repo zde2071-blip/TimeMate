@@ -4,7 +4,7 @@ class Element{constructor(tag,text=''){this.tag=tag;this.textContent=text;this.c
 const flatten=node=>[node,...node.children.flatMap(flatten)];
 async function run(){
  const pane=new Element('section'),content=[];
- const context=vm.createContext({mailSelectionMode:false,mailReadingMode:"summary",mailReadingId:null,mailSenderLabel:()=>"",mailActionIcon:()=>new Element("svg"),$:()=>pane,element:(tag,text)=>new Element(tag,text),displaySubject:s=>s,mailCategoryPicker:()=>new Element('select'),mailDateLabel:()=>'',value:s=>s,eventAction:e=>e.action,eventContent:e=>{content.push(e);return new Element('div',e.title)},Object});
+ const context=vm.createContext({mailSelectionMode:false,mailReadingMode:"summary",mailReadingId:null,mailSenderLabel:()=>"",mailActionIcon:()=>new Element("svg"),mailEventIcon:()=>new Element("svg"),fitMailCategorySelect(){},$:()=>pane,element:(tag,text)=>new Element(tag,text),displaySubject:s=>s,mailCategoryPicker:()=>new Element('select'),mailDateLabel:()=>'',value:s=>s,eventAction:e=>e.action,mailEventParts:e=>{content.push(e);return {heading:new Element('div',e.title),details:new Element('div')}},Object});
  vm.runInContext(require('./ui_source').functions("allEventMails", "eventTarget", "eventOverrideData", "applyEventOverride", "mailEventForDisplay"),context);
  vm.runInContext(require('./ui_source').functions("renderMailDetail", "visibleMails", "selectMailInList", "bulkMailAction", "markFilteredMailRead", "closeMailSettingsMenu", "countLabel", "mailListTitle", "matchesMailSearch", "setMailSearch"),context);
  const event={title:'项目截止',action:'提交主题',kind:'截止',start:'2026-10-11T00:00',end:'',allDay:true};
@@ -16,7 +16,7 @@ async function run(){
  assert.equal(content[0].start,'2026-10-11T23:59');assert.equal(content[0].action,'提交150词简介');
 
  const elements=new Map(),pending=[],renders=[];
- const refreshContext=vm.createContext({token:'test',mailSearchQuery:"",refreshIssued:0,refreshApplied:0,initialized:true,settingsFoldsInitialized:true,last:'',state:null,$:id=>{if(!elements.has(id))elements.set(id,new Element('div'));return elements.get(id)},fetch:()=>new Promise(resolve=>pending.push(resolve)),savedSecret:()=>{},connectionBadge:()=>{},renderCalendarSettings:()=>{},renderSetupGuide:()=>{},renderFieldStatuses:()=>{},renderMailControls:()=>{},document:{querySelectorAll:()=>[]},render:()=>renders.push(refreshContext.state.marker),console});
+ const refreshContext=vm.createContext({token:'test',mailSearchQuery:"",refreshIssued:0,refreshApplied:0,initialized:true,settingsFoldsInitialized:true,last:'',state:null,$:id=>{if(!elements.has(id))elements.set(id,new Element('div'));return elements.get(id)},fetch:()=>new Promise(resolve=>pending.push(resolve)),aiProfiles:[],aiEditingId:null,mailEditingId:null,renderAIProfiles(){},renderChatModel(){},renderMailboxConnection(){},renderConnectionOnboarding(){},connectedReceiver(){},savedSecret:()=>{},connectionBadge:()=>{},renderCalendarSettings:()=>{},renderSetupGuide:()=>{},renderFieldStatuses:()=>{},renderMailControls:()=>{},document:{querySelectorAll:()=>[]},render:()=>renders.push(refreshContext.state.marker),console});
  vm.runInContext(require('./ui_source').functions("refresh"),refreshContext);
  const payload=marker=>({marker,config:{},ready:{mail:true,ai:true},status:{auto:true},mails:[marker]});
  const old=refreshContext.refresh(),latest=refreshContext.refresh();
