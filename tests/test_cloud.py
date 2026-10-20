@@ -412,6 +412,18 @@ class CloudTests(unittest.TestCase):
    result=engine.translate_source('translate-cloud')
   self.assertEqual(result['html'],'<pre>请在周五前注册。</pre>')
   self.assertIn('max_tokens',complete.call_args.kwargs)
+ def test_cloud_translation_retries_english_before_returning_or_caching(self):
+  from tests.test_translation_language import SUBJECT,BODY,CHINESE,ECHO
+  engine=self.app.store.engine(self.ua)
+  engine.CFG.update(provider='deepseek',base='https://api.deepseek.com',model='test-model',key='test-key')
+  with engine.db() as c:
+   c.execute('INSERT INTO mails(id,subject,body,created,source) VALUES (?,?,?,?,?)',('language-check',SUBJECT,BODY,time.time(),'manual'))
+  with patch('backend.cloud.ai_services.complete',side_effect=[ECHO,CHINESE]) as complete:
+   result=self.post(self.a,'/api/source/translate',{'id':'language-check'},self.ta)
+   cached=self.post(self.a,'/api/source/translate',{'id':'language-check'},self.ta)
+  self.assertEqual(result.status_code,200);self.assertEqual(complete.call_count,2)
+  self.assertIn('请在周五前',result.json['html']);self.assertTrue(cached.json['cached'])
+  self.assertEqual(self.post(self.b,'/api/source/translate',{'id':'language-check'},self.tb).status_code,400)
  def test_cloud_translation_returns_sanitized_provider_error(self):
   engine=self.app.store.engine(self.ua)
   engine.CFG.update(provider='deepseek',base='https://api.deepseek.com',model='deepseek-flash',key='test-key')
