@@ -5,13 +5,14 @@ class Element{
  append(...nodes){for(const n of nodes){this.children.push(n);n.parent=this}}
  setAttribute(k,v){this[k]=v}
  addEventListener(type,handler){this.listeners[type]=handler}
+ getBoundingClientRect(){return this.bounds||{top:0,bottom:0,height:0}}
  contains(target){return this===target||this.children.some(n=>n.contains(target))}
 }
 const flatten=n=>[n,...n.children.flatMap(flatten)];
 async function run(){
  const body=new Element('body'),listeners={},timers=[];let ok=true,requests=[],editOpened=false;
  const document={body,getElementById:id=>flatten(body).find(n=>n.id===id),querySelectorAll:()=>flatten(body).filter(n=>n.className==='event-manage'&&n.open),addEventListener:(name,fn)=>listeners[name]=fn};
- const context=vm.createContext({eventFeedbackTimer:null,cleanFeedbackText:s=>s,document,element:(tag,text,cls)=>new Element(tag,text,cls),call:async(path,data)=>{requests.push(data);return ok},openEventEditor:()=>editOpened=true,setTimeout:fn=>{timers.push(fn);return timers.length},clearTimeout:()=>{}});
+ const context=vm.createContext({window:{innerHeight:900},eventIcon:()=>new Element('svg'),eventFeedbackTimer:null,cleanFeedbackText:s=>s,document,element:(tag,text,cls)=>new Element(tag,text,cls),call:async(path,data)=>{requests.push(data);return ok},openEventEditor:()=>editOpened=true,setTimeout:fn=>{timers.push(fn);return timers.length},clearTimeout:()=>{}});
  vm.runInContext(require('./ui_source').functions("initEventMenus", "allEventMails", "editEventMenu", "eventActionFeedback", "performEventAction", "closeEventMenus"),context);
  context.initEventMenus();
  const item={kind:'deadline',mail_id:'mail',index:2,state:'active'},menu=context.editEventMenu(item);body.append(menu);menu.open=true;
@@ -20,6 +21,7 @@ async function run(){
  listeners.click({target:body});assert.equal(menu.open,false);
  menu.open=true;listeners.keydown({key:'Escape'});assert.equal(menu.open,false);
  const other=context.editEventMenu(item);body.append(other);menu.open=true;other.open=true;other.listeners.toggle();assert.equal(menu.open,false);assert.equal(other.open,true);
+ other.children[0].bounds={top:820,bottom:850,height:30};other.children[1].bounds={top:854,bottom:980,height:126};other.listeners.toggle();assert.equal(other['data-placement'],'above','menu near viewport bottom opens upward');
  await menu.children[1].children[1].onclick();assert.equal(requests[0].action,'complete');assert.equal(document.getElementById('event-action-feedback').textContent,'已标记完成');
  await menu.children[1].children[2].onclick();assert.equal(document.getElementById('event-action-feedback').textContent,'已移除');
  const completed=context.editEventMenu({...item,state:'completed'});body.append(completed);

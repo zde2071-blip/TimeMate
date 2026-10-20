@@ -54,6 +54,43 @@ const path = require('node:path'), os = require('node:os'), assert = require('no
       const deadline = rows.nth(1);
       await deadline.getByRole('button', {name: '加入截止事项', exact: true}).click();
       await deadline.locator('.mail-event-saved').getByText('已添加', {exact: true}).waitFor();
+      // Approved important cards: identical calendar icons, distinct labels, working menus/source.
+      await page.locator('#nav-important').click();
+      await page.mouse.move(width - 5, 10);
+      const scheduleCard = page.locator('.calendar-entry.schedule');
+      const deadlineCard = page.locator('.calendar-entry.deadline');
+      await scheduleCard.waitFor();
+      await deadlineCard.waitFor();
+      assert.match(await scheduleCard.locator('.important-card-time').textContent(), /^时间：/);
+      assert.match(await deadlineCard.locator('.important-card-time').textContent(), /^截止时间：/);
+      assert.equal(await scheduleCard.locator('.important-card-time svg').innerHTML(), await deadlineCard.locator('.important-card-time svg').innerHTML(), 'schedule and deadline use one calendar icon');
+      for (const card of [scheduleCard, deadlineCard]) {
+        const titleBox = await card.locator('.event-copy>strong').boundingBox();
+        const menuBox = await card.locator('.event-manage>summary').boundingBox();
+        assert.ok(titleBox.x + titleBox.width <= menuBox.x + 1, 'title and edit never overlap');
+        assert.equal(await card.locator('.event-manage>summary').textContent(), '编辑');
+        assert.equal(await card.locator('.source-mail-icon svg').count(), 1);
+        const timeBox = await card.locator('.important-card-time').boundingBox();
+        const locationBox = await card.locator('.important-card-location').boundingBox();
+        assert.ok(locationBox.y >= timeBox.y + timeBox.height, 'time and location stay on separate lines');
+      }
+      await page.screenshot({path: path.join(os.tmpdir(), `timemate-important-cards-${width}.png`), fullPage: true, animations: 'disabled'});
+      await scheduleCard.locator('.event-manage>summary').click();
+      await scheduleCard.getByRole('button', {name: '修改信息', exact: true}).click();
+      await page.locator('#event-edit-form input').first().fill('ADS102 已核对测试');
+      await page.getByRole('button', {name: '保存修改', exact: true}).click();
+      await page.locator('#event-edit-dialog').waitFor({state: 'hidden'});
+      await deadlineCard.locator('.event-manage>summary').click();
+      await deadlineCard.getByRole('button', {name: '标记完成', exact: true}).click();
+      await page.locator('.calendar-completed>summary').waitFor();
+      await page.locator('.calendar-completed>summary').click();
+      const completedCard = page.locator('.calendar-completed .calendar-entry.deadline');
+      await completedCard.evaluate(e => e.scrollIntoView({block: 'center'}));
+      await completedCard.locator('.event-manage>summary').click();
+      await completedCard.getByRole('button', {name: '恢复', exact: true}).click();
+      await page.locator('.calendar-day-events .calendar-entry.deadline').waitFor();
+      await scheduleCard.locator('.important-source-title').click();
+      await page.locator('#mail-detail-pane').waitFor({state: 'visible'});
       await page.reload();
       await page.locator('#nav-mail').click();
       await first.locator('.mail-event-heading strong').getByText('ADS102 已核对测试', {exact: true}).waitFor();

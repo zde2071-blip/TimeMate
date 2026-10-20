@@ -19,6 +19,29 @@ function formatEventTime(start, end, allDay, timePrecision) {
   if (!finish) return first + ' · 结束时间待补充';
   return first + '–' + (finish.slice(0, 10) === begin.slice(0, 10) ? finish.slice(11, 16) : finish.slice(0, 16).replace('T', ' '));
 }
+function eventIcon(name) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  for (const [key, value] of Object.entries({viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', 'stroke-width':'1.7', 'stroke-linecap':'round', 'stroke-linejoin':'round', 'aria-hidden':'true'})) svg.setAttribute(key, value);
+  const paths = {
+    calendar: ['M5 5h14a2 2 0 0 1 2 2v13H3V7a2 2 0 0 1 2-2Z', 'M8 3v4M16 3v4M3 11h18M8 15h2M14 15h2'],
+    location: ['M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z', 'M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z'],
+    edit: ['m16 3 5 5-12 12-6 1 1-6L16 3Z', 'm13 6 5 5'],
+    plus: ['M12 5v14M5 12h14'],
+    check: ['m5 12 4 4L19 6'],
+    todo: ['M9 6h12M9 12h12M9 18h12M3 5h2v2H3zM3 11h2v2H3zM3 17h2v2H3z'],
+    mail: ['M3 5h18v14H3z', 'm3 6 9 7 9-7'],
+    message: ['M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z'],
+    down: ['m6 9 6 6 6-6'],
+    remove: ['M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7'],
+    restore: ['M3 10a9 9 0 1 1 2.4 8.2M3 4v6h6']
+  };
+  for (const d of paths[name] || []) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
+}
 function eventContent(event, action, locationFallback = '待确认', deadlineReminder = null, titleControl = null) {
   let copy = element('div', '', 'event-copy'),
     title = element('strong', titleControl ? '' : event.title || '事项');
@@ -28,11 +51,24 @@ function eventContent(event, action, locationFallback = '待确认', deadlineRem
     badge.style.cssText = 'display:inline-flex;vertical-align:middle;margin-left:9px;padding:2px 8px;border-radius:999px;font-size:12px;line-height:1.5;font-weight:600;white-space:nowrap;background:' + deadlineReminder.background + ';color:' + deadlineReminder.color;
     title.append(badge);
   }
-  copy.append(title);
-  if (action && action !== event.title) copy.append(element('p', '待办：' + action, 'meta'));
-  if (event.kind === '截止') copy.append(element('p', '截止时间：' + (event.allDay ? String(event.start || '').slice(0, 10) : String(event.start || '').slice(0, 16).replace('T', ' ')), 'meta'));else copy.append(element('p', '时间：' + formatEventTime(event.start, event.end, event.allDay, event.timePrecision), 'meta'));
+  copy.append(element('div', event.kind === '截止' ? '截止事项' : '日程安排', 'important-card-kind'), title);
+  if (action && action !== event.title) {
+    const todo = element('p', '', 'meta important-card-meta important-card-todo');
+    todo.setAttribute('aria-label', '待办：' + action);
+    todo.append(eventIcon('todo'), element('span', action));
+    copy.append(todo);
+  }
+  const time = event.kind === '截止' ? '截止时间：' + (event.allDay ? String(event.start || '').slice(0, 10) : String(event.start || '').slice(0, 16).replace('T', ' ')) : '时间：' + formatEventTime(event.start, event.end, event.allDay, event.timePrecision);
+  const date = element('p', '', 'meta important-card-meta important-card-time');
+  date.append(eventIcon('calendar'), element('span', time));
+  copy.append(date);
   let location = event.location || locationFallback;
-  if (location) copy.append(element('p', '地点：' + location, 'meta'));
+  if (location) {
+    const place = element('p', '', 'meta important-card-meta important-card-location');
+    place.setAttribute('aria-label', '地点：' + location);
+    place.append(eventIcon('location'), element('span', location));
+    copy.append(place);
+  }
   return copy;
 }
 function eventTarget(d, id, index) {
@@ -102,10 +138,12 @@ function mailEventForDisplay(d, m, index, event, written) {
 }
 function editEventMenu(item) {
   let menu = element('details', '', 'event-manage'),
-    summary = element('summary', '编辑'),
+    summary = element('summary', ''),
     options = element('div', '', 'event-manage-options');
+  summary.append(eventIcon('edit'), element('span', '编辑'), eventIcon('down'));
   menu.append(summary);
-  let edit = element('button', '修改信息', 'secondary');
+  let edit = element('button', '', 'secondary');
+  edit.append(eventIcon('edit'), element('span', '修改信息'));
   edit.type = 'button';
   edit.onclick = () => {
     menu.open = false;
@@ -114,18 +152,25 @@ function editEventMenu(item) {
   options.append(edit);
   if (item.kind === 'deadline') {
     let completed = item.state === 'completed',
-      toggle = element('button', completed ? '恢复' : '标记完成', 'secondary');
+      toggle = element('button', '', 'secondary');
     toggle.type = 'button';
+    toggle.append(eventIcon(completed ? 'restore' : 'check'), element('span', completed ? '恢复' : '标记完成'));
     toggle.onclick = () => performEventAction(menu, item, completed ? 'restore' : 'complete');
     options.append(toggle);
   }
-  let remove = element('button', '移除', 'secondary');
+  let remove = element('button', '', 'secondary event-manage-remove');
+  remove.append(eventIcon('remove'), element('span', '移除'));
   remove.type = 'button';
   remove.onclick = () => performEventAction(menu, item, 'remove');
   options.append(remove);
   menu.append(options);
   menu.addEventListener('toggle', () => {
-    if (menu.open) closeEventMenus(menu);
+    if (menu.open) {
+      closeEventMenus(menu);
+      menu.setAttribute('data-placement', 'below');
+      const bounds = options.getBoundingClientRect();
+      if (bounds.bottom > window.innerHeight - 80 && summary.getBoundingClientRect().top > bounds.height + 12) menu.setAttribute('data-placement', 'above');
+    }
   });
   return menu;
 }
@@ -769,6 +814,7 @@ function renderImportantCard(item, d) {
     }
     let sourceIcon = element('span', '', 'source-mail-icon');
     sourceIcon.setAttribute('aria-hidden', 'true');
+    sourceIcon.append(eventIcon(sources.length === 1 && sources[0].source === 'chat' ? 'message' : 'mail'));
     (sources.length === 1 ? titleControl : titleControl.children[0]).append(sourceIcon);
   }
   row.append(eventContent(item.event, item.action, item.kind === 'schedule' ? '待确认' : '', item.kind === 'deadline' && item.state !== 'completed' ? deadlineReminder(item) : null, titleControl));
