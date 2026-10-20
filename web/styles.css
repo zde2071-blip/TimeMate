@@ -2124,6 +2124,8 @@ footer p {
 .event-manage[data-placement="above"] .event-manage-options { top: auto; bottom: calc(100% + 4px); }
 
 .event-manage-options button {
+  background: transparent;
+  color: #293238;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -2134,6 +2136,9 @@ footer p {
   font-size: 13px;
 }
 
+.event-manage-options button:hover,
+.event-manage-options button:focus-visible { background: #f0f2f3; }
+.event-manage-options button:focus-visible { outline: 2px solid #69757d; outline-offset: -2px; }
 .event-manage-options .event-manage-remove { color: #a7443f; }
 
 .event-edit-dialog {
