@@ -32,6 +32,14 @@ const path = require('node:path'), os = require('node:os'), assert = require('no
       assert.equal(await edit.locator('svg').count(), 1);
       const editBox = await edit.boundingBox(), addBox = await first.locator('.mail-event-add').boundingBox();
       assert.ok(editBox.y + editBox.height <= addBox.y, 'edit belongs to heading, add belongs below');
+      for (const row of await rows.all()) {
+        const headingBox = await row.locator('.mail-event-heading').boundingBox();
+        const detailsBox = await row.locator('.mail-event-details').boundingBox();
+        const buttonBox = await row.locator('.mail-event-add').boundingBox();
+        assert.ok(Math.abs(buttonBox.x - headingBox.x) < 1, 'add is aligned with the title');
+        assert.ok(Math.abs(buttonBox.x - detailsBox.x) < 1, 'add is aligned with time and location');
+        assert.ok(buttonBox.y >= detailsBox.y + detailsBox.height + 19, 'add appears below all metadata with spacing');
+      }
       const bounds = await page.locator('#mail-detail-pane').boundingBox();
       assert.ok(editBox.x + editBox.width <= bounds.x + bounds.width, 'actions fit reader');
       assert.equal(await page.locator('.mail-reading-tabs').evaluate(e => getComputedStyle(e.querySelector('.active')).color), 'rgb(22, 115, 78)');

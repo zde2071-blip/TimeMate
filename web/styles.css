@@ -3007,19 +3007,19 @@ body.mail-layout .mail-event-heading { display:flex; align-items:center; justify
 body.mail-layout .mail-event-heading strong { min-width:0; overflow-wrap:anywhere; }
 body.mail-layout .event-row .mail-event-edit { display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; gap:5px; min-height:30px; padding:5px 9px; border:1px solid #e5e8ea; border-radius:6px; background:#fff; color:#272e32; font-size:13px; line-height:1.3; }
 body.mail-layout .event-row .mail-event-edit:hover:not(:disabled) { background:#f4f5f6; border-color:#bcc4c8; }
-body.mail-layout .mail-event-body { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:16px; }
+body.mail-layout .mail-event-body { display:grid; grid-template-columns:minmax(0,1fr); align-items:start; gap:20px; }
 body.mail-layout .mail-event-details { min-width:0; display:flex; flex-direction:column; gap:6px; }
 body.mail-layout .mail-event-details p { margin:0; white-space:pre-line; overflow-wrap:anywhere; }
 body.mail-layout .mail-event-meta { display:flex; align-items:flex-start; gap:6px; }
 body.mail-layout .event-row svg { width:15px; height:15px; flex-shrink:0; }
 body.mail-layout .mail-event-meta svg { margin-top:3px; }
-body.mail-layout .event-row-controls { align-self:end; align-items:flex-end; gap:7px; }
+body.mail-layout .event-row-controls { justify-self:start; align-self:start; align-items:flex-start; gap:7px; }
 body.mail-layout .event-row .mail-event-add { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:1px solid transparent; border-radius:7px; padding:8px 12px; background:#24674f; color:#fff; font-size:13px; line-height:1.5; }
 body.mail-layout .event-row .mail-event-add:hover:not(:disabled) { background:#1b543e; }
 body.mail-layout .event-row .mail-event-cancel { padding:3px 0; background:transparent; color:#69757d; font-size:12px; }
 body.mail-layout .event-row .mail-event-cancel:hover { color:#29333b; text-decoration:underline; }
 body.mail-layout .mail-event-saved { display:inline-flex; align-items:center; gap:5px; color:#16734e; font-size:13px; }
-@media(max-width:1050px) { body.mail-layout .mail-event-body { grid-template-columns:minmax(0,1fr); gap:14px; } body.mail-layout .event-row-controls { justify-self:end; } }
+
 body.mail-layout .mail-bulk-action,body.mail-layout .mail-bulk-icon { color:#29333b; }
 body.mail-layout .mail-bulk-action:hover:not(:disabled) { background:#f3f4f5; }
 body.mail-layout .mail-bulk-action.destructive,body.mail-layout .mail-bulk-action.destructive .mail-bulk-icon { color:#b64c42; }
