@@ -11,10 +11,8 @@ from backend.events import chat_actions
 from backend.mail import chat_workspace
 
 from backend.core.user_errors import UserFacingError
-from backend.mail.read_model import REAL_MAIL, json_object
+from backend.mail.retrieval import MailRetrieval
 
-MAX_CONTEXT_MAILS = 40
-MAX_CONTEXT_CHARS = 24000
 MAX_HISTORY_MESSAGES = 8
 MAX_MESSAGE_LENGTH = 1500
 
@@ -34,17 +32,6 @@ CHAT_PROMPT = """你是 TimeMate 的事项助手。目标是把用户提供的�
 {"reply":"简洁回答和必要追问","source_ids":[],"source_text":"本批图片或文字中的时间原文摘录，最多12000字；无新资料可为空","events":[{"id":"已有草稿的id，新事项留空","title":"主题","kind":"活动或截止","start":"2026-10-20 或 2026-10-20T09:00 或空","end":"2026-10-20T11:00 或空","allDay":false,"timePrecision":"date或datetime","missing_fields":["year或date或time或end或location或timezone或evidence"],"location":"地点","action":"待办","evidence":"时间原文或用户确认","uncertainty":"具体缺口","annotation":"一般备注"}]}。
 """
 
-
-def _terms(value):
-    terms = set()
-    for token in re.findall(r'[a-z0-9]{2,}|[\u4e00-\u9fff]+', value.lower()):
-        if re.fullmatch(r'[\u4e00-\u9fff]+', token):
-            terms.update(token[index:index + 2] for index in range(len(token) - 1))
-            if len(token) == 1:
-                terms.add(token)
-        else:
-            terms.add(token)
-    return terms
 
 
 class MailChat:
@@ -91,50 +78,6 @@ class MailChat:
             if cursor.rowcount != 1:
                 raise UserFacingError('找不到这段对话。')
         if self.media_store: self.media_store('delete','chat-images:'+conversation_id)
-
-    def _mail_context(self, question):
-        with self.database() as connection:
-            total = connection.execute(
-                f"SELECT COUNT(*) FROM mails WHERE is_deleted=0 AND {REAL_MAIL} AND result IS NOT NULL").fetchone()[0]
-            rows = connection.execute(
-                f"SELECT id,subject,display_title,sender,sent_date,date,result,(SELECT school_sender FROM mail_accounts WHERE mail_accounts.id=mails.mailbox_id) AS mailbox FROM mails WHERE is_deleted=0 AND {REAL_MAIL} AND result IS NOT NULL ORDER BY COALESCE(sent_date,date) DESC").fetchall()
-        candidates = []
-        terms = _terms(question)
-        for row in rows:
-            result = json_object(row['result'])
-            events = result.get('events') if isinstance(result.get('events'), list) else []
-            clean_events = []
-            for event in events[:3]:
-                if not isinstance(event, dict):
-                    continue
-                clean_events.append({key: str(event.get(key) or '')[:100] for key in ('title', 'start', 'end', 'location', 'action')})
-            mail = {
-                'id': row['id'],
-                'title': (row['display_title'] or row['subject'] or '无主题')[:240],
-                'sender': (row['sender'] or '')[:160],
-                'mailbox': (row['mailbox'] or '')[:254],
-                'date': (row['sent_date'] or row['date'] or '')[:40],
-                'category': str(result.get('category') or '未分类')[:40],
-                'summary': str(result.get('summary') or '')[:500],
-                'action': str(result.get('action') or '')[:300],
-                'events': clean_events,
-                'analyzed': bool(result),
-            }
-            searchable_title = ' '.join((mail['title'], mail['sender'], mail['category'], mail['mailbox'])).lower()
-            searchable_content = ' '.join((mail['date'], mail['summary'], mail['action'], json.dumps(mail['events'], ensure_ascii=False))).lower()
-            relevance = sum(4 for term in terms if term in searchable_title) + sum(2 for term in terms if term in searchable_content)
-            candidates.append((relevance, mail['date'], mail))
-        candidates.sort(key=lambda item: item[1], reverse=True)
-        candidates.sort(key=lambda item: item[0], reverse=True)
-        mails = []
-        context_chars = 0
-        for _, _, mail in candidates[:MAX_CONTEXT_MAILS]:
-            size = len(json.dumps(mail, ensure_ascii=False))
-            if context_chars + size > MAX_CONTEXT_CHARS:
-                break
-            mails.append(mail)
-            context_chars += size
-        return {'total': total, 'included': len(mails), 'truncated': total > len(mails), 'mails': mails}
 
     def send(self, data):
         if not isinstance(data, dict):
@@ -188,26 +131,47 @@ class MailChat:
         try: zone = ZoneInfo(zone_name)
         except (TypeError,ValueError,KeyError): raise UserFacingError('时区无效，请刷新后重试。') from None
         workspace['time_zone'] = zone_name
-        context = self._mail_context(message.strip()) if workspace['scope']=='mail' else {'total':0,'included':0,'truncated':False,'mails':[]}
+        context = {'total':0,'included':0,'truncated':False,'mails':[]}
         instructions = workspace.get('user_instructions',[])
         instructions = [x for x in instructions if isinstance(x,str)][-19:] + [message.strip()]
         workspace['user_instructions'] = instructions
         date_only_approved = bool(workspace.get('date_only_approved')) or bool(re.search(r'(先|可以|同意|就|直接|都).{0,12}(按日期|时间待定|只记日期)|按日期.{0,8}(添加|记录)', message))
         if re.search(r'(不要|不可以|不能|别|不允许).{0,12}(按日期|只记日期|时间待定)',message): date_only_approved=False
         workspace['date_only_approved'] = date_only_approved
-        prompt = CHAT_PROMPT + f'\n当前用户本地时间 {datetime.now(zone).isoformat(timespec="minutes")}。邮件上下文最多{MAX_CONTEXT_MAILS}封/{MAX_CONTEXT_CHARS}字，truncated=true 时说明检索范围。只处理当前资料批次，已有事项id必须沿用。'
+        prompt = CHAT_PROMPT + f'\n当前用户本地时间 {datetime.now(zone).isoformat(timespec="minutes")}。只处理当前资料批次，已有事项id必须沿用。'
         payload = {'history':history,'mail_context':context,'pending_events':pending,'question':message.strip(),
                    'task_scope':workspace['scope'],'time_zone':zone_name,'user_instructions':instructions,
                    'source_text':str(workspace.get('source_text',''))[:12000], 'date_only_approved':date_only_approved}
         current_images = images or (stored_images if workspace['scope']=='external' else [])
         if current_images: payload['_images'] = current_images
-        answer = self.model_reply(self.config.copy(), prompt, payload)
+        excluded = bool(re.search(r'不要.*邮件|不用.*邮件|只.*(?:图片|课表)|不是.*邮件',message,re.I))
+        retrieval = None
+        if not excluded and (workspace['scope']=='mail' or not current_images):
+            retrieval = MailRetrieval(self.database, zone_name)
+            answer = retrieval.run(self.model_reply,self.config,prompt,payload)
+            context = retrieval.context()
+            if retrieval.searches: workspace['scope']='mail'
+        else:
+            answer = self.model_reply(self.config.copy(), prompt, payload)
         if not isinstance(answer, dict) or not isinstance(answer.get('reply'), str) or not answer['reply'].strip():
             raise UserFacingError('AI 没有返回可用回答，请重试。')
         allowed = {mail['id']: mail for mail in context['mails']}
         requested = answer.get('source_ids') if isinstance(answer.get('source_ids'), list) else []
         sources = [allowed[ident] for ident in requested if isinstance(ident, str) and ident in allowed][:10]
         reply = answer['reply'].strip()[:12000]
+        retrieval_notice = ''
+        if context['truncated']:
+            retrieval_notice = '本次只完成了部分检索，尚未覆盖全部匹配邮件或原文。'
+        elif workspace['scope']=='mail' and retrieval is not None and not retrieval.searches:
+            retrieval_notice = '本次未完成邮件检索，回答不能视为已核对邮箱。'
+            answer['events'] = []
+        if retrieval_notice: reply += '\n\n' + retrieval_notice
+        if retrieval is not None and retrieval.searches:
+            answer['events'] = retrieval.validate_events(answer.get('events'),requested,instructions)
+        if context['truncated']:
+            # Partial results remain reviewable, but do not auto-add potentially
+            # superseded dates before the rest of the requested mail is checked.
+            mode = 'confirm'
         if not any(mark in reply for mark in ('？','?')):
             gaps=[]
             for item in (answer.get('events') if isinstance(answer.get('events'),list) else [])[:30]:
@@ -242,7 +206,7 @@ class MailChat:
             chat_workspace.save(connection,conversation_id,workspace,images if images else None,self.media_store)
             events = chat_actions.proposals(connection, assistant.lastrowid)
             result = {'conversationId': conversation_id, 'messageId':assistant.lastrowid,'batchId':batch_id, 'title': conversation['title'] if conversation else title, 'reply': reply, 'sources': sources, 'events': events, 'profileId': self.config.get('_profileId',''),'execution':self.execution(events),
-                      'truncated': context['truncated'], 'included': context['included'], 'total': context['total']}
+                      'truncated': context['truncated'], 'included': context['included'], 'total': context['total'], 'retrievalNotice':retrieval_notice, 'retrieval':{'toolCalls':retrieval.calls if retrieval else 0, 'readCount':len(retrieval.read_text) if retrieval else 0, 'modelCalls':retrieval.model_calls if retrieval else 1, 'elapsedMs':round((time.monotonic()-retrieval.started)*1000) if retrieval else None}}
             connection.execute('INSERT INTO chat_requests VALUES (?,?,?)', (request_id, conversation_id, json.dumps(result, ensure_ascii=False)))
         return result
 

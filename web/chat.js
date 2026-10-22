@@ -190,9 +190,7 @@ async function sendChatMessage(message) {
       item.updated = Date.now() / 1000;
     }
     chatConversations.sort((a, b) => b.updated - a.updated);
-    $('chat-status').textContent = data.truncated
-      ? `从 ${data.total} 封邮件中检索了 ${data.included} 封相关邮件。`
-      : '';
+    $('chat-status').textContent = data.retrievalNotice || '';
     $('chat-input').value = '';
     resizeChatInput();
     renderChatHistory();

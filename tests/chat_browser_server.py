@@ -21,6 +21,12 @@ def main():
         def model(cfg, prompt, data, **kwargs):
             if data.get('test'): return {'ok':True}
             question=data.get('question', '')
+            if '检索回归' in question:
+                results=data.get('tool_results',[])
+                if not results: return {'tool_calls':[{'name':'search_mail','arguments':{'query':'检索样例'}}]}
+                if len(results)==1: return {'tool_calls':[{'name':'read_mail','arguments':{'id':results[0]['result']['mails'][0]['id']}}]}
+                ident=results[0]['result']['mails'][0]['id']
+                return {'reply':'原文要求在11月6日提交。','source_ids':[ident,'other-account-secret'],'events':[]}
             if '查询当前连接' in question: return {'reply':'当前模型：'+cfg['model'],'events':[]}
             if '不支持图片' in question:
                 raise AIServiceError('请求或模型参数不受支持。（HTTP 400）')
@@ -55,6 +61,10 @@ def main():
             engine.CFG.update(key='fixture-only',model='fixture-vision')
             engine.ai_services.complete=staticmethod(model)
             engine.ai_services.list_models=staticmethod(lambda *args,**kwargs:ModelCatalog(['first-model','second-model'],{'first-model':'DeepSeek-V4.1-Flash','second-model':'DeepSeek-V4-Pro'}))
+            with engine.db() as c:
+                for n in range(25):
+                    c.execute('INSERT INTO mails(id,subject,sender,date,sent_date,body,source,created) VALUES (?,?,?,?,?,?,?,?)',
+                              (f'retrieval-{n:02}','检索样例 '+str(n),'Teacher','2026-10-22','2026-10-22T09:00+08:00','原文要求2026年11月6日提交。','mail',time.time()))
             response=redirect('/#chat')
             response.set_cookie('mail_session',session,httponly=True,samesite='Lax')
             return response

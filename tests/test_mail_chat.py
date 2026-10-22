@@ -7,6 +7,7 @@ from unittest.mock import Mock
 from backend.core.database import MailDatabase
 from backend.core.user_errors import UserFacingError
 from backend.mail.chat import MailChat
+from backend.mail.retrieval import MailRetrieval
 
 
 class MailChatTests(unittest.TestCase):
@@ -19,7 +20,11 @@ class MailChatTests(unittest.TestCase):
             return self.database.connect(self.path)
 
         self.db = db
-        self.reply = Mock(return_value={'reply': '本周有一项课程通知。', 'source_ids': ['real']})
+        def respond(cfg,prompt,payload):
+            if not payload.get('tool_results'):
+                return {'tool_calls':[{'name':'search_mail','arguments':{'query':'课程'}}]}
+            return {'reply':'本周有一项课程通知。','source_ids':['real','not-in-context']}
+        self.reply = Mock(side_effect=respond)
         self.chat = MailChat(self.db, {'base': 'https://api.example', 'model': 'test', 'key': 'secret'}, self.reply)
         with self.db() as connection:
             connection.execute(
@@ -44,7 +49,7 @@ class MailChatTests(unittest.TestCase):
         return data
 
     def test_context_searches_all_dates_and_never_includes_original_body(self):
-        context = self.chat._mail_context('查找课程通知')
+        context = MailRetrieval(self.db,'Asia/Shanghai').search({'query':'课程'})
         self.assertEqual(context['total'], 2)
         self.assertEqual({mail['id'] for mail in context['mails']}, {'real', 'old-course'})
         self.assertNotIn('body', context['mails'][0])
@@ -53,7 +58,6 @@ class MailChatTests(unittest.TestCase):
     def test_send_persists_turns_and_validated_source_ids(self):
         result = self.chat.send(self.payload())
         self.assertEqual(result['sources'][0]['id'], 'real')
-        self.reply.return_value = {'reply': '已整理。', 'source_ids': ['real', 'not-in-context']}
         second = self.chat.send(self.payload(conversationId=result['conversationId']))
         self.assertEqual([source['id'] for source in second['sources']], ['real'])
         history = self.chat.history(result['conversationId'])
