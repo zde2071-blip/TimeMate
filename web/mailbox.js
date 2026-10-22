@@ -256,8 +256,8 @@ function renderMailDetail(m, d, written) {
       }, d.status.busy);
       const body = element('div', '', 'mail-event-body'),
         controls = element('div', '', 'event-row-controls');
-      body.append(parts.details, controls);
-      row.append(parts.heading, body);
+      body.append(parts.details);
+      row.append(parts.heading, body, controls);
       if (isDeadline) {
         let pin = d.pins.find(p => p.mail_id === target.id && p.event_index === target.index && ['active', 'completed'].includes(p.state));
         let b = element('button', pin ? '取消加入截止事项' : '', pin ? 'secondary mail-event-cancel' : 'mail-event-add');

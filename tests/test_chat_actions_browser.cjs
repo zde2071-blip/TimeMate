@@ -29,6 +29,21 @@ async function newChat(page){
    await page.locator('#chat-input').waitFor({state:'visible'});
    await newChat(page);
    assert.equal(await page.locator('#chat-approval-name').textContent(),'逐项确认');
+   if(!await page.locator('#chat-history-search').isVisible())await page.locator('#chat-history-expand').click();
+   const sideHeading = await page.locator('.chat-history-heading').boundingBox();
+   const sideSearch = await page.locator('.chat-history-search-field').boundingBox();
+   const sideNew = await page.locator('#chat-new').boundingBox();
+   const sideList = await page.locator('#chat-history-list').boundingBox();
+   assert.ok(sideSearch.y >= sideHeading.y + sideHeading.height, 'search has its own full row');
+   assert.ok(sideNew.y >= sideSearch.y + sideSearch.height, 'new chat follows search');
+   assert.ok(Math.abs(sideSearch.x - sideNew.x) < 1 && Math.abs(sideSearch.width - sideNew.width) < 1, 'search and new chat align');
+   assert.ok(Math.abs(sideList.x - sideSearch.x) < 1 && Math.abs(sideList.width - sideSearch.width) < 1, 'history uses full sidebar width');
+   assert.equal(await page.locator('.chat-history-heading').textContent(),'对话');
+   assert.equal(await page.locator('.chat-history-draft').textContent(),'新对话');
+   assert.equal(await page.locator('.chat-history-group-label').first().textContent(),'今天');
+   await page.mouse.move(width - 5, 10);
+   await page.screenshot({path:path.join(os.tmpdir(),`timemate-chat-sidebar-${width}.png`)});
+   await page.locator('#chat-history-collapse').click();
    // Build a readable exam image using the browser, then send it through the actual upload path.
    const imagePage=await browser.newPage({viewport:{width:800,height:500}});
    await imagePage.setContent('<html><meta charset="utf-8"><body style="padding:40px;font:24px sans-serif"><h1>考试与提交安排</h1><p>ISA104 项目：2026年10月25日23:59截止</p><p>SOE104 考试：2026年10月26日09:00—11:00</p><p>地点：FB308</p></body></html>');

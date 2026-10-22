@@ -28,10 +28,32 @@ function renderChatHistory() {
   const list = $('chat-history-list');
   list.replaceChildren();
   const query = $('chat-history-search').value.trim().toLocaleLowerCase();
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime();
+  let currentGroup = '';
+  function addGroup(label) {
+    if (label === currentGroup) return;
+    list.append(element('p', label, 'chat-history-group-label'));
+    currentGroup = label;
+  }
+  if (!chatConversationId && !query) {
+    addGroup('今天');
+    const draft = element('div', '', 'chat-history-row is-active chat-history-draft');
+    const open = element('button', '新对话', 'chat-history-open');
+    open.type = 'button';
+    open.setAttribute('aria-current', 'page');
+    open.onclick = () => $('chat-input').focus();
+    draft.append(open);
+    list.append(draft);
+  }
   for (const conversation of chatConversations.filter(item => !query || (item.title || '新对话').toLocaleLowerCase().includes(query))) {
+    const updated = Number(conversation.updated || conversation.created) * 1000;
+    addGroup(updated >= today ? '今天' : updated >= yesterday ? '昨天' : '更早');
     const row = element('div', '', 'chat-history-row' + (conversation.id === chatConversationId ? ' is-active' : ''));
     const open = element('button', conversation.title || '新对话', 'chat-history-open');
     open.type = 'button';
+    if (conversation.id === chatConversationId) open.setAttribute('aria-current', 'page');
     open.title = conversation.title || '新对话';
     open.onclick = () => openChatConversation(conversation.id);
     const remove = element('button', '×', 'chat-history-delete');
