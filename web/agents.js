@@ -25,13 +25,16 @@ async function loadAgentConnections() {
   try {
     const data = await agentRequest(''); agentConnections=data.connections; agentMCP=data.mcp_url;
     const list=$('agent-connection-list'); list.replaceChildren();
-    if (!agentConnections.length) list.append(element('p','连接你的个人 Agent，传入邮件并接收处理结果。','meta'));
+    if (!agentConnections.length) list.append(element('p','尚未添加 Agent','mail-account-empty'));
     for (const connection of agentConnections) {
       const row=element('button','','ai-provider-row settings-clickable-entry');row.type='button';
       row.setAttribute('aria-label','设置 '+connection.name);row.onclick=()=>openAgentConnection(connection.id);
       const mark=element('span',connection.provider==='grok'?'G':connection.provider==='muse'?'M':'↔','ai-provider-mark');mark.setAttribute('aria-hidden','true');
-      const copy=element('span','','ai-provider-copy');copy.append(element('strong',connection.name),element('small',agentStatus(connection)));
-      const arrow=element('span','›','settings-entry-chevron');arrow.setAttribute('aria-hidden','true');row.append(mark,copy,arrow);list.append(row);
+      const copy=element('span','','ai-provider-copy');copy.append(element('strong',connection.name));
+      const tail=element('span','','settings-entry-tail');
+      const connected=!!connection.last_used && connection.expires*1000>Date.now();
+      tail.append(element('span',connected?'✓ 已连接':connection.expires*1000<=Date.now()?'授权已到期':'待连接',connected?'settings-entry-connected':'calendar-entry-pending'),element('span','›','settings-entry-chevron'));
+      row.append(mark,copy,tail);list.append(row);
     }
     $('agent-library-feedback').textContent='';
     if (agentEditing && $('agent-dialog').open) renderAgentConnection();
@@ -40,12 +43,14 @@ async function loadAgentConnections() {
 
 function openAgentConnection(id='') {
   agentEditing=id;
-  $('agent-dialog-title').textContent=id ? '连接设置' : '连接个人 Agent';
+  $('agent-dialog-title').textContent=id ? '连接设置' : '添加 Agent';
   $('agent-picker').hidden=!!id; $('agent-details').hidden=!id;
   $('agent-issued').hidden=true;$('agent-issued-key').value='';
   $('agent-hook-key').value='';$('agent-hook-url').value='';$('agent-dialog-feedback').textContent='';
   $('agent-provider').value='dot';$('agent-allow-edits').checked=false;
-  renderAgentSetup();if(id) renderAgentConnection();
+  $('agent-disconnect').hidden=!id;$('agent-cancel').textContent=id?'完成':'取消';
+  document.querySelectorAll('#agent-dialog details').forEach(d=>d.open=false);
+  selectAgentTab('connection');renderAgentSetup();if(id) renderAgentConnection();
   $('agent-dialog').showModal();
 }
 
@@ -53,7 +58,9 @@ function renderAgentSetup() {
   const provider=$('agent-provider').value;
   $('agent-dot-setup').hidden=provider!=='dot';$('agent-key-setup').hidden=provider==='dot';
   $('agent-muse-note').hidden=provider!=='muse';
-  $('agent-create').textContent='生成连接凭证';
+  $('agent-create').hidden=!!agentEditing || provider==='dot';
+  $('agent-dot-link').hidden=!!agentEditing || provider!=='dot';
+  $('agent-dialog-mark').textContent=provider==='grok'?'G':provider==='muse'?'M':'↔';
   $('agent-mcp-url').value=agentMCP || location.origin+'/mcp';
 }
 
@@ -66,6 +73,8 @@ async function createAgentConnection() {
     await loadAgentConnections();
     $('agent-picker').hidden=true;$('agent-details').hidden=false;
     $('agent-issued').hidden=false;$('agent-issued-key').value=data.token;
+    $('agent-disconnect').hidden=false;$('agent-cancel').textContent='完成';
+    $('agent-create').hidden=true;$('agent-dot-link').hidden=true;
     renderAgentConnection();
   } catch(e) {$('agent-dialog-feedback').textContent=e.message;}
   finally {agentBusy=false;$('agent-create').disabled=false;}
@@ -74,6 +83,7 @@ async function createAgentConnection() {
 function renderAgentConnection() {
   const connection=agentConnections.find(c=>c.id===agentEditing);if(!connection)return;
   $('agent-dialog-title').textContent=connection.name;
+  $('agent-dialog-mark').textContent=connection.provider==='grok'?'G':connection.provider==='muse'?'M':'↔';
   $('agent-connection-state').textContent=agentStatus(connection);
   const scopeLabels={'mail:read':'读取邮件','mail:write':'传入邮件','items:read':'查看事项','items:write':'修改事项','changes:read':'接收变更反馈'};
   $('agent-access').textContent=connection.scope.split(' ').map(s=>scopeLabels[s]).filter(Boolean).join('、');
@@ -136,3 +146,19 @@ $('agent-dialog').addEventListener('cancel',e=>{if(agentBusy)e.preventDefault();
 setInterval(()=>{
   if(!document.hidden && !agentBusy && !$('settings-page').hidden && $('settings-page').dataset.settingOpen==='agents') void loadAgentConnections();
 },10000);
+
+function closeAgentConnection() { if(!agentBusy)$('agent-dialog').close(); }
+function selectAgentTab(name) {
+  for(const key of ['connection','feedback']) {
+    const selected=key===name;
+    $('agent-tab-'+key).setAttribute('aria-selected',String(selected));
+    $('agent-tab-'+key).tabIndex=selected?0:-1;
+    $('agent-panel-'+key).hidden=!selected;
+  }
+}
+for(const key of ['connection','feedback']) $('agent-tab-'+key).addEventListener('keydown',e=>{
+  if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) {
+    e.preventDefault();const next=e.key==='Home'?'connection':e.key==='End'?'feedback':key==='connection'?'feedback':'connection';
+    selectAgentTab(next);$('agent-tab-'+next).focus();
+  }
+});

@@ -10,8 +10,18 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
   for(const width of [1440,390]){
    const page=await browser.newPage({viewport:{width,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(10000);
    await page.goto(origin+'/fixture-login');await page.getByRole('button',{name:'稍后',exact:true}).click();
-   await page.locator('#settings-nav-agents').click();await page.getByText('连接你的个人 Agent，传入邮件并接收处理结果。').waitFor();
-   await page.getByRole('button',{name:'＋ 连接 Agent',exact:true}).click();
+   const presentation=selector=>page.locator(selector).evaluate(el=>{const c=getComputedStyle(el);return [c.fontSize,c.padding,c.borderRadius,c.backgroundColor,c.height]});
+   await page.locator('#settings-nav-ai').click();
+   const standardButton=await presentation('#ai-profile-new');
+   await page.locator('#ai-profile-new').click();
+   const standardDialog=await page.locator('#ai-profile-dialog').evaluate(el=>({width:el.getBoundingClientRect().width,font:getComputedStyle(el.querySelector('h2')).fontSize}));
+   await page.evaluate(()=>document.getElementById('ai-profile-dialog').close());
+   await page.locator('#settings-nav-agents').click();await page.getByText('尚未添加 Agent').waitFor();
+   await page.getByRole('button',{name:'＋ 添加 Agent',exact:true}).click();
+   await page.mouse.move(0,0);
+   assert.deepEqual(await presentation('#agent-profile-new'),standardButton,'same add-button presentation as AI settings');
+   const agentDialog=await page.locator('#agent-dialog').evaluate(el=>({width:el.getBoundingClientRect().width,font:getComputedStyle(el.querySelector('h2')).fontSize}));
+   assert.deepEqual(agentDialog,standardDialog,'same dialog width and title scale as AI settings');
    assert.equal(await page.locator('#agent-provider').inputValue(),'dot');
    assert.equal(await page.locator('#agent-dot-setup').isVisible(),true);
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-dot-${width}.png`)});
@@ -24,7 +34,14 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    await page.evaluate(()=>loadAgentConnections());
    assert.equal(await page.locator('#agent-connection-state').textContent(),'已连接 · 未启用反馈');
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-connection-${width}.png`)});
+   await page.locator('#agent-tab-feedback').click();
+   assert.equal(await page.locator('#agent-grok-feedback').isVisible(),true);
+   assert.equal(await page.locator('#agent-panel-connection').isVisible(),false);
+   await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-feedback-${width}.png`)});
+   await page.locator('#agent-tab-feedback').press('ArrowLeft');
+   assert.equal(await page.locator('#agent-panel-connection').isVisible(),true);
    await page.locator('#agent-dialog').getByRole('button',{name:'关闭',exact:true}).click();
+   await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-list-${width}.png`)});
    await page.waitForFunction(()=>document.getElementById('agent-issued-key').value==='');
    await page.getByRole('button',{name:'设置 Grok Bot',exact:true}).click();
    assert.equal(await page.locator('#agent-issued').isVisible(),false);
@@ -32,7 +49,7 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    await page.locator('#agent-dialog').waitFor({state:'hidden'});
    const revoked=await page.request.post(origin+'/mcp',{headers:{Authorization:'Bearer '+key},data:{jsonrpc:'2.0',id:2,method:'ping'}});assert.equal(revoked.status(),401);
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no horizontal overflow');
-   await page.getByRole('button',{name:'＋ 连接 Agent',exact:true}).click();await page.locator('#agent-provider').selectOption('muse');
+   await page.getByRole('button',{name:'＋ 添加 Agent',exact:true}).click();await page.locator('#agent-provider').selectOption('muse');
    assert.equal(await page.locator('#agent-muse-note').isVisible(),true);
    assert.deepEqual(errors,[]);await page.close();
   }
