@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "timemate",
+  "version": "0.1.0",
+  "description": "Organize your mail in TimeMate and receive updates when you handle an item.",
+  "homepage": "https://timemate.cc/agent/guide",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "TimeMate",
+        "shortDescription": "邮件与事项，双向连接",
+        "longDescription": "提交和查询自己的邮件、读取事项，并订阅用户处理结果。修改事项需要额外授权。",
+        "category": "Productivity",
+        "capabilities": ["Read", "Write"],
+        "websiteURL": "https://timemate.cc",
+        "privacyPolicyURL": "https://timemate.cc/privacy"
+      }
+    }
+  }
+}

@@ -157,7 +157,8 @@ function selectConnectionSettings(group) {
     account: ['账户', ''],
     mail: ['邮箱', ''],
     ai: ['AI 服务', ''],
-    calendar: ['日历', '']
+    calendar: ['日历', ''],
+    agents: ['个人 Agent', '']
   };
   if (!labels[group]) return;
   for (const key of Object.keys(labels)) {
@@ -172,6 +173,7 @@ function selectConnectionSettings(group) {
   $('settings-detail-title').textContent = labels[group][0];
   $('settings-detail-description').textContent = labels[group][1];
   $('settings-page').dataset.settingOpen = group;
+  if (group === 'agents' && typeof loadAgentConnections === 'function') void loadAgentConnections();
   if (typeof renderMailboxConnection === 'function') renderMailboxConnection(state);
 }
 

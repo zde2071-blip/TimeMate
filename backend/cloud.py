@@ -201,6 +201,8 @@ class Store:
                         for bucket in ('account:','email-code:','password-reset:'):
                             c.execute('DELETE FROM attempts WHERE bucket=?',(digest(bucket+email),))
                         c.execute('DELETE FROM attempts WHERE bucket=?',(digest('chat:'+uid),))
+                        from backend.agents.auth import remove_user
+                        remove_user(c,uid)
                         c.execute('DELETE FROM users WHERE id=?',(uid,))
                 except Exception:
                     if moved and tombstone.exists() and not user_dir.exists(): tombstone.rename(user_dir)
@@ -300,6 +302,10 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         with store.db() as c:
             c.execute('DELETE FROM sessions WHERE expires<?',(time.time(),))
             if token: g.auth=c.execute('SELECT * FROM sessions WHERE token=?',(digest(token),)).fetchone()
+        from backend.agents.routes import PUBLIC_POSTS
+        if request.path in PUBLIC_POSTS:
+            request.max_content_length = 150000 if request.path == '/mcp' else 20000
+            return None
         if request.method=='POST':
             if request.headers.get('Origin') not in app.config['MAIL_ALLOWED_ORIGINS']: return jsonify(error='页面来源不匹配，请重新打开。'),403
             if not request.is_json: return jsonify(error='请求格式不正确。'),415
@@ -557,6 +563,8 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
             if request.method=='GET': handler.get()
             else: handler.post()
         return handler.result
+    from backend.agents.routes import install as install_agents
+    install_agents(app,store,origin)
     app.dummy_hash=generate_password_hash(secrets.token_urlsafe(32),method='scrypt')
     return app
 
@@ -591,6 +599,12 @@ def main():
             while True:
                 app.store.tick(); time.sleep(60)
         threading.Thread(target=scheduler,daemon=True).start()
+        def agent_notifications():
+            while True:
+                try: app.agents.tick()
+                except Exception: logging.getLogger(__name__).warning('Agent notification worker will retry.')
+                time.sleep(10)
+        threading.Thread(target=agent_notifications,daemon=True).start()
         from waitress import serve
         print('多人版已启动：'+origin,flush=True)
         serve(app,host=os.environ.get('MAIL_BIND','0.0.0.0' if os.environ.get('RAILWAY_ENVIRONMENT_ID') else '127.0.0.1'),port=int(os.environ.get('PORT','18744')),threads=12)

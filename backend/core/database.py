@@ -4,7 +4,7 @@ import sqlite3
 import threading
 from backend.mail import titles as mail_titles
 from backend.mail import dates as mail_dates
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 MAIL_COLUMNS = {
     'original': 'TEXT', 'source_links': 'TEXT',
     'source': "TEXT NOT NULL DEFAULT 'manual'",
@@ -105,6 +105,9 @@ def initialize(connection):
             connection.execute("CREATE TABLE IF NOT EXISTS chat_workspaces(conversation_id TEXT PRIMARY KEY, data TEXT NOT NULL DEFAULT '{}')")
             if 'batch_id' not in {row[1] for row in connection.execute('PRAGMA table_info(chat_event_proposals)')}:
                 connection.execute("ALTER TABLE chat_event_proposals ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''")
+        if version < 12:
+            from backend.agents.changes import migrate
+            migrate(connection)
         connection.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
         connection.commit()
     except Exception:
