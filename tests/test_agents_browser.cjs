@@ -25,6 +25,15 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    assert.equal(await page.locator('#agent-provider').inputValue(),'dot');
    assert.equal(await page.locator('#agent-dot-setup').isVisible(),true);
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-dot-${width}.png`)});
+   await page.getByRole('link',{name:'查看图文教程 ↗',exact:true}).click();
+   await page.locator('#setup-guide-content figure').nth(2).waitFor();
+   assert.equal(await page.locator('#setup-guide-content img').count(),3);
+   await page.locator('#setup-guide-content img').evaluateAll(async imgs=>{await Promise.all(imgs.map(img=>{img.loading='eager';return img.decode()}))});
+   assert.equal(await page.locator('#setup-guide-title').textContent(),'连接 TimeMate');
+   assert.equal(await page.locator('#setup-guide-dialog').evaluate(el=>el.scrollWidth<=el.clientWidth),true,'tutorial fits dialog');
+   await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-guide-${width}.png`)});
+   await page.evaluate(()=>closeSetupGuide());
+   assert.equal(await page.locator('#agent-dialog').isVisible(),true,'closing tutorial returns to setup');
    await page.locator('#agent-provider').selectOption('grok');
    await page.locator('#agent-create').click();await page.locator('#agent-issued').waitFor();
    const key=await page.locator('#agent-issued-key').inputValue();assert.ok(key.startsWith('tm_'));

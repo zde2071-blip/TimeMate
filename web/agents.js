@@ -58,6 +58,7 @@ function renderAgentSetup() {
   const provider=$('agent-provider').value;
   $('agent-dot-setup').hidden=provider!=='dot';$('agent-key-setup').hidden=provider==='dot';
   $('agent-muse-note').hidden=provider!=='muse';
+  $('agent-setup-help').hidden=provider==='dot';
   $('agent-create').hidden=!!agentEditing || provider==='dot';
   $('agent-dot-link').hidden=!!agentEditing || provider!=='dot';
   $('agent-dialog-mark').textContent=provider==='grok'?'G':provider==='muse'?'M':'↔';

@@ -14,9 +14,9 @@
 <header class="ai-dialog-heading"><div class="ai-dialog-provider"><span id="agent-dialog-mark" class="agent-dialog-mark" aria-hidden="true">↔</span><h2 id="agent-dialog-title">添加 Agent</h2></div><button class="modal-close-x" type="button" aria-label="关闭" onclick="closeAgentConnection()">×</button></header>
 <div id="agent-picker"><label for="agent-provider">Agent</label><select id="agent-provider" onchange="renderAgentSetup()"><option value="dot">Dot</option><option value="grok">Grok Bot</option><option value="muse">Muse（接入测试）</option></select>
 <div class="agent-copy-field"><label for="agent-mcp-url">连接地址</label><div><input id="agent-mcp-url" readonly><button type="button" onclick="copyAgentField('agent-mcp-url')">复制</button></div></div>
-<div id="agent-dot-setup"><p>在 ChatGPT 中添加自定义 MCP，粘贴地址并选择 OAuth。</p><p>需账号支持自定义接入；尚未上架插件目录。</p></div>
+<div id="agent-dot-setup"><p>在 ChatGPT 中添加自定义 MCP，粘贴地址并选择 OAuth。</p><p>需账号支持自定义接入；尚未上架插件目录。</p><a href="/assets/guides/agent.html" onclick="event.preventDefault();openSetupGuide('agent')">查看图文教程 ↗</a></div>
 <div id="agent-key-setup" hidden><p id="agent-muse-note" hidden>Muse 主动查询可接入，主动反馈尚待验证。</p><label class="agent-permission"><input id="agent-allow-edits" type="checkbox">允许修改事项</label><p>默认可读取邮件和事项、传入邮件，不共享邮箱授权码或 API Key。</p></div>
-<details class="agent-help"><summary>接入说明</summary><p>将连接地址和凭证填入 Agent 的连接设置。<a href="/agent/guide" target="_blank" rel="noopener noreferrer">查看步骤 ↗</a></p></details></div>
+<details id="agent-setup-help" class="agent-help"><summary>接入说明</summary><p>将连接地址和凭证填入 Agent 的连接设置。<a href="/agent/guide" target="_blank" rel="noopener noreferrer">查看步骤 ↗</a></p></details></div>
 <div id="agent-details" hidden>
 <div class="ai-profile-tabs" role="tablist" aria-label="Agent 设置"><button id="agent-tab-connection" type="button" role="tab" aria-selected="true" aria-controls="agent-panel-connection" onclick="selectAgentTab('connection')">连接</button><button id="agent-tab-feedback" type="button" role="tab" aria-selected="false" aria-controls="agent-panel-feedback" tabindex="-1" onclick="selectAgentTab('feedback')">反馈</button></div>
 <section id="agent-panel-connection" role="tabpanel" aria-labelledby="agent-tab-connection"><div class="agent-status-row"><span>连接状态</span><span id="agent-connection-state" role="status"></span></div>
