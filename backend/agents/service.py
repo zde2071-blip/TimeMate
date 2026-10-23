@@ -33,7 +33,8 @@ class AgentService:
               WHERE user_id=? AND revoked=0 ORDER BY created DESC''',(uid,)).fetchall()
         return [{**dict(r),'feedback':self.feedback_status(r['id'])} for r in rows]
 
-    def subscribe(self,grant,delivery,kind='mcp'):
+    def subscribe(self,grant,delivery,kind='mcp',ttl_ms=None):
+        if ttl_ms is not None and (type(ttl_ms) is not int or ttl_ms<=0): raise ValueError('订阅期限无效。')
         if 'changes:read' not in grant['scope'].split(): raise PermissionError('未授予反馈权限。')
         if not isinstance(delivery,dict) or delivery.get('mode')!='webhook': raise ValueError('仅支持 webhook 通知。')
         url,secret=delivery.get('url'),delivery.get('secret')
@@ -55,7 +56,8 @@ class AgentService:
             # No background execution until the user explicitly clicks Test.
             transport.public_addresses(host)
         now=time.time()
-        expiry=min(now+7*86400 if kind=='mcp' else grant['expires'],grant['expires'])
+        lifetime=min(7*86400,ttl_ms/1000) if ttl_ms is not None else 7*86400
+        expiry=min(now+lifetime if kind=='mcp' else grant['expires'],grant['expires'])
         cursor=changes.latest(self.store.engine(grant['user_id']))
         with self.store.db() as c:
             c.execute('BEGIN IMMEDIATE')
@@ -63,6 +65,9 @@ class AgentService:
                 raise ValueError('连接已失效。')
             if c.execute('SELECT COUNT(*) FROM agent_subscriptions WHERE grant_id=?',(grant['id'],)).fetchone()[0]>=5 and not c.execute('SELECT 1 FROM agent_subscriptions WHERE id=?',(ident,)).fetchone():
                 raise ValueError('通知订阅已达上限。')
+            previous=c.execute('SELECT secret FROM agent_subscriptions WHERE id=?',(ident,)).fetchone()
+            if previous and self.store.cipher.decrypt(previous['secret']).decode()!=secret:
+                c.execute('UPDATE agent_subscriptions SET previous_secret=secret,previous_secret_until=? WHERE id=?',(now+300,ident))
             if kind=='grok':
                 # Saving a replacement pauses delivery until the new endpoint is tested.
                 c.execute('DELETE FROM agent_deliveries WHERE subscription_id IN (SELECT id FROM agent_subscriptions WHERE grant_id=? AND kind=?)',(grant['id'],kind))
@@ -138,10 +143,14 @@ class AgentService:
         secret=self.store.cipher.decrypt(row['secret']).decode()
         body=encoded(event)
         headers=transport.signed_headers(secret,event['eventId'],body,ident) if row['kind']=='mcp' else {'Authorization':'Bearer '+secret}
+        if row['kind']=='mcp' and row['previous_secret'] and (row['previous_secret_until'] or 0)>time.time():
+            old=self.store.cipher.decrypt(row['previous_secret']).decode()
+            headers['webhook-signature']+=' '+transport.signed_headers(old,event['eventId'],body,ident,stamp=headers['webhook-timestamp'])['webhook-signature']
         try:
             transport.post_json(row['url'],body,headers)
-        except Exception:
-            attempt=row['attempts']+1
+        except Exception as error:
+            terminal=isinstance(error,transport.DeliveryError) and error.status in (410,413)
+            attempt=8 if terminal else row['attempts']+1
             # Pause after bounded retries; the user may retry the same stable event ID.
             with self.store.db() as c:
                 c.execute('''UPDATE agent_subscriptions SET attempts=?,retry_at=?,enabled=?,last_error=? WHERE id=?''',

@@ -142,7 +142,7 @@ def install(app,store,origin):
                 if params.get('name')!=EVENT_NAME or params.get('arguments',{})!={}: raise ValueError('事件或过滤条件无效。')
                 if method=='events/subscribe':
                     if limit('subscribe:'+grant['id'],15): raise ValueError('订阅请求过于频繁。')
-                    return result(service.subscribe(grant,params.get('delivery')))
+                    return result(service.subscribe(grant,params.get('delivery'),ttl_ms=params.get('ttlMs')))
                 if method=='events/unsubscribe': return result(service.unsubscribe(grant,params.get('delivery')))
             return jsonify(jsonrpc='2.0',id=ident,error={'code':-32601,'message':'Method not found'})
         except (ValueError,PermissionError) as e:

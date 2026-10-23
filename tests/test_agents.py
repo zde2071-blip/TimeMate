@@ -126,6 +126,24 @@ class AgentTests(unittest.TestCase):
             self.assertIsNone(row['pending']);self.assertIsNotNone(row['last_delivery']);self.assertIsNotNone(row['last_ack'])
         self.assertEqual(self.call('read_changes',{},self.kb)['structuredContent']['changes'],[])
 
+    def test_expiry_rotation_and_terminal_delivery(self):
+        sid=self.subscribe()
+        replacement='whsec_'+base64.b64encode(b'b'*32).decode()
+        before=time.time()
+        with patch('backend.agents.transport.post_json',side_effect=lambda u,b,h:{'challenge':json.loads(b)['challenge']}):
+            response=self.rpc('events/subscribe',{'name':EVENT_NAME,'ttlMs':60000,'delivery':{'mode':'webhook','url':'https://callback.example/events','secret':replacement}})
+        self.assertNotIn('error',response.json)
+        with self.app.store.db() as c:
+            row=c.execute('SELECT * FROM agent_subscriptions WHERE id=?',(sid,)).fetchone()
+            self.assertLessEqual(row['expires'],before+61)
+            self.assertIsNotNone(row['previous_secret'])
+        self.imported()
+        with patch('backend.agents.transport.post_json',side_effect=transport.DeliveryError(410)) as sender:
+            self.app.agents.tick()
+            self.assertEqual(len(sender.call_args.args[2]['webhook-signature'].split()),2)
+            sender.reset_mock();self.app.agents.tick();sender.assert_not_called()
+        self.assertFalse(self.app.agents.feedback_status(self.ga)[0]['enabled'])
+
     def test_failed_verification_never_subscribes(self):
         with patch('backend.agents.transport.post_json',return_value={'challenge':'wrong'}):
             r=self.rpc('events/subscribe',{'name':EVENT_NAME,'delivery':{'mode':'webhook','url':'https://callback.example/events','secret':'whsec_'+base64.b64encode(b'a'*32).decode()}})

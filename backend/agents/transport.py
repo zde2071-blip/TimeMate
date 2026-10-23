@@ -43,6 +43,12 @@ class PinnedHTTPS(http.client.HTTPSConnection):
             raise
 
 
+class DeliveryError(ValueError):
+    def __init__(self,status):
+        self.status=status
+        super().__init__('通知未被接收（HTTP '+str(status)+'）。')
+
+
 def post_json(url, body, headers):
     u,host=checked_url(url)
     addresses=public_addresses(host)
@@ -54,7 +60,7 @@ def post_json(url, body, headers):
         response=conn.getresponse()
         raw=response.read(65537)
         if len(raw)>65536: raise ValueError('通知响应过大。')
-        if not 200<=response.status<300: raise ValueError('通知未被接收（HTTP '+str(response.status)+'）。')
+        if not 200<=response.status<300: raise DeliveryError(response.status)
         try: payload=json.loads(raw) if raw else {}
         except ValueError: payload={}
         return payload
@@ -69,8 +75,8 @@ def secret_bytes(secret):
     return value
 
 
-def signed_headers(secret,ident,body,subscription):
-    stamp=str(int(time.time()))
+def signed_headers(secret,ident,body,subscription,stamp=None):
+    stamp=stamp or str(int(time.time()))
     message=ident.encode()+b'.'+stamp.encode()+b'.'+body
     signature=base64.b64encode(hmac.new(secret_bytes(secret),message,hashlib.sha256).digest()).decode()
     return {'webhook-id':ident,'webhook-timestamp':stamp,'webhook-signature':'v1,'+signature,'X-MCP-Subscription-Id':subscription}

@@ -47,6 +47,9 @@ def install_schema(store):
         CREATE INDEX IF NOT EXISTS agent_grants_owner ON agent_grants(user_id);
         CREATE INDEX IF NOT EXISTS agent_tokens_grant ON agent_tokens(grant_id);
         ''')
+        columns={row[1] for row in c.execute('PRAGMA table_info(agent_subscriptions)')}
+        if 'previous_secret' not in columns: c.execute('ALTER TABLE agent_subscriptions ADD COLUMN previous_secret BLOB')
+        if 'previous_secret_until' not in columns: c.execute('ALTER TABLE agent_subscriptions ADD COLUMN previous_secret_until REAL')
 
 
 def remove_user(c, uid):
