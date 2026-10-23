@@ -24,6 +24,8 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    assert.deepEqual(agentDialog,standardDialog,'same dialog width and title scale as AI settings');
    assert.equal(await page.locator('#agent-provider').inputValue(),'dot');
    assert.equal(await page.locator('#agent-dot-setup').isVisible(),true);
+   assert.equal(await page.locator('#agent-dot-setup p').count(),0,'Dot uses illustrated guide without duplicate prose');
+   assert.equal(await page.locator('#agent-setup-help').isVisible(),false);
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-dot-${width}.png`)});
    await page.getByRole('link',{name:'查看图文教程 ↗',exact:true}).click();
    await page.locator('#setup-guide-content figure').nth(2).waitFor();
@@ -35,6 +37,11 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    await page.evaluate(()=>closeSetupGuide());
    assert.equal(await page.locator('#agent-dialog').isVisible(),true,'closing tutorial returns to setup');
    await page.locator('#agent-provider').selectOption('grok');
+   const connectPrompt=await page.evaluate(()=>agentConnectionInstructions('grok'));
+   assert.ok(connectPrompt.includes('connection_status'));
+   assert.ok(!connectPrompt.includes('Routine'),'connection does not also start a feedback task');
+   assert.ok(!(await page.evaluate(()=>agentConnectionInstructions('muse'))).includes('Grok'));
+   assert.ok((await page.evaluate(()=>agentConnectionInstructions('grok','feedback'))).includes('acknowledge_feedback'));
    await page.locator('#agent-create').click();await page.locator('#agent-issued').waitFor();
    const key=await page.locator('#agent-issued-key').inputValue();assert.ok(key.startsWith('tm_'));
    assert.equal(await page.locator('#agent-connection-state').textContent(),'等待 Agent 连接');

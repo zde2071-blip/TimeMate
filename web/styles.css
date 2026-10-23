@@ -3704,3 +3704,6 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
  #agent-dialog input:not([type=checkbox]), #agent-dialog select { font-size:16px; }
  #agent-dialog .agent-feedback-row { flex-wrap:wrap; }
 }
+
+#agent-dot-setup, #agent-detail-guide { margin-top:12px; }
+#agent-detail-guide:not([hidden]) { display:inline-block; }

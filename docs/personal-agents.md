@@ -5,8 +5,8 @@ TimeMate is the visual workspace; external Agents submit/search mail and read it
 ## Connection paths
 
 - Dot: remote MCP at `https://timemate.cc/mcp`, OAuth authorization code with PKCE S256 and dynamic client registration. Plugin manifests are in `integrations/timemate/`. Dot MCP Events subscribes to `timemate.changed` and provides a verified signed callback. Public plugin listing requires a separate submission/review; this repository is not proof of listing or a live paired account.
-- Grok Bot: per-user bearer credential in the Agent's secure connection settings. Create a webhook Routine in Grok Bot; paste its official `api2.cursor.sh/automations/webhook/` URL and key in TimeMate. Save does not execute it. Sending a test starts a real Routine and spends the user's Agent usage. Replacing the target removes the old subscription and requires a new test.
-- Muse: custom connector pilot only. No verified outbound wake-up mechanism; do not advertise real-time two-way support.
+- Grok Bot: per-user bearer credential. Ask the Bot in chat to add the MCP endpoint; do not direct users to an unverified settings form. Enter the credential only through a secure prompt. Provider support is documented, but a live TimeMate pairing still needs verification. Create a webhook Routine in Grok Bot; paste its official `api2.cursor.sh/automations/webhook/` URL and key in TimeMate. Save does not execute it. Sending a test starts a real Routine and spends the user's Agent usage. Replacing the target removes the old subscription and requires a new test.
+- Muse: ask Muse in chat to build a custom connector; this is a pilot, not an end-to-end verified TimeMate connection. No verified outbound wake-up mechanism; do not advertise real-time two-way support.
 
 ## Data and permissions
 
@@ -33,3 +33,6 @@ Official references:
 - https://developers.openai.com/plugins/build/auth
 - https://developers.openai.com/plugins/deploy/submission
 - https://cursor.com/help/grok-bot/routines
+
+- https://forum.cursor.com/t/grokbot-custom-connectors/169965/5
+- https://www.meta.com/help/superintelligence/1687253048996149/
