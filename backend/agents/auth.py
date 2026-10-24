@@ -101,8 +101,17 @@ def revoke(c, uid, ident):
 
 def redirect_valid(value):
     if not isinstance(value, str) or len(value)>2000 or any(ord(x)<33 for x in value): return False
-    u=urlsplit(value)
-    return bool(u.scheme=='https' and u.hostname and not u.username and not u.password and not u.fragment)
+    # Grok Bot registers its desktop, cloud and loopback callbacks together.
+    # Accept only its documented native callback; retain exact matching + PKCE.
+    if value=='cursor://anysphere.cursor-mcp/oauth/callback': return True
+    try:
+        u=urlsplit(value)
+        port=u.port  # Reject malformed ports before persisting client metadata.
+        if not u.hostname or u.username or u.password or u.fragment or '\\' in value: return False
+        if u.scheme=='https': return True
+        return u.scheme=='http' and u.hostname in ('localhost','127.0.0.1','::1')
+    except ValueError:
+        return False
 
 
 def register_client(store, data):
@@ -110,7 +119,7 @@ def register_client(store, data):
     name=data.get('client_name','个人 Agent')
     if not isinstance(name,str) or not name.strip() or len(name)>80: raise ValueError('客户端名称无效。')
     if not isinstance(redirects,list) or not 1<=len(redirects)<=5 or not all(redirect_valid(u) for u in redirects):
-        raise ValueError('需要完整的 HTTPS 回调地址。')
+        raise ValueError('回调地址须为 HTTPS、本机回环地址或受支持的桌面应用回调。')
     if data.get('token_endpoint_auth_method','none')!='none': raise ValueError('只支持 PKCE 公共客户端。')
     if set(data.get('grant_types',['authorization_code','refresh_token']))-{'authorization_code','refresh_token'}:
         raise ValueError('授权类型不支持。')

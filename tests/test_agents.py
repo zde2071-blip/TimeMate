@@ -229,6 +229,38 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(self.anon.post('/agent/revoke',base_url=ORIGIN,data={'token':r.json['refresh_token'],'client_id':args['client_id']}).status_code,200)
         self.assertEqual(self.rpc('ping',key=access).status_code,401)
 
+    def test_grok_desktop_registration_and_pkce_with_exact_redirects(self):
+        redirects=['cursor://anysphere.cursor-mcp/oauth/callback',
+                   'https://www.cursor.com/agents/mcp/oauth/callback',
+                   'http://localhost:8787/callback']
+        r=self.anon.post('/agent/register',base_url=ORIGIN,json={
+            'client_name':'Grok Bot','redirect_uris':redirects,'token_endpoint_auth_method':'none'})
+        self.assertEqual(r.status_code,201,r.text)
+        args,verifier=self.oauth_client()
+        args.update(client_id=r.json['client_id'],redirect_uri=redirects[0])
+        self.assertEqual(self.a.get('/agent/authorize?'+urlencode(args),base_url=ORIGIN).status_code,200)
+        for bad in [redirects[0]+'?extra=1','cursor://evil/oauth/callback','http://localhost:9999/callback']:
+            self.assertEqual(self.a.get('/agent/authorize?'+urlencode({**args,'redirect_uri':bad}),base_url=ORIGIN).status_code,400)
+        r=self.post(self.a,'/api/agents/authorize',{**args,'approve':True},self.ta)
+        redirect=urlsplit(r.json['redirect']);self.assertEqual(redirect.scheme,'cursor')
+        code=parse_qs(redirect.query)['code'][0]
+        data={'grant_type':'authorization_code','client_id':args['client_id'],'code':code,
+              'redirect_uri':args['redirect_uri'],'resource':args['resource'],'code_verifier':verifier}
+        self.assertEqual(self.anon.post('/agent/token',base_url=ORIGIN,data={**data,'code_verifier':'b'*43}).status_code,400)
+        self.assertEqual(self.anon.post('/agent/token',base_url=ORIGIN,data=data).status_code,200)
+
+    def test_native_redirect_validation_does_not_allow_arbitrary_schemes_or_http_hosts(self):
+        for valid in ['http://127.0.0.1:8787/callback','http://[::1]:8787/callback']:
+            self.assertTrue(auth.redirect_valid(valid),valid)
+        for bad in ['cursor://evil/oauth/callback','cursor://anysphere.cursor-mcp/oauth/callback#x',
+                    'javascript:alert(1)','http://example.com/callback','http://127.0.0.1.evil/callback',
+                    'http://localhost@evil/callback','http://localhost:bad/callback',
+                    'https://[invalid/callback','https://example.com/#fragment','https://user:pass@example.com/callback']:
+            self.assertFalse(auth.redirect_valid(bad),bad)
+            r=self.anon.post('/agent/register',base_url=ORIGIN,json={'redirect_uris':[bad]})
+            self.assertEqual(r.status_code,400,r.text)
+            self.assertEqual(r.json['error'],'invalid_client_metadata')
+
     def test_event_edit_uses_existing_validation_and_conflict_check(self):
         ga,key=self.connect(self.a,self.ta,True)
         ident=self.imported();engine=self.app.store.engine(self.ua)

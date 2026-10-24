@@ -40,7 +40,8 @@ def install(app,store,origin):
     def agent_register():
         if limit('register:'+request.remote_addr,30): return jsonify(error='rate_limited'),429
         try: return jsonify(auth.register_client(store,json_body())),201
-        except (ValueError,TypeError): return jsonify(error='invalid_client_metadata'),400
+        except ValueError as e: return jsonify(error='invalid_client_metadata',error_description=str(e)),400
+        except TypeError: return jsonify(error='invalid_client_metadata'),400
 
     @app.post('/agent/token')
     def agent_token():
