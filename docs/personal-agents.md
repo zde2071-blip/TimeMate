@@ -43,7 +43,7 @@ The production dynamic-registration endpoint rejected Grok Bot's callback set wi
 
 Public Grok Bot documentation explains chat-created Routines and copying their Webhook URL/key. No supported third-party installation API returning these credentials was found. Internal Bot `UpdateRoutine` is not a public developer API and does not return the key. Do not use private Cursor endpoints or claim one-click reverse setup. Keep the user's existing Bearer connection and active Routine while investigating OAuth independently.
 
-The shared guide dialog displays one figure at a time, with previous/next controls, page count, keyboard arrows, mobile swipes and image zoom links. Grok Bot notification guide images originate from the desktop UI, cropped and annotated with account/chat regions excluded and the URL redacted. A test notification is not sent automatically: it consumes Bot usage. A successful HTTP delivery does not by itself establish a Bot acknowledgement or a user-visible chat message.
+The shared guide dialog displays one figure at a time, with previous/next controls, page count, keyboard arrows, mobile swipes and image zoom links. Grok Bot notification guide images originate from the desktop UI, retained as complete application-window screenshots with numbered arrows, chat/account details masked and the URL redacted. A test notification is not sent automatically: it consumes Bot usage. A successful HTTP delivery does not by itself establish a Bot acknowledgement or a user-visible chat message.
 
 References:
 - https://forum.cursor.com/t/grok-bot-custom-mcp-oauth-fails-before-sign-in-redirect-uri-not-allowed/171877
