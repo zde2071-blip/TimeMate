@@ -97,7 +97,7 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    assert.equal(await page.locator('#agent-grok-feedback').isVisible(),true);
    assert.equal(await page.locator('#agent-panel-connection').isVisible(),false);
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-feedback-${width}.png`)});
-   assert.equal(await page.locator('#agent-grok-progress').textContent(),'1 / 2');
+   assert.equal(await page.locator('#agent-grok-progress').textContent(),'1 / 3');
    assert.equal(await page.locator('#agent-grok-feedback').getByText('查看完整指令',{exact:true}).count(),0);
    assert.equal(await page.locator('.agent-grok-step:not([hidden]) img').evaluate(img=>img.decode().then(()=>img.naturalWidth>1000)),true,'full-window screenshot retained');
    await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copiedAgentPrompt=text;},readText:async()=>window.clipboardFixture}}));
@@ -106,7 +106,13 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    assert.ok(notificationPrompt.includes('任务详情') && notificationPrompt.includes('Webhook URL') && notificationPrompt.includes('Webhook 密钥'),'prompt requests the direct setup entries');
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-grok-guide-${width}.png`)});
    await page.locator('#agent-grok-next').click();
-   assert.equal(await page.locator('#agent-grok-progress').textContent(),'2 / 2');
+   assert.equal(await page.locator('#agent-grok-progress').textContent(),'2 / 3');
+   assert.equal(await page.locator('.agent-grok-step:not([hidden]) h3').textContent(),'② 详情 → TimeMate 变更反馈','the task-opening operation cannot be skipped');
+   assert.ok((await page.locator('.agent-grok-step:not([hidden]) img').getAttribute('src')).endsWith('02-open-task.webp'));
+   await page.locator('.agent-grok-step:not([hidden]) img').evaluate(img=>img.decode());
+   await page.screenshot({path:path.join(os.tmpdir(),`timemate-grok-open-task-${width}.png`)});
+   await page.locator('#agent-grok-next').click();
+   assert.equal(await page.locator('#agent-grok-progress').textContent(),'3 / 3');
    assert.equal(await page.locator('#agent-hook-url').isVisible(),true);
    assert.equal(await page.locator('.agent-grok-step:not([hidden]) img').isVisible(),true,'screenshot stays with the form');
    assert.equal(await page.locator('#agent-hook-save').evaluate(el=>{const b=el.getBoundingClientRect(),p=el.parentElement.getBoundingClientRect();return p.right-b.right<2;}),true,'save is bottom-right');

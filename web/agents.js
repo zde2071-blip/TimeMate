@@ -124,10 +124,10 @@ function renderAgentConnection() {
 }
 
 function setAgentGrokStep(step) {
-  agentGrokStep=step;
+  step=Math.max(0,Math.min(2,step));agentGrokStep=step;
   document.querySelectorAll('.agent-grok-step').forEach(el=>el.hidden=Number(el.dataset.step)!==step);
-  $('agent-grok-previous').hidden=step===0;$('agent-grok-next').hidden=step!==0;
-  $('agent-hook-save').hidden=step!==1;$('agent-grok-progress').textContent=(step+1)+' / 2';
+  $('agent-grok-previous').hidden=step===0;$('agent-grok-next').hidden=step===2;
+  $('agent-hook-save').hidden=step!==2;$('agent-grok-progress').textContent=(step+1)+' / 3';
 }
 
 function renderAgentGrokFeedback(connection) {
