@@ -69,7 +69,7 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    const rpc=await page.request.post(origin+'/mcp',{headers:{Authorization:'Bearer '+key},data:{jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'connection_status',arguments:{}}}});
    assert.equal(rpc.status(),200);assert.equal((await rpc.json()).result.isError,false);
    await page.evaluate(()=>loadAgentConnections());
-   assert.equal(await page.locator('#agent-direction-status-connection').textContent(),'已连接');
+   assert.equal(await page.locator('#agent-direction-status-connection').textContent(),'✓ 已连接');
    assert.equal(await page.locator('#agent-direction-status-feedback').textContent(),'待配置');
    assert.equal(await page.locator('#agent-tab-connection').evaluate(el=>el.classList.contains('is-connected')),true);
    assert.equal(await page.locator('#agent-tab-feedback').evaluate(el=>el.classList.contains('is-connected')),false);
@@ -91,7 +91,9 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    assert.ok(await page.locator('#agent-tab-feedback').getAttribute('aria-label').then(s=>s.startsWith('TimeMate → Grok Bot')));
    assert.ok(await page.locator('#agent-tab-connection').getAttribute('aria-label').then(s=>s.startsWith('Grok Bot → TimeMate')));
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-connection-${width}.png`)});
+   await page.locator('#agent-settings-back').click();
    await page.locator('#agent-tab-feedback').click();
+   assert.equal(await page.locator('.agent-direction-map').isVisible(),false,'configuration replaces the overview');
    assert.equal(await page.locator('#agent-grok-feedback').isVisible(),true);
    assert.equal(await page.locator('#agent-panel-connection').isVisible(),false);
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-feedback-${width}.png`)});
@@ -106,7 +108,8 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    if(width===390)assert.ok(await page.locator('#setup-guide-dialog').evaluate(el=>el.getBoundingClientRect().height<700),'mobile guide does not leave a full-screen blank area');
    await page.evaluate(()=>closeSetupGuide());
 
-   await page.locator('#agent-tab-feedback').press('ArrowLeft');
+   await page.locator('#agent-settings-back').click();
+   await page.locator('#agent-tab-connection').click();
    assert.equal(await page.locator('#agent-panel-connection').isVisible(),true);
    await page.locator('#agent-dialog').getByRole('button',{name:'关闭',exact:true}).click();
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-list-${width}.png`)});
@@ -116,9 +119,12 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    assert.equal(await page.locator('#agent-panel-connection').isVisible(),false,'existing connections open at the compact overview');
    assert.equal(await page.locator('#agent-panel-feedback').isVisible(),false);
    assert.equal(await page.locator('.agent-direction-setting svg').count(),2,'both settings entries include an icon');
+   assert.equal(await page.locator('.agent-direction-setting').allTextContents().then(s=>s.join('').trim()),'','settings use icons only');
+   assert.equal(await page.locator('.agent-list-status').textContent(),'部分连接','one working direction is not shown as fully connected');
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-overview-${width}.png`)});
    await page.locator('#agent-tab-connection').click();
    assert.equal(await page.locator('#agent-panel-connection').isVisible(),true,'settings row opens the matching configuration');
+   assert.equal(await page.locator('.agent-direction-tabs').isVisible(),false,'settings do not expand underneath the overview');
    page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'断开连接',exact:true}).click();
    await page.locator('#agent-dialog').waitFor({state:'hidden'});
    const revoked=await page.request.post(origin+'/mcp',{headers:{Authorization:'Bearer '+key},data:{jsonrpc:'2.0',id:2,method:'ping'}});assert.equal(revoked.status(),401);

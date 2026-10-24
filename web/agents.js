@@ -13,13 +13,12 @@ function agentDirections(connection) {
   return {incoming,outgoing,incomingLabel:!alive?'已到期':incoming?'已连接':'待连接',outgoingLabel};
 }
 
-function agentDirectionMark(connection) {
-  const state=agentDirections(connection),mark=element('span','','agent-direction-mark');
-  mark.setAttribute('role','img');
-  const label='TimeMate → '+connection.name+'：'+state.outgoingLabel+'；'+connection.name+' → TimeMate：'+state.incomingLabel;
-  mark.setAttribute('aria-label',label);mark.title=label;
-  mark.innerHTML='<svg viewBox="0 0 40 30" aria-hidden="true"><path class="'+(state.outgoing?'is-connected':'')+'" d="M3 10h33l-7-6"/><path class="'+(state.incoming?'is-connected':'')+'" d="M37 19H4l7 6"/></svg>';
-  return mark;
+function agentConnectionStatus(connection) {
+  const state=agentDirections(connection),complete=state.incoming && state.outgoing;
+  const label=complete?'✓ 已连接':state.incoming || state.outgoing?'部分连接':state.incomingLabel==='已到期'?'已到期':state.outgoingLabel==='通知异常'?'通知异常':'待连接';
+  const status=element('span',label,'agent-list-status'+(complete?' is-connected':''));
+  status.title='TimeMate → '+connection.name+'：'+state.outgoingLabel+'；'+connection.name+' → TimeMate：'+state.incomingLabel;
+  return status;
 }
 
 async function agentRequest(path, data) {
@@ -41,7 +40,7 @@ async function loadAgentConnections() {
       const mark=element('span',connection.provider==='grok'?'G':connection.provider==='muse'?'M':'↔','ai-provider-mark');mark.setAttribute('aria-hidden','true');
       const copy=element('span','','ai-provider-copy');copy.append(element('strong',connection.name));
       const tail=element('span','','settings-entry-tail');
-      tail.append(agentDirectionMark(connection),element('span','›','settings-entry-chevron'));
+      tail.append(agentConnectionStatus(connection),element('span','›','settings-entry-chevron'));
       row.append(mark,copy,tail);list.append(row);
     }
     $('agent-library-feedback').textContent='';
@@ -84,14 +83,14 @@ async function createAgentConnection() {
     $('agent-issued').hidden=false;$('agent-issued-key').value=data.token;
     $('agent-disconnect').hidden=false;$('agent-cancel').textContent='完成';
     $('agent-create').hidden=true;$('agent-dot-link').hidden=true;
-    renderAgentConnection();
+    renderAgentConnection();selectAgentTab('connection');
   } catch(e) {$('agent-dialog-feedback').textContent=e.message;}
   finally {agentBusy=false;$('agent-create').disabled=false;}
 }
 
 function renderAgentConnection() {
   const connection=agentConnections.find(c=>c.id===agentEditing);if(!connection)return;
-  $('agent-dialog-title').textContent=connection.name;
+  $('agent-dialog-title').textContent=$('agent-details').dataset.view==='connection'?'读取与操作':$('agent-details').dataset.view==='feedback'?'变更通知':connection.name;
   $('agent-dialog-mark').textContent=connection.provider==='grok'?'G':connection.provider==='muse'?'M':'↔';
   const directions=agentDirections(connection);
   for(const id of ['agent-direction-name','agent-row-name','agent-row-feedback-name']) $(id).textContent=connection.name;
@@ -100,7 +99,7 @@ function renderAgentConnection() {
     button.classList.toggle('is-connected',connected);
     $('agent-arrow-'+tab).classList.toggle('is-connected',connected);
     button.setAttribute('aria-label',(tab==='feedback'?'TimeMate → '+connection.name:connection.name+' → TimeMate')+'，'+label);
-    $('agent-direction-status-'+tab).textContent=label;
+    $('agent-direction-status-'+tab).textContent=(connected?'✓ ':'')+label;
   }
   const scopeLabels={'mail:read':'读取邮件','mail:write':'传入邮件','items:read':'查看事项','items:write':'修改事项','changes:read':'接收变更反馈'};
   $('agent-access').textContent=connection.scope.split(' ').map(s=>scopeLabels[s]).filter(Boolean).join('、');
@@ -175,16 +174,16 @@ setInterval(()=>{
 
 function closeAgentConnection() { if(!agentBusy)$('agent-dialog').close(); }
 function selectAgentTab(name) {
+  const editing=!!agentEditing && !!name;
+  $('agent-details').dataset.view=name;
+  document.querySelector('#agent-details .agent-direction-map').hidden=editing;
+  document.querySelector('#agent-details .agent-direction-tabs').hidden=editing;
+  $('agent-settings-back').hidden=!editing;
+  $('agent-dialog-mark').hidden=editing;
   for(const key of ['connection','feedback']) {
     const selected=key===name;
-    $('agent-tab-'+key).setAttribute('aria-selected',String(selected));
-    $('agent-tab-'+key).tabIndex=selected||!name?0:-1;
+    $('agent-tab-'+key).setAttribute('aria-expanded',String(selected));
     $('agent-panel-'+key).hidden=!selected;
   }
+  if(agentEditing)renderAgentConnection();
 }
-for(const key of ['connection','feedback']) $('agent-tab-'+key).addEventListener('keydown',e=>{
-  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(e.key)) {
-    e.preventDefault();const next=e.key==='Home'?'connection':e.key==='End'?'feedback':key==='connection'?'feedback':'connection';
-    selectAgentTab(next);$('agent-tab-'+next).focus();
-  }
-});

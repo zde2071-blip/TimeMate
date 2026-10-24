@@ -3736,10 +3736,10 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 .setup-guide-media a { cursor: zoom-in; display: block; }
 
 /* Shared half-arrows: each direction reflects its own verified connection. */
-.agent-direction-mark { display:inline-flex; flex:none; width:32px; }
-.agent-direction-mark svg { width:32px; height:25px; fill:none; }
-.agent-direction-mark path,.agent-half-arrows path { stroke:#a4adb0; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; fill:none; }
-.agent-direction-mark path.is-connected,.agent-half-arrows path.is-connected { stroke:#245e4d; }
+.agent-list-status { color:#79817e; font-size:13px; white-space:nowrap; }
+.agent-list-status.is-connected { color:#245e4d; }
+.agent-half-arrows path { stroke:#a4adb0; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; fill:none; }
+.agent-half-arrows path.is-connected { stroke:#245e4d; }
 #agent-dialog .agent-direction-map { display:grid; grid-template-columns:100px 92px 100px; gap:26px; align-items:center; justify-content:center; margin:30px 0; }
 .agent-direction-app { display:grid; justify-items:center; gap:10px; min-width:0; }
 .agent-direction-app > span { display:grid; place-items:center; width:50px; height:50px; border-radius:14px; background:#f3f5f4; }
@@ -3754,9 +3754,12 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 .agent-direction-actions { display:flex; align-items:center; gap:20px; flex:none; }
 .agent-direction-status { color:#79817e; font-size:12px; }
 .is-connected .agent-direction-status { color:#245e4d; }
-.agent-direction-setting { display:inline-flex; align-items:center; gap:5px; font-size:13px; }
+.agent-direction-setting { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:6px; }
 .agent-direction-setting svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; }
-#agent-dialog .agent-direction-tabs button[aria-selected="true"] .agent-direction-setting { text-decoration:underline; text-underline-offset:4px; }
+#agent-dialog .agent-settings-back { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; margin:0; padding:5px; background:transparent; color:#252b29; border:0; border-radius:6px; }
+.agent-settings-back svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+#agent-details[data-view="connection"] #agent-panel-connection,#agent-details[data-view="feedback"] #agent-panel-feedback { margin-top:24px; }
+#agent-dialog [hidden] { display:none !important; }
 @media(max-width:450px) {
  #agent-dialog .agent-direction-map { grid-template-columns:76px 64px 76px; gap:16px; }
  .agent-half-arrows { width:64px; }
