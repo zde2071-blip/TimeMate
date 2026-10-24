@@ -107,8 +107,8 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-grok-guide-${width}.png`)});
    await page.locator('#agent-grok-next').click();
    assert.equal(await page.locator('#agent-grok-progress').textContent(),'2 / 3');
-   assert.equal(await page.locator('.agent-grok-step:not([hidden]) h3').textContent(),'② 详情 → TimeMate 变更反馈','the task-opening operation cannot be skipped');
-   assert.ok((await page.locator('.agent-grok-step:not([hidden]) img').getAttribute('src')).endsWith('02-open-task.webp'));
+   assert.equal(await page.locator('.agent-grok-step:not([hidden]) h3').textContent(),'② 点击回复中的「详情」','the task-opening operation cannot be skipped');
+   assert.ok((await page.locator('.agent-grok-step:not([hidden]) img').getAttribute('src')).endsWith('02-reply-details.webp'));
    await page.locator('.agent-grok-step:not([hidden]) img').evaluate(img=>img.decode());
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-grok-open-task-${width}.png`)});
    await page.locator('#agent-grok-next').click();
