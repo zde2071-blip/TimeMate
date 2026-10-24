@@ -132,13 +132,14 @@ function setAgentGrokStep(step) {
 
 function renderAgentGrokFeedback(connection) {
   const sub=agentFeedbackTest?connection.feedback.find(s=>s.id===agentFeedbackTest):
-    connection.feedback.find(s=>s.enabled && s.expires*1000>Date.now());
+    connection.feedback.find(s=>s.expires*1000>Date.now());
   const connected=!!(sub && sub.enabled && sub.expires*1000>Date.now() && sub.last_ack && !sub.last_error);
-  const showResult=!agentGrokEditing && (connected || !!agentFeedbackTest);
+  const showResult=!agentGrokEditing && (!!sub || !!agentFeedbackTest);
   $('agent-grok-guide').hidden=showResult;$('agent-grok-result').hidden=!showResult;
-  $('agent-grok-result-title').textContent=connected?'✓ 已连接':sub?.last_error?'通知未送达':'等待 Grok Bot 回执';
+  $('agent-grok-result-title').textContent=connected?'✓ 已连接':sub?.last_error?'通知未送达':sub && !sub.enabled?'待检测':'等待 Grok Bot 回执';
   $('agent-grok-result-title').classList.toggle('is-connected',connected);
   $('agent-grok-retry').hidden=connected || agentBusy || !(sub?.last_error || (sub && !sub.enabled));
+  $('agent-grok-retry').textContent=sub && !sub.enabled && !sub.last_error?'开始检测':'重新检测';
   $('agent-hook-save').disabled=agentBusy;
   setAgentGrokStep(agentGrokStep);
 }
@@ -171,13 +172,13 @@ async function saveAgentFeedback() {
 
 async function retryAgentGrokFeedback() {
   const connection=agentConnections.find(c=>c.id===agentEditing);
-  const sub=connection?.feedback.find(s=>s.id===agentFeedbackTest);
-  if(sub)await testAgentFeedback(sub.id,true);
+  const sub=connection?.feedback.find(s=>s.id===agentFeedbackTest) || connection?.feedback.find(s=>s.expires*1000>Date.now());
+  if(sub){agentFeedbackTest=sub.id;await testAgentFeedback(sub.id,!!sub.last_error);}
 }
 
 async function testAgentFeedback(id,retry=false) {
   if(agentBusy)return;
-  if(!retry && !confirm('发送测试会启动一次 Agent 任务，可能消耗其额度。继续？'))return;
+  if(!retry && agentConnections.find(c=>c.id===agentEditing)?.provider!=='grok' && !confirm('发送测试会启动一次 Agent 任务，可能消耗其额度。继续？'))return;
   agentBusy=true;renderAgentConnection();
   try {await agentRequest(retry?'/retry':'/test',{id});await loadAgentConnections();}
   catch(e){$('agent-dialog-feedback').textContent=e.message;}

@@ -110,6 +110,10 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    assert.equal(await page.locator('#agent-hook-url').isVisible(),true);
    assert.equal(await page.locator('.agent-grok-step:not([hidden]) img').isVisible(),true,'screenshot stays with the form');
    assert.equal(await page.locator('#agent-hook-save').evaluate(el=>{const b=el.getBoundingClientRect(),p=el.parentElement.getBoundingClientRect();return p.right-b.right<2;}),true,'save is bottom-right');
+   await page.evaluate(()=>{const c=agentConnections.find(c=>c.id===agentEditing);c.feedback=[{id:'existing-sub',kind:'grok',enabled:false,expires:Date.now()/1000+3600,last_ack:null,last_error:''}];renderAgentConnection();});
+   assert.equal(await page.locator('#agent-grok-result-title').textContent(),'待检测','saved subscriptions survive reopening without reentering secrets');
+   assert.equal(await page.locator('#agent-grok-retry').isVisible(),true);
+   await page.evaluate(()=>{agentConnections.find(c=>c.id===agentEditing).feedback=[];renderAgentConnection();});
    let registered=0,tests=0;
    await page.route('**/api/agents/feedback',async route=>{registered++;await route.fulfill({json:{id:'browser-sub'}});});
    await page.route('**/api/agents/test',async route=>{tests++;assert.equal(route.request().postDataJSON().id,'browser-sub');await route.fulfill({json:{ok:true}});});
