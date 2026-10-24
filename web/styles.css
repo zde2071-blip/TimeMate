@@ -3767,3 +3767,37 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
  .agent-direction-copy strong { font-size:12px; }
  .agent-direction-copy > span,.agent-direction-status { font-size:11px; }
 }
+
+/* Grok notification setup: one illustrated step at a time. */
+#agent-dialog.grok-feedback-active { width:min(720px,calc(100vw - 24px)); }
+#agent-dialog.grok-feedback-active > .ai-dialog-actions { display:none; }
+#agent-dialog #agent-panel-feedback { border:0; padding:0; background:transparent; }
+#agent-dialog .agent-grok-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0 0 16px; }
+#agent-dialog .agent-grok-heading h3 { font-size:16px; font-weight:500; margin:0; }
+#agent-dialog .agent-grok-heading button { display:inline-flex; gap:6px; align-items:center; white-space:nowrap; margin:0; padding:8px 10px; font-size:12px; }
+.agent-grok-heading svg,.agent-grok-paste svg,.agent-grok-result-actions svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+.agent-grok-image { display:block; overflow:hidden; border:1px solid #e7eaea; border-radius:9px; cursor:zoom-in; }
+.agent-grok-image img { display:block; width:100%; height:auto; }
+#agent-dialog .agent-grok-fields { display:grid; gap:8px; margin-top:18px; }
+#agent-dialog .agent-grok-fields > label { margin-top:8px; }
+#agent-dialog .agent-grok-paste { display:flex; align-items:center; border:1px solid #e7eaea; border-radius:8px; padding-right:10px; }
+#agent-dialog .agent-grok-paste input { border:0; margin:0; min-width:0; background:transparent; }
+#agent-dialog .agent-grok-paste button { display:inline-flex; align-items:center; gap:5px; flex:none; white-space:nowrap; padding:8px 2px; }
+#agent-dialog .agent-grok-actions { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:14px; border-top:1px solid #e7eaea; padding-top:18px; margin-top:24px; }
+#agent-dialog .agent-grok-actions button { margin:0; width:auto; font-size:13px; }
+#agent-dialog #agent-grok-previous { grid-column:1; grid-row:1; justify-self:start; }
+#agent-grok-progress { grid-column:2; grid-row:1; font-size:12px; color:#79817e; }
+#agent-dialog #agent-grok-next,#agent-dialog #agent-hook-save { grid-column:3; grid-row:1; justify-self:end; padding:9px 13px; }
+#agent-dialog #agent-hook-save { background:#252929; color:#fff; border:1px solid #252929; border-radius:8px; }
+#agent-grok-result { padding:45px 0 30px; text-align:center; }
+#agent-grok-result-title { font-size:16px; font-weight:500; }
+#agent-grok-result-title.is-connected { color:#245e4d; }
+.agent-grok-result-actions { display:flex; align-items:center; justify-content:center; gap:18px; margin-top:22px; }
+#agent-dialog .agent-grok-result-actions button { display:inline-flex; gap:6px; align-items:center; }
+@media(max-width:450px) {
+ #agent-dialog .agent-grok-heading { gap:8px; }
+ #agent-dialog .agent-grok-heading h3 { font-size:14px; }
+ #agent-dialog .agent-grok-heading button { padding:8px; font-size:11px; }
+ #agent-dialog .agent-grok-paste input { font-size:16px; }
+}
+#agent-dialog #agent-hook-url,#agent-dialog #agent-hook-key { border:0; margin:0; background:transparent; flex:1; min-width:0; }
