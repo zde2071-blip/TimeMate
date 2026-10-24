@@ -3734,3 +3734,24 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 .agent-guide-link { margin-left: 16px; color: #245e4d; font-size: 14px; white-space: nowrap; }
 
 .setup-guide-media a { cursor: zoom-in; display: block; }
+
+/* One direction per arrow; green means this direction has been verified. */
+.agent-direction-mark { display:inline-flex; flex:none; width:36px; }
+.agent-direction-mark svg { width:36px; height:28px; fill:none; }
+.agent-direction-mark path { stroke:#a4adb0; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.agent-direction-mark path.is-connected { stroke:#245e4d; }
+#agent-dialog .agent-direction-map { display:grid; grid-template-columns:minmax(65px,1fr) minmax(170px,2.2fr) minmax(65px,1fr); align-items:center; gap:14px; margin:24px 0; }
+.agent-direction-map > strong { font-size:14px; text-align:center; overflow-wrap:anywhere; }
+.agent-direction-tabs { display:grid; gap:10px; }
+#agent-dialog .agent-direction-tabs button { display:grid; gap:4px; width:100%; margin:0; padding:7px 9px; border:1px solid transparent; border-radius:8px; background:transparent; color:#737d80; }
+#agent-dialog .agent-direction-tabs button[aria-selected="true"] { background:#f5f6f6; border-color:#e5e8e8; }
+.agent-direction-tabs svg { display:block; width:100%; height:21px; fill:none; }
+.agent-direction-tabs path { stroke:#a4adb0; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+.agent-direction-tabs .is-connected path { stroke:#245e4d; }
+.agent-direction-tabs button > span { display:flex; justify-content:space-between; gap:8px; font-size:11px; white-space:nowrap; }
+.agent-direction-tabs button:focus-visible { outline:2px solid #4d6960; outline-offset:2px; }
+@media(max-width:450px) {
+ #agent-dialog .agent-direction-map { grid-template-columns:minmax(58px,1fr) minmax(148px,2.4fr) minmax(58px,1fr); gap:6px; }
+ .agent-direction-map > strong { font-size:12px; }
+ #agent-dialog .agent-direction-tabs button { padding:7px 6px; }
+}

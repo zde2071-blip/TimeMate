@@ -63,11 +63,33 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    assert.ok((await page.evaluate(()=>agentConnectionInstructions('grok','feedback'))).includes('acknowledge_feedback'));
    await page.locator('#agent-create').click();await page.locator('#agent-issued').waitFor();
    const key=await page.locator('#agent-issued-key').inputValue();assert.ok(key.startsWith('tm_'));
-   assert.equal(await page.locator('#agent-connection-state').textContent(),'等待 Agent 连接');
+   assert.equal(await page.locator('#agent-direction-status-connection').textContent(),'待连接');
+   assert.equal(await page.locator('#agent-tab-connection').evaluate(el=>el.classList.contains('is-connected')),false);
+   assert.equal(await page.locator('#agent-tab-feedback').evaluate(el=>el.classList.contains('is-connected')),false);
    const rpc=await page.request.post(origin+'/mcp',{headers:{Authorization:'Bearer '+key},data:{jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'connection_status',arguments:{}}}});
    assert.equal(rpc.status(),200);assert.equal((await rpc.json()).result.isError,false);
    await page.evaluate(()=>loadAgentConnections());
-   assert.equal(await page.locator('#agent-connection-state').textContent(),'已连接 · 未启用反馈');
+   assert.equal(await page.locator('#agent-direction-status-connection').textContent(),'已连接');
+   assert.equal(await page.locator('#agent-direction-status-feedback').textContent(),'待配置');
+   assert.equal(await page.locator('#agent-tab-connection').evaluate(el=>el.classList.contains('is-connected')),true);
+   assert.equal(await page.locator('#agent-tab-feedback').evaluate(el=>el.classList.contains('is-connected')),false);
+   const verifiedStates=await page.evaluate(()=>{
+     const c=agentConnections.find(c=>c.id===agentEditing),original=c.feedback;
+     const checked=[];
+     for(const sub of [
+       {enabled:true,expires:Date.now()/1000+3600,last_ack:null,last_delivery:Date.now()/1000,last_error:''},
+       {enabled:true,expires:Date.now()/1000+3600,last_ack:Date.now()/1000,last_error:''},
+       {enabled:true,expires:Date.now()/1000+3600,last_ack:Date.now()/1000,last_error:'Delivery failed'},
+       {enabled:true,expires:Date.now()/1000-1,last_ack:Date.now()/1000,last_error:''}
+     ]) {
+       c.feedback=[sub];renderAgentConnection();
+       checked.push([document.getElementById('agent-tab-connection').classList.contains('is-connected'),document.getElementById('agent-tab-feedback').classList.contains('is-connected')]);
+     }
+     c.feedback=original;renderAgentConnection();return checked;
+   });
+   assert.deepEqual(verifiedStates,[[true,false],[true,true],[true,false],[true,false]],'only acknowledged, current, healthy feedback turns the return direction green');
+   assert.ok(await page.locator('#agent-tab-feedback').getAttribute('aria-label').then(s=>s.startsWith('TimeMate → Grok Bot')));
+   assert.ok(await page.locator('#agent-tab-connection').getAttribute('aria-label').then(s=>s.startsWith('Grok Bot → TimeMate')));
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-connection-${width}.png`)});
    await page.locator('#agent-tab-feedback').click();
    assert.equal(await page.locator('#agent-grok-feedback').isVisible(),true);

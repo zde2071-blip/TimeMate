@@ -1,24 +1,33 @@
 /* External personal agents have their own grants; they never share AI API keys. */
 let agentConnections = [], agentMCP = '', agentEditing = '', agentBusy = false;
 
+function agentDirections(connection) {
+  const alive=connection.expires*1000>Date.now();
+  const incoming=alive && !!connection.last_used;
+  const feedback=connection.feedback || [];
+  const relevant=feedback.filter(s=>s.expires*1000>Date.now());
+  const current=relevant.filter(s=>s.enabled);
+  const outgoing=alive && current.some(s=>s.last_ack && !s.last_error);
+  const outgoingLabel=!alive?'已到期':outgoing?'已连接':relevant.some(s=>s.last_error)?'通知异常':
+    current.some(s=>s.last_delivery)?'待回执':current.length?'待验证':relevant.length?'待验证':feedback.length?'已到期':'待配置';
+  return {incoming,outgoing,incomingLabel:!alive?'已到期':incoming?'已连接':'待连接',outgoingLabel};
+}
+
+function agentDirectionMark(connection) {
+  const state=agentDirections(connection),mark=element('span','','agent-direction-mark');
+  mark.setAttribute('role','img');
+  const label='TimeMate → '+connection.name+'：'+state.outgoingLabel+'；'+connection.name+' → TimeMate：'+state.incomingLabel;
+  mark.setAttribute('aria-label',label);mark.title=label;
+  mark.innerHTML='<svg viewBox="0 0 40 30" aria-hidden="true"><path class="'+(state.outgoing?'is-connected':'')+'" d="M3 8h33m-7-6 7 6-7 6"/><path class="'+(state.incoming?'is-connected':'')+'" d="M37 23H4m7-6-7 6 7 6"/></svg>';
+  return mark;
+}
+
 async function agentRequest(path, data) {
   const r = await fetch('/api/agents' + path, {method:data ? 'POST' : 'GET',
     headers:{'Content-Type':'application/json','X-Token':token}, ...(data ? {body:JSON.stringify(data)} : {})});
   const result = await r.json();
   if (!r.ok) throw Error(result.error || '操作未完成，请重试');
   return result;
-}
-
-function agentStatus(connection) {
-  if (connection.expires * 1000 <= Date.now()) return '授权已到期';
-  if (!connection.last_used) return '等待 Agent 连接';
-  const feedback = connection.feedback || [];
-  if (feedback.some(s => s.last_error)) return '反馈待检查';
-  const active = feedback.filter(s => s.enabled && s.expires * 1000 > Date.now());
-  if (active.some(s => s.last_ack)) return '✓ 已收到反馈回执';
-  if (active.some(s => s.last_delivery)) return '通知已送达';
-  if (active.length) return '已连接 · 等待反馈';
-  return '已连接 · 未启用反馈';
 }
 
 async function loadAgentConnections() {
@@ -32,8 +41,7 @@ async function loadAgentConnections() {
       const mark=element('span',connection.provider==='grok'?'G':connection.provider==='muse'?'M':'↔','ai-provider-mark');mark.setAttribute('aria-hidden','true');
       const copy=element('span','','ai-provider-copy');copy.append(element('strong',connection.name));
       const tail=element('span','','settings-entry-tail');
-      const connected=!!connection.last_used && connection.expires*1000>Date.now();
-      tail.append(element('span',connected?'✓ 已连接':connection.expires*1000<=Date.now()?'授权已到期':'待连接',connected?'settings-entry-connected':'calendar-entry-pending'),element('span','›','settings-entry-chevron'));
+      tail.append(agentDirectionMark(connection),element('span','›','settings-entry-chevron'));
       row.append(mark,copy,tail);list.append(row);
     }
     $('agent-library-feedback').textContent='';
@@ -85,7 +93,14 @@ function renderAgentConnection() {
   const connection=agentConnections.find(c=>c.id===agentEditing);if(!connection)return;
   $('agent-dialog-title').textContent=connection.name;
   $('agent-dialog-mark').textContent=connection.provider==='grok'?'G':connection.provider==='muse'?'M':'↔';
-  $('agent-connection-state').textContent=agentStatus(connection);
+  const directions=agentDirections(connection);
+  $('agent-direction-name').textContent=connection.name;
+  for(const [tab,connected,label] of [['connection',directions.incoming,directions.incomingLabel],['feedback',directions.outgoing,directions.outgoingLabel]]) {
+    const button=$('agent-tab-'+tab);
+    button.classList.toggle('is-connected',connected);
+    button.setAttribute('aria-label',(tab==='feedback'?'TimeMate → '+connection.name:connection.name+' → TimeMate')+'，'+label);
+    $('agent-direction-status-'+tab).textContent=label;
+  }
   const scopeLabels={'mail:read':'读取邮件','mail:write':'传入邮件','items:read':'查看事项','items:write':'修改事项','changes:read':'接收变更反馈'};
   $('agent-access').textContent=connection.scope.split(' ').map(s=>scopeLabels[s]).filter(Boolean).join('、');
   $('agent-expiry').textContent='授权有效期至 '+new Date(connection.expires*1000).toLocaleDateString();
@@ -167,8 +182,8 @@ function selectAgentTab(name) {
   }
 }
 for(const key of ['connection','feedback']) $('agent-tab-'+key).addEventListener('keydown',e=>{
-  if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) {
-    e.preventDefault();const next=e.key==='Home'?'connection':e.key==='End'?'feedback':key==='connection'?'feedback':'connection';
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(e.key)) {
+    e.preventDefault();const next=e.key==='Home'?'feedback':e.key==='End'?'connection':key==='connection'?'feedback':'connection';
     selectAgentTab(next);$('agent-tab-'+next).focus();
   }
 });
