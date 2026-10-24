@@ -18,7 +18,7 @@ function agentDirectionMark(connection) {
   mark.setAttribute('role','img');
   const label='TimeMate → '+connection.name+'：'+state.outgoingLabel+'；'+connection.name+' → TimeMate：'+state.incomingLabel;
   mark.setAttribute('aria-label',label);mark.title=label;
-  mark.innerHTML='<svg viewBox="0 0 40 30" aria-hidden="true"><path class="'+(state.outgoing?'is-connected':'')+'" d="M3 8h33m-7-6 7 6-7 6"/><path class="'+(state.incoming?'is-connected':'')+'" d="M37 23H4m7-6-7 6 7 6"/></svg>';
+  mark.innerHTML='<svg viewBox="0 0 40 30" aria-hidden="true"><path class="'+(state.outgoing?'is-connected':'')+'" d="M3 10h33l-7-6"/><path class="'+(state.incoming?'is-connected':'')+'" d="M37 19H4l7 6"/></svg>';
   return mark;
 }
 
@@ -58,7 +58,7 @@ function openAgentConnection(id='') {
   $('agent-provider').value='dot';$('agent-allow-edits').checked=false;
   $('agent-disconnect').hidden=!id;$('agent-cancel').textContent=id?'完成':'取消';
   document.querySelectorAll('#agent-dialog details').forEach(d=>d.open=false);
-  selectAgentTab('connection');renderAgentSetup();if(id) renderAgentConnection();
+  selectAgentTab(id?'':'connection');renderAgentSetup();if(id) renderAgentConnection();
   $('agent-dialog').showModal();
 }
 
@@ -94,10 +94,11 @@ function renderAgentConnection() {
   $('agent-dialog-title').textContent=connection.name;
   $('agent-dialog-mark').textContent=connection.provider==='grok'?'G':connection.provider==='muse'?'M':'↔';
   const directions=agentDirections(connection);
-  $('agent-direction-name').textContent=connection.name;
+  for(const id of ['agent-direction-name','agent-row-name','agent-row-feedback-name']) $(id).textContent=connection.name;
   for(const [tab,connected,label] of [['connection',directions.incoming,directions.incomingLabel],['feedback',directions.outgoing,directions.outgoingLabel]]) {
     const button=$('agent-tab-'+tab);
     button.classList.toggle('is-connected',connected);
+    $('agent-arrow-'+tab).classList.toggle('is-connected',connected);
     button.setAttribute('aria-label',(tab==='feedback'?'TimeMate → '+connection.name:connection.name+' → TimeMate')+'，'+label);
     $('agent-direction-status-'+tab).textContent=label;
   }
@@ -177,13 +178,13 @@ function selectAgentTab(name) {
   for(const key of ['connection','feedback']) {
     const selected=key===name;
     $('agent-tab-'+key).setAttribute('aria-selected',String(selected));
-    $('agent-tab-'+key).tabIndex=selected?0:-1;
+    $('agent-tab-'+key).tabIndex=selected||!name?0:-1;
     $('agent-panel-'+key).hidden=!selected;
   }
 }
 for(const key of ['connection','feedback']) $('agent-tab-'+key).addEventListener('keydown',e=>{
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(e.key)) {
-    e.preventDefault();const next=e.key==='Home'?'feedback':e.key==='End'?'connection':key==='connection'?'feedback':'connection';
+    e.preventDefault();const next=e.key==='Home'?'connection':e.key==='End'?'feedback':key==='connection'?'feedback':'connection';
     selectAgentTab(next);$('agent-tab-'+next).focus();
   }
 });

@@ -113,6 +113,12 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    await page.waitForFunction(()=>document.getElementById('agent-issued-key').value==='');
    await page.getByRole('button',{name:'设置 Grok Bot',exact:true}).click();
    assert.equal(await page.locator('#agent-issued').isVisible(),false);
+   assert.equal(await page.locator('#agent-panel-connection').isVisible(),false,'existing connections open at the compact overview');
+   assert.equal(await page.locator('#agent-panel-feedback').isVisible(),false);
+   assert.equal(await page.locator('.agent-direction-setting svg').count(),2,'both settings entries include an icon');
+   await page.screenshot({path:path.join(os.tmpdir(),`timemate-agent-overview-${width}.png`)});
+   await page.locator('#agent-tab-connection').click();
+   assert.equal(await page.locator('#agent-panel-connection').isVisible(),true,'settings row opens the matching configuration');
    page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'断开连接',exact:true}).click();
    await page.locator('#agent-dialog').waitFor({state:'hidden'});
    const revoked=await page.request.post(origin+'/mcp',{headers:{Authorization:'Bearer '+key},data:{jsonrpc:'2.0',id:2,method:'ping'}});assert.equal(revoked.status(),401);
