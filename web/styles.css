@@ -3707,3 +3707,30 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 
 #agent-dot-setup, #agent-detail-guide { margin-top:12px; }
 #agent-detail-guide:not([hidden]) { display:inline-block; }
+
+/* One illustrated step per page; the image, caption and actions share one frame. */
+.setup-guide-dialog { height: min(850px, 90dvh); max-height: 90dvh; overflow: hidden; }
+.setup-guide-dialog[open] { display: flex; flex-direction: column; }
+.setup-guide-dialog .setup-guide-header { position: relative; top: auto; flex-shrink: 0; }
+#setup-guide-content { flex: 1; min-height: 0; overflow: auto; }
+#setup-guide-content .setup-guide-page { margin: 8px 0 0; }
+#setup-guide-content .setup-guide-page[hidden] { display: none; }
+#setup-guide-content figcaption { margin: 0 0 16px; font-size: 16px; outline: none; }
+#setup-guide-content .setup-guide-media { width: min(100%, calc((min(850px, 90dvh) - 330px) * var(--guide-aspect, 1.5))); margin: 0 auto; }
+#setup-guide-content img { width: 100%; height: auto; border-radius: 10px; }
+#setup-guide-content p { margin: 12px 0 0; font-size: 14px; color: #68747a; }
+.setup-guide-dialog #setup-guide-controls { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; flex-shrink: 0; }
+.setup-guide-dialog #setup-guide-controls[hidden] { display: none; }
+#setup-guide-progress { color: #738087; font-size: 14px; font-variant-numeric: tabular-nums; }
+#setup-guide-controls button { min-width: 104px; }
+@media(max-width:650px) {
+ .setup-guide-dialog { width: calc(100vw - 24px); max-width: calc(100vw - 24px); height: fit-content; padding: 16px; }
+ #setup-guide-content { flex: 0 1 auto; }
+ .setup-guide-dialog .setup-guide-header { top: auto; }
+ #setup-guide-content figcaption { font-size: 15px; }
+ #setup-guide-controls button { min-width: 88px; padding: 10px 12px; }
+}
+
+.agent-guide-link { margin-left: 16px; color: #245e4d; font-size: 14px; white-space: nowrap; }
+
+.setup-guide-media a { cursor: zoom-in; display: block; }

@@ -36,3 +36,16 @@ Official references:
 
 - https://forum.cursor.com/t/grokbot-custom-connectors/169965/5
 - https://www.meta.com/help/superintelligence/1687253048996149/
+
+## Grok Bot OAuth compatibility investigation (2026-10-24)
+
+The production dynamic-registration endpoint rejected Grok Bot's callback set with HTTP 400 `invalid_client_metadata`. Its registration includes `cursor://anysphere.cursor-mcp/oauth/callback`, the Cursor cloud HTTPS callback, and an HTTP loopback callback. The previous validator required HTTPS for every entry, rejecting the entire registration before any consent page could open. The fix accepts only the documented Cursor native callback plus literal localhost/127.0.0.1/::1 loopback addresses; every authorization and exchange still requires the exact registered URI and PKCE S256. Public non-loopback HTTP redirects and other custom schemes remain rejected. A production probe changed from 400 to 201 after deployment. An independent Grok Bot OAuth setup then opened the actual TimeMate consent page using the Cursor HTTPS cloud callback, S256 and the correct resource parameter. Final consent/token exchange remains pending the user’s approval; do not advertise it as a completed OAuth account connection. A temporary connector named “TimeMate OAuth 检查” was created without changing the existing Bearer connection or Routine. The Grok client was updated using its downloaded official 0.75.5 update while investigating an intermittent marketplace/card-loading error.
+
+Public Grok Bot documentation explains chat-created Routines and copying their Webhook URL/key. No supported third-party installation API returning these credentials was found. Internal Bot `UpdateRoutine` is not a public developer API and does not return the key. Do not use private Cursor endpoints or claim one-click reverse setup. Keep the user's existing Bearer connection and active Routine while investigating OAuth independently.
+
+The shared guide dialog displays one figure at a time, with previous/next controls, page count, keyboard arrows, mobile swipes and image zoom links. Grok Bot notification guide images originate from the desktop UI, cropped and annotated with account/chat regions excluded and the URL redacted. A test notification is not sent automatically: it consumes Bot usage. A successful HTTP delivery does not by itself establish a Bot acknowledgement or a user-visible chat message.
+
+References:
+- https://forum.cursor.com/t/grok-bot-custom-mcp-oauth-fails-before-sign-in-redirect-uri-not-allowed/171877
+- https://cursor.com/help/grok-bot/routines
+- https://forum.cursor.com/t/support-passing-parameters-through-grok-bot-deep-links/174986

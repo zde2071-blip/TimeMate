@@ -446,8 +446,72 @@ function closeSetupGuide() {
   $('setup-guide-dialog').close();
 }
 
+function selectSetupGuidePage(index, focus=false) {
+  const pages=Array.from($('setup-guide-content').querySelectorAll('.setup-guide-page'));
+  if(!pages.length)return;
+  index=Math.max(0,Math.min(index,pages.length-1));
+  pages.forEach((page,i)=>page.hidden=i!==index);
+  $('setup-guide-content').dataset.page=String(index);
+  $('setup-guide-progress').textContent=(index+1)+' / '+pages.length;
+  $('setup-guide-prev').disabled=index===0;
+  $('setup-guide-next').disabled=index===pages.length-1;
+  if(focus)pages[index].querySelector('figcaption')?.focus();
+}
+
+function mountSetupGuide(main) {
+  const pages=Array.from(main.querySelectorAll('figure'));
+  if(!pages.length)throw Error('教程内容暂不可用。');
+  for(const page of pages) {
+    page.classList.add('setup-guide-page');
+    const caption=page.querySelector('figcaption');
+    if(caption)caption.tabIndex=-1;
+    const media=element('div','','setup-guide-media');
+    Array.from(page.children).filter(n=>n.tagName!=='FIGCAPTION' && n.tagName!=='P').forEach(n=>media.append(n));
+    const img=media.querySelector('img');
+    if(img) {
+      const ratio=Number(img.getAttribute('width'))/Number(img.getAttribute('height'));
+      if(Number.isFinite(ratio) && ratio>0)media.style.setProperty('--guide-aspect',ratio);
+      img.loading='eager';
+      const zoom=element('a');zoom.href=img.getAttribute('src');zoom.target='_blank';zoom.rel='noopener noreferrer';
+      zoom.setAttribute('aria-label','查看大图：'+(caption?.textContent || img.alt));zoom.title='查看大图';
+      img.replaceWith(zoom);zoom.append(img);
+    }
+    caption?.after(media);
+  }
+  $('setup-guide-content').replaceChildren(...pages);
+  $('setup-guide-controls').hidden=false;
+  selectSetupGuidePage(0);
+}
+
+$('setup-guide-prev').onclick=()=>selectSetupGuidePage(Number($('setup-guide-content').dataset.page)-1);
+$('setup-guide-next').onclick=()=>selectSetupGuidePage(Number($('setup-guide-content').dataset.page)+1);
+$('setup-guide-dialog').addEventListener('keydown',e=>{
+  if(!['ArrowLeft','ArrowRight'].includes(e.key) || e.target.matches('input,textarea,select'))return;
+  if($('setup-guide-controls').hidden)return;
+  e.preventDefault();selectSetupGuidePage(Number($('setup-guide-content').dataset.page)+(e.key==='ArrowRight'?1:-1),true);
+});
+let setupGuideTouch=null;
+$('setup-guide-content').addEventListener('touchstart',e=>{
+  setupGuideTouch=e.touches.length===1?{x:e.touches[0].clientX,y:e.touches[0].clientY}:null;
+},{passive:true});
+$('setup-guide-content').addEventListener('touchend',e=>{
+  if(!setupGuideTouch || e.changedTouches.length!==1)return;
+  const dx=e.changedTouches[0].clientX-setupGuideTouch.x,dy=e.changedTouches[0].clientY-setupGuideTouch.y;
+  setupGuideTouch=null;
+  if(Math.abs(dx)>55 && Math.abs(dx)>Math.abs(dy)*1.5) {
+    e.preventDefault();
+    selectSetupGuidePage(Number($('setup-guide-content').dataset.page)+(dx<0?1:-1));
+  }
+},{passive:false});
+$('setup-guide-content').addEventListener('touchcancel',()=>setupGuideTouch=null,{passive:true});
+
 async function openSetupGuide(kind) {
   const guides = {
+    'grok-feedback': {
+      title: '连接 Grok Bot 通知',
+      url: '/assets/guides/grok-feedback.html',
+      links: []
+    },
     agent: {
       title: '连接 TimeMate',
       url: '/assets/guides/agent.html',
@@ -485,6 +549,7 @@ async function openSetupGuide(kind) {
   }));
   links.hidden = !guide.links.length;
   content.textContent = '正在加载教程…';
+  $('setup-guide-controls').hidden=true;
   if (!dialog.open) dialog.showModal();
   dialog.scrollTop = 0;
   try {
@@ -495,7 +560,7 @@ async function openSetupGuide(kind) {
     main.querySelectorAll('a').forEach(link => {
       if (link.getAttribute('href')?.startsWith('/assets/')) link.replaceWith(...link.childNodes);
     });
-    if (revision === setupGuideRevision && dialog.open) content.replaceChildren(...Array.from(main.childNodes));
+    if (revision === setupGuideRevision && dialog.open) mountSetupGuide(main);
   } catch (error) {
     if (revision === setupGuideRevision && dialog.open) content.textContent = error.message;
   }
