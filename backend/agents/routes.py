@@ -171,6 +171,28 @@ def install(app,store,origin):
             return jsonify(id=ident,token=token,expires=expiry,mcp_url=origin+'/mcp')
         except ValueError as e: return jsonify(error=str(e)),400
 
+    @app.post('/api/agents/classify')
+    def agent_classify():
+        try:
+            data=json_body()
+            if data.get('provider')!='grok': raise ValueError('请选择要关联的 Agent。')
+            if not isinstance(data.get('id'),str) or not data['id'] or len(data['id'])>128:
+                raise ValueError('请选择有效的 OAuth 连接。')
+            if limit('classify:'+g.auth['user_id'],20): return jsonify(error='操作过于频繁。'),429
+            with store.db() as c:
+                c.execute('BEGIN IMMEDIATE')
+                row=c.execute('''SELECT grants.id FROM agent_grants grants
+                  JOIN agent_clients clients ON clients.id=grants.client_id
+                  WHERE grants.id=? AND grants.user_id=? AND grants.client_id!='manual'
+                  AND grants.provider IN ('oauth','grok') AND grants.revoked=0 AND grants.expires>?''',
+                  (data.get('id'),g.auth['user_id'],time.time())).fetchone()
+                if not row: raise ValueError('OAuth 连接不存在或已失效。')
+                # The user identifies this existing authorization; its scope and tokens stay intact.
+                # A shared client name such as Cursor does not identify the user's Agent.
+                c.execute("UPDATE agent_grants SET name='Grok Bot',provider='grok' WHERE id=?",(row['id'],))
+            return jsonify(id=row['id'],name='Grok Bot',provider='grok',auth_method='oauth')
+        except ValueError as e: return jsonify(error=str(e)),400
+
     @app.post('/api/agents/revoke')
     def agent_disconnect():
         try:

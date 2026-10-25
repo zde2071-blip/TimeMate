@@ -229,6 +229,77 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(self.anon.post('/agent/revoke',base_url=ORIGIN,data={'token':r.json['refresh_token'],'client_id':args['client_id']}).status_code,200)
         self.assertEqual(self.rpc('ping',key=access).status_code,401)
 
+    def oauth_connection(self):
+        args,verifier=self.oauth_client()
+        with self.app.store.db() as c:
+            c.execute("UPDATE agent_clients SET name='Cursor' WHERE id=?",(args['client_id'],))
+        response=self.post(self.a,'/api/agents/authorize',{**args,'approve':True},self.ta)
+        code=parse_qs(urlsplit(response.json['redirect']).query)['code'][0]
+        payload={'grant_type':'authorization_code','code':code,'client_id':args['client_id'],
+                 'redirect_uri':args['redirect_uri'],'resource':args['resource'],'code_verifier':verifier}
+        response=self.anon.post('/agent/token',base_url=ORIGIN,data=payload)
+        self.assertEqual(response.status_code,200,response.text)
+        with self.app.store.db() as c:
+            grant=c.execute('SELECT grant_id FROM agent_tokens WHERE hash=?',(auth.digest(response.json['access_token']),)).fetchone()[0]
+        return grant,response.json,args
+
+    def test_user_can_classify_owned_oauth_without_recreating_or_expanding_authorization(self):
+        grant,tokens,args=self.oauth_connection()
+        before_list=self.app.agents.connections(self.ua)
+        entry=next(row for row in before_list if row['id']==grant)
+        self.assertEqual((entry['name'],entry['provider'],entry['auth_method']),('Cursor','oauth','oauth'))
+        self.assertEqual(next(row for row in before_list if row['id']==self.ga)['auth_method'],'personal')
+        with self.app.store.db() as c:
+            before=dict(c.execute('SELECT * FROM agent_grants WHERE id=?',(grant,)).fetchone())
+            before_tokens=[tuple(r) for r in c.execute('SELECT * FROM agent_tokens WHERE grant_id=? ORDER BY kind',(grant,))]
+        response=self.post(self.a,'/api/agents/classify',{'id':grant,'provider':'grok'},self.ta)
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.json,{'id':grant,'name':'Grok Bot','provider':'grok','auth_method':'oauth'})
+        self.assertEqual(self.post(self.a,'/api/agents/classify',{'id':grant,'provider':'grok'},self.ta).status_code,200)
+        with self.app.store.db() as c:
+            after=dict(c.execute('SELECT * FROM agent_grants WHERE id=?',(grant,)).fetchone())
+            after_tokens=[tuple(r) for r in c.execute('SELECT * FROM agent_tokens WHERE grant_id=? ORDER BY kind',(grant,))]
+        self.assertEqual(after,{**before,'name':'Grok Bot','provider':'grok'})
+        self.assertEqual(after_tokens,before_tokens)
+        self.assertEqual(len(self.app.agents.connections(self.ua)),len(before_list))
+        status=self.call('connection_status',key=tokens['access_token'])['structuredContent']
+        self.assertEqual(status['connection_id'],grant)
+        self.assertEqual(set(status['scope']),set(args['scope'].split()))
+        self.assertTrue(self.call('update_item',{'mail_id':'x','index':0,'version':'x','action':'remove'},tokens['access_token'])['isError'])
+        with patch('backend.agents.transport.public_addresses',return_value=['8.8.8.8']):
+            response=self.post(self.a,'/api/agents/feedback',{'id':grant,'url':'https://api2.cursor.sh/automations/webhook/oauth-fixture','key':'fixture-key'},self.ta)
+        self.assertEqual(response.status_code,200,response.text)
+        sid=response.json['id']
+        self.assertEqual(self.call('connection_status',key=tokens['access_token'])['structuredContent']['feedback'][0]['id'],sid)
+        self.assertEqual(self.app.agents.feedback_status(self.ga),[])
+        self.post(self.a,'/api/agents/classify',{'id':grant,'provider':'grok'},self.ta)
+        self.assertEqual(self.app.agents.feedback_status(grant)[0]['id'],sid,'idempotent association preserves the notification subscription')
+        refresh=self.anon.post('/agent/token',base_url=ORIGIN,data={'grant_type':'refresh_token','client_id':args['client_id'],
+            'resource':args['resource'],'refresh_token':tokens['refresh_token']})
+        self.assertEqual(refresh.status_code,200,refresh.text)
+        self.assertEqual(self.call('connection_status',key=refresh.json['access_token'])['structuredContent']['connection_id'],grant)
+
+    def test_oauth_classification_requires_owner_csrf_live_oauth_grant_and_explicit_provider(self):
+        grant,tokens,args=self.oauth_connection()
+        payload={'id':grant,'provider':'grok'}
+        self.assertEqual(self.post(self.anon,'/api/agents/classify',payload,self.ta).status_code,401)
+        self.assertEqual(self.post(self.a,'/api/agents/classify',payload,'bad').status_code,403)
+        self.assertEqual(self.post(self.b,'/api/agents/classify',payload,self.tb).status_code,400)
+        for provider in ('dot','muse','other','oauth',''):
+            self.assertEqual(self.post(self.a,'/api/agents/classify',{**payload,'provider':provider},self.ta).status_code,400)
+        for invalid_id in (None,[],{},'', 'x'*129):
+            self.assertEqual(self.post(self.a,'/api/agents/classify',{'id':invalid_id,'provider':'grok'},self.ta).status_code,400)
+        self.assertEqual(self.post(self.a,'/api/agents/classify',{'id':self.ga,'provider':'grok'},self.ta).status_code,400,'personal credentials are not reassigned')
+        with self.app.store.db() as c:
+            c.execute('UPDATE agent_grants SET expires=? WHERE id=?',(time.time()-1,grant))
+        self.assertEqual(self.post(self.a,'/api/agents/classify',payload,self.ta).status_code,400)
+        with self.app.store.db() as c:
+            c.execute('UPDATE agent_grants SET expires=?,revoked=1 WHERE id=?',(time.time()+3600,grant))
+        self.assertEqual(self.post(self.a,'/api/agents/classify',payload,self.ta).status_code,400)
+        with self.app.store.db() as c:
+            row=c.execute('SELECT name,provider FROM agent_grants WHERE id=?',(grant,)).fetchone()
+        self.assertEqual(tuple(row),('Cursor','oauth'))
+
     def test_grok_desktop_registration_and_pkce_with_exact_redirects(self):
         redirects=['cursor://anysphere.cursor-mcp/oauth/callback',
                    'https://www.cursor.com/agents/mcp/oauth/callback',

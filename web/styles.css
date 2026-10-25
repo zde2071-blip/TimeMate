@@ -3800,3 +3800,20 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
  #agent-dialog .agent-grok-paste input { font-size:16px; }
 }
 #agent-dialog #agent-hook-url,#agent-dialog #agent-hook-key { border:0; margin:0; background:transparent; flex:1; min-width:0; }
+
+/* Grok OAuth setup shares the full-window illustrated layout. */
+#agent-dialog.grok-incoming-active { width:min(720px,calc(100vw - 24px)); }
+#agent-dialog.grok-incoming-active > .ai-dialog-actions { display:none; }
+#agent-dialog.grok-incoming-active #agent-panel-connection { border:0; padding:0; background:transparent; }
+#agent-dialog .agent-grok-oauth-note { margin:12px 0 0; color:#737d80; font-size:12px; line-height:1.6; }
+#agent-grok-oauth-choice { margin-top:18px; }
+.agent-grok-oauth-choice-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+#agent-dialog .agent-grok-oauth-choice-heading label { margin:0; font-size:13px; }
+#agent-dialog .agent-grok-oauth-choice-heading button { margin:0; padding:6px 0; font-size:12px; }
+#agent-dialog #agent-grok-oauth-select { margin:8px 0 0; width:100%; }
+#agent-dialog #agent-grok-oauth-wait { margin:8px 0 0; color:#737d80; font-size:13px; }
+#agent-dialog #agent-grok-incoming-previous { grid-column:1; grid-row:1; justify-self:start; }
+#agent-grok-incoming-progress { grid-column:2; grid-row:1; font-size:12px; color:#79817e; }
+#agent-dialog #agent-grok-incoming-next,#agent-dialog #agent-grok-incoming-finish { grid-column:3; grid-row:1; justify-self:end; padding:9px 13px; }
+#agent-dialog #agent-grok-incoming-finish { background:#252929; color:#fff; border:1px solid #252929; border-radius:8px; }
+#agent-dialog #agent-grok-incoming-finish:disabled { opacity:.45; cursor:default; }

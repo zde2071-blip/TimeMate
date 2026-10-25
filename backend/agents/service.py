@@ -29,7 +29,8 @@ class AgentService:
 
     def connections(self,uid):
         with self.store.db() as c:
-            rows=c.execute('''SELECT id,name,provider,scope,created,expires,last_used FROM agent_grants
+            rows=c.execute('''SELECT id,name,provider,scope,created,expires,last_used,
+              CASE WHEN client_id='manual' THEN 'personal' ELSE 'oauth' END AS auth_method FROM agent_grants
               WHERE user_id=? AND revoked=0 ORDER BY created DESC''',(uid,)).fetchall()
         return [{**dict(r),'feedback':self.feedback_status(r['id'])} for r in rows]
 
