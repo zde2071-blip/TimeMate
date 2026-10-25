@@ -33,6 +33,9 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    assert.equal(await page.locator('#agent-details .agent-direction-map').isVisible(),false);
    assert.equal(await page.locator('#agent-dot-progress').textContent(),'1 / 4');
    assert.equal(await page.locator('#agent-dot-previous').isVisible(),false);
+   assert.ok((await page.locator('#agent-dialog').boundingBox()).height<=640,'guide stays compact');
+   const headingRow=await page.locator('.agent-dot-heading').evaluate(el=>{const a=el.querySelector('h3').getBoundingClientRect(),b=el.querySelector('a').getBoundingClientRect();return Math.abs((a.y+a.height/2)-(b.y+b.height/2))<1;});
+   assert.equal(headingRow,true,'step title and page link share a row');
    const dotBounds=()=>page.evaluate(()=>{const d=document.getElementById('agent-dialog').getBoundingClientRect(),p=document.getElementById('agent-dot-progress').getBoundingClientRect();return [d.y,d.height,p.y];});
    const initialDotBounds=await dotBounds();
    await page.locator('#agent-dot-image').evaluate(img=>img.decode());
@@ -52,6 +55,7 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    assert.deepEqual(await dotBounds(),initialDotBounds,'finish step retains the same pagination position');
    const actions=await page.locator('#agent-dot-toolbar, .agent-dot-toolbar').evaluate(el=>{const a=el.querySelector('button').getBoundingClientRect(),b=el.querySelector('a').getBoundingClientRect();return {sameRow:Math.abs(a.y-b.y)<1,ordered:a.right<=b.left,inside:b.right<=el.getBoundingClientRect().right};});
    assert.ok(actions.sameRow && actions.ordered && actions.inside,'copy and open actions stay together in order on desktop and mobile');
+   if(width>450)assert.equal(await page.locator('.agent-dot-heading').evaluate(el=>{const a=el.querySelector('h3').getBoundingClientRect(),b=el.querySelector('button').getBoundingClientRect();return Math.abs((a.y+a.height/2)-(b.y+b.height/2))<1;}),true,'desktop title and both actions share a row');
    await page.evaluate(()=>setAgentDotStep(0));
    assert.equal(await page.evaluate(()=>document.getElementById('agent-dot-image')===window.firstDotImage),true,'back navigation reuses the decoded image node');
    await page.evaluate(()=>setAgentDotStep(3));

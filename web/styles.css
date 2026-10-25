@@ -3819,14 +3819,15 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 #agent-dialog #agent-grok-incoming-finish:disabled { opacity:.45; cursor:default; }
 
 /* Dot: related actions stay together; pagination never moves with image decoding. */
-#agent-dialog.dot-guide-active[open] { display:flex;flex-direction:column;width:min(720px,calc(100vw - 24px));height:min(860px,calc(100dvh - 32px));box-sizing:border-box;overflow:hidden; }
+#agent-dialog.dot-guide-active[open] { display:flex;flex-direction:column;width:min(720px,calc(100vw - 24px));height:min(640px,calc(100dvh - 32px));box-sizing:border-box;overflow:hidden; }
 #agent-dialog.dot-guide-active > .ai-dialog-actions { display:none; }
 #agent-dialog.dot-guide-active > .ai-dialog-heading { flex:none; }
 #agent-dialog.dot-guide-active #agent-details { margin:0;padding:0;border:0;flex:none; }
 #agent-dialog #agent-dot-guide { border:0;padding:0;margin:16px 0 0;background:transparent;box-shadow:none;flex:1;min-height:0; }
 #agent-dialog #agent-dot-guide:not([hidden]) { display:flex;flex-direction:column; }
-#agent-dot-guide > .agent-grok-heading { flex:none;min-height:22px;margin:0 0 10px; }
-.agent-dot-toolbar { display:flex;justify-content:flex-end;align-items:center;gap:8px;min-height:36px;margin-bottom:14px;flex:none; }
+#agent-dot-guide > .agent-dot-heading { display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none;min-height:36px;margin:0 0 14px; }
+#agent-dot-guide .agent-dot-heading h3 { margin:0;min-width:0; }
+.agent-dot-toolbar { display:flex;justify-content:flex-end;align-items:center;gap:8px;min-height:36px;margin:0;flex:none; }
 #agent-dialog .agent-dot-toolbar :is(button,a) { display:inline-flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;height:36px;margin:0;padding:8px 11px;border:1px solid #e7eaea;border-radius:8px;color:#252929;background:#fff;font-size:12px;line-height:18px;text-decoration:none;white-space:nowrap; }
 .agent-dot-toolbar svg { width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round; }
 #agent-dot-guide .agent-grok-image { flex:1;min-height:80px;display:block;overflow:hidden; }
@@ -3844,6 +3845,9 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 #agent-dialog .agent-dot-wait button { margin:0;padding:6px 0;font-size:12px; }
 @media(max-width:450px) {
   #agent-dialog .agent-dot-actions { gap:8px; }
-  #agent-dialog.dot-guide-active[open] { height:min(720px,calc(100dvh - 24px));padding:20px 16px; }
+  #agent-dialog.dot-guide-active[open] { height:min(620px,calc(100dvh - 24px));padding:20px 16px; }
+  #agent-dot-guide > .agent-dot-heading { flex-wrap:wrap;align-content:center;gap:8px;min-height:80px; }
+  #agent-dot-guide .agent-dot-heading h3 { flex:1 1 130px; }
+  #agent-dot-guide .agent-dot-toolbar { margin-left:auto; }
   #agent-dialog .agent-dot-toolbar :is(button,a) { font-size:12px;padding:8px 10px; }
 }
