@@ -80,6 +80,7 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    const incomingPrompt=await page.evaluate(()=>window.copiedAgentPrompt);
    assert.ok(incomingPrompt.includes('OAuth') && incomingPrompt.includes('\nhttps://timemate.cc/mcp\n'));
    assert.ok(!incomingPrompt.includes('Bearer') && !incomingPrompt.includes('安全凭证输入框'));
+   assert.ok(!incomingPrompt.includes('不读取邮件') && !incomingPrompt.includes('不修改事项'),'production setup does not permanently restrict normal use');
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-grok-incoming-send-${width}.png`)});
    await page.locator('#agent-grok-incoming-next').click();
    assert.equal(await page.locator('#agent-grok-incoming-progress').textContent(),'2 / 3');
@@ -167,6 +168,7 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copiedAgentPrompt=text;},readText:async()=>window.clipboardFixture}}));
    await page.locator('#agent-grok-copy').click();
    const notificationPrompt=await page.evaluate(()=>window.copiedAgentPrompt);
+   assert.ok(!notificationPrompt.includes('只验证引导') && !notificationPrompt.includes('不发送测试通知'),'production prompt excludes internal rehearsal restrictions');
    assert.ok(notificationPrompt.includes('任务详情') && notificationPrompt.includes('Webhook URL') && notificationPrompt.includes('Webhook 密钥'),'prompt requests the direct setup entries');
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-grok-guide-${width}.png`)});
    await page.locator('#agent-grok-next').click();
