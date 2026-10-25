@@ -20,10 +20,28 @@ class MailAccounts:
     def list(self):
         with self.database() as c:
             rows = [dict(r) for r in c.execute('SELECT * FROM mail_accounts ORDER BY rowid')]
+        names = self.names()
         for row in rows:
+            row['name'] = names.get(row['id'], '')
             row['connected'] = bool(self.runtime.credential('load', receiver_key(row['account'])))
             row['mode'] = 'forward'
         return rows
+
+    def names(self):
+        with self.database() as c:
+            return {row['id']: row['name'] for row in c.execute('SELECT id,name FROM mail_account_names')}
+
+    def rename(self, ident, name, direct=None):
+        # A label is independent of credentials, cursors and the sync switch.
+        if not direct or ident != direct_id(direct):
+            self.get(ident)
+        if not isinstance(name, str) or len(name.strip()) > 60 or any(ord(c) < 32 or ord(c) == 127 for c in name):
+            raise UserFacingError('邮箱名称最多 60 个字符，请勿包含换行。')
+        with self.database() as c:
+            if name.strip():
+                c.execute('INSERT INTO mail_account_names(id,name) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name', (ident,name.strip()))
+            else:
+                c.execute('DELETE FROM mail_account_names WHERE id=?', (ident,))
 
     def get(self, ident):
         if not isinstance(ident, str) or not ident or len(ident) > 80:

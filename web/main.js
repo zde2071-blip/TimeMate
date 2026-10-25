@@ -105,6 +105,7 @@ async function refresh() {
     const previousRevision = state?.revision;
     state = d;
     renderMailboxConnection(d);
+    if(typeof renderInformationIntake==='function')renderInformationIntake();
     renderConnectionOnboarding(d);
     if (mailSearchQuery.trim() && previousRevision !== d.revision) resolveMailSearch();
     renderSetupGuide(d);

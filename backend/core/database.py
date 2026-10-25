@@ -4,7 +4,7 @@ import sqlite3
 import threading
 from backend.mail import titles as mail_titles
 from backend.mail import dates as mail_dates
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 MAIL_COLUMNS = {
     'original': 'TEXT', 'source_links': 'TEXT',
     'source': "TEXT NOT NULL DEFAULT 'manual'",
@@ -108,6 +108,10 @@ def initialize(connection):
         if version < 12:
             from backend.agents.changes import migrate
             migrate(connection)
+        if version < 13:
+            connection.execute("CREATE TABLE IF NOT EXISTS mail_account_names(id TEXT PRIMARY KEY, name TEXT NOT NULL)")
+            for action in ('INSERT','UPDATE','DELETE'):
+                connection.execute(f"CREATE TRIGGER IF NOT EXISTS revision_mail_account_names_{action.lower()} AFTER {action} ON mail_account_names BEGIN UPDATE state_revision SET revision=revision+1 WHERE id=1; END")
         connection.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
         connection.commit()
     except Exception:

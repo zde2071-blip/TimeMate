@@ -1,6 +1,21 @@
 // Multiple source mailboxes reuse the approved forwarding setup below.
 let mailboxListOpen = true, mailEditingId = null;
 let selectedMailboxId = 'all';
+function mailboxName(entry) {
+  return entry.name?.trim() || entry.school_sender || entry.account || '邮箱';
+}
+async function saveMailboxName() {
+  const id=mailEditingId, name=$('mail-name').value.trim(), button=$('mail-name-save');
+  if(!id)return;
+  button.disabled=true;$('mail-name-feedback').textContent='';
+  try {
+    const response=await fetch('/api/mail/accounts/name',{method:'POST',headers:{'Content-Type':'application/json','X-Token':token},body:JSON.stringify({id,name})});
+    const result=await response.json();if(!response.ok)throw Error(result.error || '名称保存失败');
+    if(!(await refresh()))throw Error('名称已保存，请刷新页面查看。');
+    if(mailEditingId===id && $('mail-name').value.trim()===name)$('mail-name-feedback').textContent='已保存';
+  } catch(error) {if(mailEditingId===id)$('mail-name-feedback').textContent=error.message;}
+  finally{button.disabled=false;}
+}
 function connectedReceiver(d, address) {
   return (d?.mailAccounts || []).find(x => x.connected && x.mode!=='oauth' && x.account.toLowerCase() === address.trim().toLowerCase());
 }
@@ -11,6 +26,7 @@ function showMailboxList() {
 function openMailboxAccount(id = '') {
   if (receiverBusy || connectionStates.mail === '连接中') return;
   const entry = (state?.mailAccounts || []).find(x => x.id === id);
+  $('mail-name').value=entry?.name || '';$('mail-name').placeholder=entry?.school_sender || entry?.account || '';$('mail-name-feedback').textContent='';
   if(entry?.mode==='oauth'){mailboxListOpen=false;mailEditingId=entry.id;mailboxMethodsOpen=false;mailboxManualOpen=false;mailboxDirectOpen=false;renderMailboxConnection(state);return;}
   mailEditingId = id; mailboxListOpen = false; mailboxManualOpen = !!entry;
   mailboxDirectOpen = false; mailboxMethodsOpen = !entry;
@@ -29,10 +45,10 @@ function renderMailboxAccounts(d) {
   const list = $('mail-account-list'); list.replaceChildren();
   for (const entry of d.mailAccounts || []) {
     const row = element('button', '', 'mail-account-entry'); row.type = 'button';
-    row.setAttribute('aria-label', '设置 ' + entry.school_sender);
+    row.setAttribute('aria-label', '设置 ' + mailboxName(entry));
     const icon = element('span', '', 'mail-account-mark');icon.setAttribute('aria-hidden','true');icon.append($('settings-nav-mail').querySelector('svg').cloneNode(true));
     const copy = element('span', '', 'mail-account-copy');
-    copy.append(element('strong',entry.school_sender),element('small',entry.mode==='oauth'?'直接连接':'转发接入'));
+    copy.append(element('strong',mailboxName(entry)),element('small',entry.name?.trim()?entry.school_sender:entry.mode==='oauth'?'直接连接':'转发接入'));
     const tail = element('span','','settings-entry-tail');
     const health = d.status?.mailboxHealth?.[entry.account.toLowerCase()];
     const failed = ['paused','error','retrying'].includes(health?.sync_state);
@@ -43,6 +59,7 @@ function renderMailboxAccounts(d) {
     const row=element('button','','mail-account-entry');row.type='button';const copy=element('span','','mail-account-copy');copy.append(element('strong',d.mailConnection.account),element('small','直接连接'));const tail=element('span',d.mailConnection.reauthorize?'需重新授权':'✓ 已连接','settings-entry-connected');row.append(copy,tail,element('span','›','settings-entry-chevron'));row.onclick=()=>{mailboxListOpen=false;mailboxMethodsOpen=false;mailboxManualOpen=false;renderMailboxConnection(state)};list.append(row);
   }
   if (!(d.mailAccounts || []).length && d.mailConnection?.mode!=='oauth') list.append(element('p','尚未添加邮箱','mail-account-empty'));
+  $('mail-name-settings').hidden=mailboxListOpen || !mailEditingId;
   $('mail-account-new').hidden=!mailboxListOpen;
   $('mail-account-back').hidden=mailboxListOpen;
   $('mail-accounts').hidden=!mailboxListOpen;
@@ -61,7 +78,7 @@ function renderMailboxPicker(d) {
   const picker=$('mail-account-filter'),entries=d.mailAccounts||[];
   if (!entries.some(x=>x.id===selectedMailboxId)) selectedMailboxId='all';
   picker.replaceChildren();const all=element('option','全部邮箱');all.value='all';picker.append(all);
-  for(const entry of entries){const option=element('option',entry.school_sender);option.value=entry.id;picker.append(option);}
+  for(const entry of entries){const duplicate=entries.filter(x=>mailboxName(x)===mailboxName(entry)).length>1;const option=element('option',mailboxName(entry)+(duplicate?' · '+entry.school_sender:''));option.value=entry.id;picker.append(option);}
   picker.value=selectedMailboxId;picker.hidden=entries.length<2;
   if(!picker.hidden) fitMailCategorySelect(picker);
   picker.onchange=()=>{selectedMailboxId=picker.value;activeMailId=null;selectedMailIds.clear();render();};
@@ -309,3 +326,5 @@ for (const id of ['account','password','mail_provider']) $(id).addEventListener(
   $('mail-forward-copy').querySelector('span').textContent = '复制';
   renderForwardingForm(state);
 });
+
+$('mail-name').addEventListener('input',()=>{ $('mail-name-feedback').textContent=''; });

@@ -1,4 +1,5 @@
 /* External personal agents have their own grants; they never share AI API keys. */
+let agentConnectionsLoaded=false, agentConnectionsError='';
 let agentConnections = [], agentMCP = '', agentEditing = '', agentBusy = false;
 let agentDotStep=0, agentDotCreating=false, agentDotDirection='connection';
 let agentGrokStep=0, agentGrokEditing=false, agentFeedbackTest='';
@@ -34,7 +35,7 @@ async function agentRequest(path, data) {
 
 async function loadAgentConnections() {
   try {
-    const data = await agentRequest(''); agentConnections=data.connections; agentMCP=data.mcp_url;
+    const data = await agentRequest(''); agentConnections=data.connections; agentMCP=data.mcp_url;agentConnectionsLoaded=true;agentConnectionsError='';
     const list=$('agent-connection-list'); list.replaceChildren();
     if (!agentConnections.length) list.append(element('p','尚未添加 Agent','mail-account-empty'));
     for (const connection of agentConnections) {
@@ -55,7 +56,8 @@ async function loadAgentConnections() {
         renderAgentGrokIncoming();
       }
     }
-  } catch(e) { $('agent-library-feedback').textContent=e.message;if(agentGrokCreating)$('agent-dialog-feedback').textContent=e.message; }
+  } catch(e) { agentConnectionsError=e.message;$('agent-library-feedback').textContent=e.message;if(agentGrokCreating)$('agent-dialog-feedback').textContent=e.message; }
+  if(typeof renderInformationIntake==='function')renderInformationIntake();
 }
 
 function openAgentConnection(id='') {

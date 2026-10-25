@@ -597,7 +597,7 @@ class APIHandler:
                 data['mailConnection']=connection_state(SimpleNamespace(CFG=direct or CFG,RUNTIME=RUNTIME))
                 if direct:
                     from backend.mail.accounts import direct_id
-                    data['mailAccounts'].append({'id':direct_id(direct),'school_sender':direct['account'],'account':direct['account'],'mail_provider':direct['mail_provider'],'mode':'oauth','connected':data['mailConnection']['connected']})
+                    data['mailAccounts'].append({'id':direct_id(direct),'school_sender':direct['account'],'account':direct['account'],'mail_provider':direct['mail_provider'],'mode':'oauth','connected':data['mailConnection']['connected'],'name':mail_accounts().names().get(direct_id(direct),'')})
                 if CFG.get('mail_mode')=='oauth': data['ready']['mail']=data['mailConnection']['connected'] or any(x['connected'] for x in data['mailAccounts'])
                 return self.reply(200,data)
             if self.path == '/api/ai/profiles': return self.reply(200,{'profiles':ai_profiles().list()})
@@ -619,6 +619,9 @@ class APIHandler:
                     return self.reply(200,{'ok':True,'profileId':ident})
                 save_connection(group,d)
                 return self.reply(200,{'ok':True,'message':('邮箱' if group=='mail' else 'AI')+'设置已保存；更改连接后请重新开启自动分析。'})
+            elif self.path=='/api/mail/accounts/name':
+                mail_accounts().rename(d.get('id'),d.get('name'),direct_mail_config())
+                return self.reply(200,{'ok':True})
             elif self.path=='/api/settings/mail/test':
                 return self.reply(200,{'ok':True,'message':test_mail_connection(d)})
             elif self.path=='/api/settings/ai/models':

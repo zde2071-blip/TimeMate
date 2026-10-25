@@ -127,7 +127,7 @@ const setupGuideCache = new Map();
 
 function showPage(name) {
   if (name === 'settings' && !document.querySelector('.settings-nav-item[aria-current="page"]')) selectConnectionSettings('account');
-  for (let page of ['important', 'mail', 'chat', 'settings']) {
+  for (let page of ['important', 'mail', 'chat', 'intake', 'settings']) {
     $(page + '-page').hidden = page !== name;
     $('nav-' + page).classList.toggle('is-active', page === name);
     $('nav-' + page).setAttribute('aria-current', page === name ? 'page' : 'false');
@@ -137,6 +137,7 @@ function showPage(name) {
       important: '重要事项',
       mail: '邮件处理',
       chat: 'AI 对话',
+      intake: '信息接入',
       settings: '账户设置'
     },
     title = titles[name] || 'TimeMate';
@@ -144,12 +145,14 @@ function showPage(name) {
   document.body.classList.toggle('mail-layout', name === 'mail');
   document.body.classList.toggle('chat-layout-page', name === 'chat');
   document.body.classList.toggle('settings-view', name === 'settings');
+  document.body.classList.toggle('intake-view', name === 'intake');
   $('header-mail-feedback').hidden = name !== 'mail';
   closeMailSettingsMenu();
   window.scrollTo(0, 0);
   requestAnimationFrame(updateMailWorkspaceHeight);
   if (typeof positionConnectionCard === 'function') requestAnimationFrame(positionConnectionCard);
   if (name === 'chat') loadChatConversations();
+  if (name === 'intake') { renderInformationIntake(); void loadAgentConnections(); }
 }
 
 function selectConnectionSettings(group) {

@@ -3851,3 +3851,33 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
   #agent-dot-guide .agent-dot-toolbar { margin-left:auto; }
   #agent-dialog .agent-dot-toolbar :is(button,a) { font-size:12px;padding:8px 10px; }
 }
+/* The map shows relationships; existing settings own every connection editor. */
+body.intake-view{background:#fff}
+#intake-page{max-width:1120px;padding:0;margin:0 auto;background:#fff;border:0;border-radius:0}
+.intake-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 0 24px;margin-bottom:34px;border-bottom:1px solid #e4e7e9}
+.intake-heading h2{margin:0;font-size:24px;font-weight:600}
+.intake-heading button{margin:0;display:inline-flex;gap:8px;align-items:center;font-size:14px;background:#fff;color:#485258;border:1px solid #e0e5e8}
+.intake-flow{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,.75fr);gap:clamp(34px,5vw,64px);align-items:center;position:relative;isolation:isolate;padding:4px 0 32px}
+.intake-wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:-1;overflow:visible;color:#8d989c}
+.intake-wires g path{fill:none;stroke:currentColor;stroke-width:1.25}
+.intake-source-label{font-size:13px;font-weight:400;color:#78838b;margin:0 0 10px}
+.intake-agent-label{margin-top:26px}
+.intake-source{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px 14px;margin:8px 0;border:1px solid #e0e5e8;border-radius:9px;background:#fff;color:#29343b;font-size:14px;font-weight:400;min-height:48px}
+.intake-source:hover,.intake-calendar:hover{background:#f6f7f8;border-color:#cdd4d8}
+.intake-source svg,.intake-destination svg,.intake-calendar svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.6;flex:none;color:#7b878f}
+.intake-source-copy{min-width:0;overflow-wrap:anywhere}
+.intake-source-copy small{display:block;color:#7b878f;font-size:12px;margin-top:3px}
+.intake-empty{font-size:13px;color:#7b878f}
+.intake-workbench{display:flex;flex-direction:column;justify-content:center;gap:16px;min-width:0;min-height:310px;padding:22px 18px;border:1px solid #e0e5e8;border-radius:12px;background:#fff}
+.intake-workbench h3{font-size:17px;font-weight:500;text-align:center;margin:0 0 10px}
+.intake-destination{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:9px;width:100%;min-height:78px;padding:16px 10px;margin:0;background:#f5f6f7;color:#29343b;border:0;border-radius:8px;font-size:15px;font-weight:500}
+.intake-future small{flex-basis:100%;text-align:center;font-size:12px;font-weight:400;color:#7b878f}
+.intake-output{text-align:center;min-width:0}
+.intake-calendar{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;width:100%;margin:0;padding:22px 12px;border:1px solid #e0e5e8;border-radius:9px;background:#fff;color:#29343b;font-size:15px;font-weight:400}
+.intake-calendar small{font-size:12px;color:#7b878f}
+.mail-name-settings{margin:0 0 30px}
+.mail-name-controls{display:flex;align-items:center;gap:12px;margin-top:7px}
+.mail-name-controls input{margin:0;min-width:0;flex:1}
+.mail-name-controls button{flex:none;margin:0;font-size:14px}
+#mail-name-feedback{display:block;min-height:20px;margin-top:5px;color:#78838b;font-size:13px}
+@media(max-width:700px){.intake-flow{display:flex;flex-direction:column;align-items:stretch;gap:28px}.intake-wires{display:none}.intake-workbench{min-height:0;padding:22px 18px}.intake-workbench::before,.intake-output::before{content:'↓';display:block;text-align:center;color:#8d989c;font-size:22px;margin:-8px 0 12px}.intake-workbench::before{position:absolute;top:-32px;left:50%;margin:0;transform:translateX(-50%)}.intake-workbench{position:relative;margin-top:10px}.intake-heading{padding-bottom:20px;margin-bottom:22px}.intake-heading h2{font-size:21px}.intake-heading button{font-size:12px;padding:10px}.mail-name-controls{flex-wrap:wrap}.mail-name-controls input{flex-basis:100%}}
