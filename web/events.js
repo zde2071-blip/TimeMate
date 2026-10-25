@@ -40,6 +40,7 @@ function eventIcon(name) {
     message: ['M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z'],
     down: ['m6 9 6 6 6-6'],
     remove: ['M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7'],
+    more: ['M5 12h.01M12 12h.01M19 12h.01'],
     restore: ['M3 10a9 9 0 1 1 2.4 8.2M3 4v6h6']
   };
   for (const d of paths[name] || []) {
@@ -143,11 +144,15 @@ function mailEventForDisplay(d, m, index, event, written) {
   }
   return applyEventOverride(d, target.id, target.index, base);
 }
-function editEventMenu(item) {
+function editEventMenu(item, compact = false) {
   let menu = element('details', '', 'event-manage'),
     summary = element('summary', ''),
     options = element('div', '', 'event-manage-options');
-  summary.append(eventIcon('edit'), element('span', '编辑'), eventIcon('down'));
+  if (compact) {
+    summary.append(eventIcon('more'));
+    summary.setAttribute('aria-label', '操作：' + (item.event?.title || '事项'));
+    summary.title = '事项操作';
+  } else summary.append(eventIcon('edit'), element('span', '编辑'), eventIcon('down'));
   menu.append(summary);
   let edit = element('button', '', 'secondary');
   edit.append(eventIcon('edit'), element('span', '修改信息'));
@@ -743,7 +748,7 @@ function calendarDayDifference(dateKey) {
 function deadlineRemainingMs(item, now = new Date()) {
   let value = item?.event?.start || item?.start || '';
   if (!value) return NaN;
-  let due = new Date(value);
+  let due = new Date(String(value).length === 10 ? value + 'T00:00:00' : value);
   if (Number.isNaN(due.getTime())) return NaN;
   if (item.event?.allDay) due.setHours(23, 59, 59, 999);
   return due.getTime() - now.getTime();
@@ -824,9 +829,23 @@ function renderImportantCard(item, d) {
     sourceIcon.append(eventIcon(sources.length === 1 && sources[0].source === 'chat' ? 'message' : 'mail'));
     (sources.length === 1 ? titleControl : titleControl.children[0]).append(sourceIcon);
   }
-  row.append(eventContent(item.event, item.action, item.kind === 'schedule' ? '待确认' : '', item.kind === 'deadline' && item.state !== 'completed' ? deadlineReminder(item) : null, titleControl));
+  const content = eventContent(item.event, item.action, item.kind === 'schedule' ? '待确认' : '', null, titleControl),
+    copy = element('div', '', 'event-copy'),
+    summary = element('div', '', 'important-entry-summary'),
+    metadata = element('div', '', 'important-entry-meta');
+  for (const child of [...content.children]) {
+    if (child.className === 'important-card-kind') continue;
+    if (String(child.className || '').includes('important-card-time')) {
+      child.replaceChildren(eventIcon('clock'), element('span', importantEventTime(item, Boolean(item.overdue || item.archived))));
+    }
+    (String(child.className || '').includes('important-card-time') || String(child.className || '').includes('important-card-location') ? metadata : summary).append(child);
+  }
+  if (scheduleInProgress(item)) metadata.append(element('span', '进行中', 'important-progress'));
+  copy.append(summary, metadata);
+  row.append(copy);
+  if (item.state === 'completed') row.className += ' is-complete';
   let actions = element('div', '', 'important-actions');
-  actions.append(editEventMenu(item));
+  actions.append(editEventMenu(item, true));
   row.append(actions);
   return row;
 }
@@ -865,6 +884,60 @@ function openCalendarMonthPicker() {
   };
   dialog.showModal();
 }
+// Dates without offsets are local wall-clock dates, matching the event editor.
+function importantItemDate(item) {
+  const value = String(item.event?.start || item.start || item.date || '');
+  return /(?:Z|[+-]\d{2}:?\d{2})$/.test(value) && !item.event?.allDay ? localDateKey(new Date(value)) : value.slice(0, 10);
+}
+function scheduleEnd(item) {
+  const event = item.event || {};
+  if (item.kind !== 'schedule' || !event.start) return null;
+  const startValue = String(event.start), endValue = String(event.end || ''),
+    start = new Date(event.allDay || startValue.length === 10 ? startValue.slice(0, 10) + 'T00:00:00' : startValue),
+    end = endValue ? new Date(endValue.length === 10 ? endValue + 'T00:00:00' : event.allDay ? endValue.slice(0, 19) : endValue) : null;
+  if (end && Number.isFinite(end.getTime()) && end > start) {
+    // A date-only end is inclusive; ICS all-day midnight ends are exclusive.
+    if (String(event.end).length === 10) return new Date(event.end + 'T23:59:59.999');
+    return end;
+  }
+  // Unknown end time: keep the item for the whole start day.
+  return new Date(importantItemDate(item) + 'T23:59:59.999');
+}
+function scheduleEnded(item, now = new Date()) {
+  const end = scheduleEnd(item);
+  return Boolean(end && end <= now);
+}
+function scheduleInProgress(item, now = new Date()) {
+  return item.kind === 'schedule' && new Date(item.event?.allDay || String(item.event?.start).length === 10 ? item.event.start.slice(0, 10) + 'T00:00:00' : item.event?.start) <= now && !scheduleEnded(item, now);
+}
+function importantOccursOn(item, date) {
+  const first = importantItemDate(item);
+  if (item.kind !== 'schedule') return first === date;
+  const end = scheduleEnd(item), last = end && Number.isFinite(end.getTime()) ? localDateKey(new Date(end.getTime() - 1)) : first;
+  return date >= first && date <= last;
+}
+function compareImportantItems(a, b) {
+  const first = String(a.event?.start || a.start || a.date || ''), second = String(b.event?.start || b.start || b.date || '');
+  const difference = new Date(first) - new Date(second);
+  return (Number.isFinite(difference) ? difference : first.localeCompare(second)) || String(a.key || '').localeCompare(String(b.key || ''));
+}
+function importantEventTime(item, includeDate = false) {
+  const event = item.event || {}, value = String(event.start || '');
+  if (!value) return '时间待确认';
+  const label = (raw, showDate) => {
+    const date = new Date(raw);
+    if (!Number.isFinite(date.getTime())) return String(raw).slice(0, 16).replace('T', ' ');
+    return (showDate ? date.toLocaleDateString('zh-CN', {month: 'numeric', day: 'numeric'}) + ' ' : '') + date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit', hour12: false});
+  };
+  if (item.kind === 'deadline') return (event.allDay ? (includeDate ? value.slice(5, 10).replace('-', '/') + ' ' : '') + '当天' : label(value, includeDate)) + '（截止）';
+  const first = importantItemDate(item), last = event.end ? importantItemDate({event: {start: event.end}}) : first;
+  if (event.allDay) {
+    const end = scheduleEnd(item), finalDate = end ? localDateKey(new Date(end.getTime() - 1)) : first;
+    return (first !== finalDate ? first.slice(5).replace('-', '/') + '–' + finalDate.slice(5).replace('-', '/') + ' ' : includeDate ? first.slice(5).replace('-', '/') + ' ' : '') + (event.timePrecision === 'date' ? '时间待定' : '全天');
+  }
+  const showDate = includeDate || first !== last || first !== localDateKey(new Date());
+  return label(value, showDate) + (event.end ? '–' + label(event.end, first !== last) : '（结束时间待补充）');
+}
 function renderMonthCalendar(items, completed = [], d) {
   let box = $('calendar-view'),
     listBox = $('important-list-view'),
@@ -881,15 +954,6 @@ function renderMonthCalendar(items, completed = [], d) {
   title.append(chevrons);
   head.append(title);
   panel.append(head);
-  let legend = element('div', '', 'calendar-legend');
-  for (let [kind, label] of [['schedule', '日程'], ['deadline', '截止']]) {
-    let entry = element('span', '', 'calendar-legend-entry'),
-      icon = element('span', kind === 'deadline' ? '→' : '', 'calendar-day-marker ' + kind);
-    icon.setAttribute('aria-hidden', 'true');
-    entry.append(icon, element('span', label));
-    legend.append(entry);
-  }
-  panel.append(legend);
   let grid = element('div', '', 'calendar-grid');
   grid.setAttribute('role', 'grid');
   for (let day of ['一', '二', '三', '四', '五', '六', '日']) {
@@ -900,14 +964,7 @@ function renderMonthCalendar(items, completed = [], d) {
   let monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1),
     offset = (monthStart.getDay() + 6) % 7,
     days = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate(),
-    todayKey = localDateKey(new Date()),
-    byDate = new Map();
-  for (let item of items) {
-    let key = item.date;
-    if (!key) continue;
-    if (!byDate.has(key)) byDate.set(key, []);
-    byDate.get(key).push(item);
-  }
+    todayKey = localDateKey(new Date());
   for (let blank = 0; blank < offset; blank++) {
     let cell = element('div');
     cell.setAttribute('role', 'gridcell');
@@ -915,17 +972,15 @@ function renderMonthCalendar(items, completed = [], d) {
   }
   for (let day = 1; day <= days; day++) {
     let key = localDateKey(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day)),
-      matches = byDate.get(key) || [],
+      matches = items.filter(item => importantOccursOn(item, key)),
       button = element('button', '', 'calendar-day' + (matches.length ? ' has-events' : '') + (key === calendarSelected ? ' selected' : '') + (key === todayKey ? ' today' : ''));
     button.setAttribute('role', 'gridcell');
     button.setAttribute('aria-pressed', String(key === calendarSelected));
     button.setAttribute('aria-label', key + (key === todayKey ? '，今天' : '') + (matches.length ? '，' + matches.length + '项事项' : ''));
     button.append(element('span', String(day), 'calendar-day-number'));
     let marks = element('span', '', 'calendar-day-markers');
-    for (let kind of ['schedule', 'deadline']) {
-      if (!matches.some(item => item.kind === kind)) continue;
-      let mark = element('span', kind === 'deadline' ? '→' : '', 'calendar-day-marker ' + kind);
-      mark.title = kind === 'deadline' ? '当天有截止事项' : '当天有日程安排';
+    if (matches.length) {
+      const mark = element('span', '', 'calendar-day-marker');
       mark.setAttribute('aria-hidden', 'true');
       marks.append(mark);
     }
@@ -948,37 +1003,73 @@ function renderMonthCalendar(items, completed = [], d) {
   today.setAttribute('aria-pressed', String(calendarSelected === todayKey));
   controls.append(previous, today, next);
   panel.append(controls);
+  const legend = element('div', '', 'calendar-legend');
+  legend.append(element('span', '', 'calendar-day-marker'), element('span', '当天有事项'));
+  panel.append(legend);
   box.append(panel);
-  let chosen = items.filter(item => !calendarSelected || item.date === calendarSelected).sort((a, b) => {
-    if (a.kind !== b.kind) return importantView === 'deadline' ? 0 : a.kind === 'deadline' ? 1 : -1;
-    if (a.kind === 'deadline') return compareDeadlineItems(a, b);
-    let da = calendarDayDifference(a.date),
-      db = calendarDayDifference(b.date);
-    if (da >= 0 !== db >= 0) return da >= 0 ? -1 : 1;
-    return (da >= 0 ? da - db : db - da) || String(a.start || '').localeCompare(String(b.start || ''));
-  });
-  let heading = importantView === 'schedule' ? '日程安排' : importantView === 'deadline' ? '截止事项' : '全部事项';
-  let listHead = element('div', '', 'calendar-list-head');
-  listHead.append(element('h3', (calendarSelected ? calendarSelected.replace(/-/g, ' / ') + ' · ' : '') + heading + '（' + chosen.length + '）', 'calendar-selected-title'));
+  const now = new Date(),
+    viewState = renderMonthCalendar.viewState ||= {groups: {}, expanded: false, history: false, completed: false},
+    matchesDate = item => !calendarSelected || importantOccursOn(item, calendarSelected),
+    history = items.filter(item => scheduleEnded(item, now) && matchesDate(item)),
+    active = items.filter(item => !scheduleEnded(item, now) && matchesDate(item)),
+    overdue = active.filter(item => item.kind === 'deadline' && deadlineRemainingMs(item, now) <= 0),
+    upcoming = active.filter(item => !overdue.includes(item)),
+    bucket = item => calendarSelected || (scheduleInProgress(item, now) ? todayKey : importantItemDate(item)),
+    dates = [...new Set(upcoming.map(bucket))].sort(),
+    listHead = element('div', '', 'calendar-list-head');
+  listHead.append(element('span', (calendarSelected ? calendarSelected.replace(/-/g, ' / ') + ' · ' : '') + active.length + ' 项待处理', 'calendar-list-count'));
   if (calendarSelected) {
     let reset = element('button', '查看全部', 'secondary');
-    reset.onclick = () => {
-      calendarSelected = '';
+    reset.onclick = () => { calendarSelected = ''; renderImportant(state); };
+    listHead.append(reset);
+  } else if (dates.length) {
+    let expand = element('button', viewState.expanded ? '恢复默认' : '全部展开', 'secondary');
+    expand.onclick = () => {
+      viewState.expanded = !viewState.expanded;
+      viewState.groups = {};
       renderImportant(state);
     };
-    listHead.append(reset);
+    listHead.append(expand);
   }
   listBox.append(listHead);
-  let list = element('div', '', 'calendar-day-events');
-  if (!chosen.length) list.append(element('div', calendarSelected ? '当天暂无已加入的事项。' : '暂无已加入的事项。', 'calendar-empty'));
-  for (let item of chosen) list.append(renderImportantCard(item, d));
+  const list = element('div', '', 'calendar-day-events');
+  if (overdue.length) {
+    const group = element('div', '', 'important-overdue');
+    group.append(element('h3', '逾期未完成 · ' + overdue.length, 'important-date-heading'));
+    for (const item of overdue.sort(compareImportantItems)) group.append(renderImportantCard({...item, overdue: true}, d));
+    list.append(group);
+  }
+  for (const date of dates) {
+    const entries = upcoming.filter(item => bucket(item) === date).sort(compareImportantItems),
+      key = importantView + ':' + calendarSelected + ':' + date,
+      group = element('details', '', 'important-date-group'),
+      heading = element('summary', '', 'important-date-heading'),
+      day = new Date(date + 'T12:00:00'),
+      tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1),
+      relative = date === todayKey ? '今天' : date === localDateKey(tomorrow) ? '明天' : '',
+      dateLabel = day.toLocaleDateString('zh-CN', {month: 'long', day: 'numeric', ...(day.getFullYear() !== now.getFullYear() ? {year: 'numeric'} : {})});
+    group.open = viewState.groups[key] ?? Boolean(calendarSelected || viewState.expanded || date === todayKey);
+    group.addEventListener('toggle', () => { viewState.groups[key] = group.open; });
+    heading.append(eventIcon('down'), element('span', relative || dateLabel), element('span', (relative ? dateLabel + ' · ' : '') + day.toLocaleDateString('zh-CN', {weekday: 'long'}), 'important-date-context'), element('span', entries.length + ' 项', 'important-date-count'));
+    group.append(heading);
+    for (const item of entries) group.append(renderImportantCard(item, d));
+    list.append(group);
+  }
+  if (!active.length) list.append(element('div', calendarSelected ? '当天暂无已加入的事项。' : '暂无待处理事项。', 'calendar-empty'));
   listBox.append(list);
-  let shownCompleted = completed.filter(item => !calendarSelected || item.date === calendarSelected);
-  if (shownCompleted.length) {
-    let folded = element('details', '', 'calendar-completed');
-    folded.append(element('summary', '已完成截止事项（' + shownCompleted.length + '）'));
-    for (let item of shownCompleted) folded.append(renderImportantCard(item, d));
-    listBox.append(folded);
+  const shownCompleted = completed.filter(matchesDate);
+  if (history.length || shownCompleted.length) {
+    const archive = element('div', '', 'important-archive');
+    for (const [key, label, entries] of [['history', '已结束日程', history], ['completed', '已完成截止事项', shownCompleted]]) {
+      if (!entries.length) continue;
+      const folded = element('details', '', 'calendar-completed');
+      folded.open = viewState[key];
+      folded.addEventListener('toggle', () => { viewState[key] = folded.open; });
+      folded.append(element('summary', label + '（' + entries.length + '）'));
+      for (const item of entries.sort((a, b) => -compareImportantItems(a, b))) folded.append(renderImportantCard({...item, archived: true}, d));
+      archive.append(folded);
+    }
+    listBox.append(archive);
   }
 }
 function setImportantView(view) {

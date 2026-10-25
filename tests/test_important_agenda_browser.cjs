@@ -1,0 +1,55 @@
+// Real storage/routes, dense list and existing source/edit/complete interactions.
+const {chromium}=require('playwright'),{spawn}=require('node:child_process'),assert=require('node:assert/strict'),path=require('node:path'),os=require('node:os');
+(async()=>{
+ const server=spawn(path.resolve('.venv/bin/python'),['tests/important_browser_server.py']);let browser,log='';server.stderr.on('data',d=>log+=d);
+ try {
+  const origin=await new Promise((res,rej)=>{server.stdout.once('data',d=>res(String(d).trim()));server.once('exit',()=>rej(Error(log)))});
+  browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
+  for(const width of [1440,1024,736,390,320]) {
+   const page=await browser.newPage({viewport:{width,height:1100}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(10000);
+   await page.goto(origin+'/fixture-login');
+   if(await page.locator('#connection-welcome').isVisible()) await page.getByRole('button',{name:'稍后',exact:true}).click();
+   await page.locator('#important-ongoing-0').waitFor();
+   if(await page.locator('.connection-collapse').isVisible()) await page.locator('.connection-collapse').click();await page.mouse.move(width-3,3);
+   assert.equal(await page.locator('#important-page h1,#important-page h2').count(),0,'no repeated important-items page title');
+   assert.equal(await page.locator('.important-date-group[open]').count(),1,'only today starts expanded');
+   assert.equal(await page.locator('#important-history-0').isVisible(),false,'ended schedules start in folded history');
+   assert.equal(await page.locator('#important-completed-0').isVisible(),false,'completed deadlines are folded');
+   assert.equal(await page.locator('.important-overdue #important-overdue-0').isVisible(),true,'overdue unfinished deadlines remain visible');
+   assert.equal(await page.locator('.important-date-group #important-ongoing-0').isVisible(),true,'ongoing cross-day schedule is under today');
+   assert.equal(await page.locator('#important-unknown-0').isVisible(),true,'missing end does not prematurely hide today');
+   assert.equal(await page.locator('#important-ongoing-0 .important-card-todo').textContent(),'按复习计划完成每日练习');
+   assert.equal(await page.locator('.calendar-day-markers').evaluateAll(nodes=>nodes.every(n=>n.children.length<=1)),true,'one calendar dot per date');
+   await page.screenshot({path:path.join(os.tmpdir(),`timemate-agenda-production-${width}.png`),fullPage:true});
+   await page.getByRole('button',{name:'全部展开',exact:true}).click();
+   assert.equal(await page.locator('.important-date-group:not([open])').count(),0);
+   const rows=page.locator('.important-date-group .calendar-entry');assert.equal(await rows.count(),30);
+   if(width>=1024){const meta=await rows.locator('.important-entry-meta').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().x));assert.ok(Math.max(...meta)-Math.min(...meta)<1,'time columns align across all rows');}
+   for(const row of await rows.all()){
+    const date=await row.locator('.important-card-time').boundingBox(),place=await row.locator('.important-card-location').boundingBox();
+    assert.ok(place.y>=date.y+date.height,'time and location stay on separate lines');
+   }
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'no horizontal page overflow');
+   const future=await page.evaluate(()=>{const d=new Date();d.setDate(d.getDate()+2);return localDateKey(d)});
+   await page.locator('.calendar-day[aria-label^="'+future+'"]').click();
+   assert.equal(await page.locator('.important-date-group #important-ongoing-0').isVisible(),true,'cross-day schedule appears when selecting its middle day');
+   await page.locator('#view-deadline').click();assert.equal(await page.locator('.important-date-group .schedule').count(),0);
+   await page.locator('#view-schedule').click();assert.equal(await page.locator('.important-date-group .deadline').count(),0);
+   await page.locator('#view-all').click();await page.getByRole('button',{name:'查看全部',exact:true}).click();
+   const item=page.locator('#important-item-1-0');
+   await item.locator('.event-manage > summary').click();await item.getByRole('button',{name:'修改信息',exact:true}).click();
+   await page.locator('#event-edit-form input').first().fill('已核对的实验任务');
+   await page.locator('#event-edit-form textarea').fill('完成实验并上传报告');
+   await page.getByRole('button',{name:'保存修改',exact:true}).click();await page.locator('#event-edit-dialog').waitFor({state:'hidden'});
+   await item.locator('.important-card-todo').getByText('完成实验并上传报告',{exact:true}).waitFor();
+   await item.locator('.event-manage > summary').click();await item.getByRole('button',{name:'标记完成',exact:true}).click();
+   await page.waitForFunction(()=>document.querySelector('#important-item-1-0')?.closest('.calendar-completed'));
+   await page.locator('.calendar-completed').last().locator('summary').first().click();
+   await item.locator('.event-manage > summary').click();await item.getByRole('button',{name:'恢复',exact:true}).click();
+   await page.waitForFunction(()=>document.querySelector('#important-item-1-0')?.closest('.important-date-group'));
+   await item.locator('.important-source-title').click();assert.equal(await page.locator('#mail-page').isVisible(),true,'source title opens the real mail page');
+   await page.locator('#nav-important').click();assert.equal(await item.isVisible(),true,'return preserves expanded date groups');
+   assert.deepEqual(errors,[]);await page.close();console.log('PASS dense agenda, dates, filters, edit/complete/restore/source '+width);
+  }
+ }finally{await browser?.close();server.kill();}
+})().catch(e=>{console.error(e);process.exit(1)});

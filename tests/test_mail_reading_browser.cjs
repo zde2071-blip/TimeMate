@@ -70,16 +70,18 @@ const path = require('node:path'), os = require('node:os'), assert = require('no
       await page.mouse.move(width - 5, 10);
       const scheduleCard = page.locator('.calendar-entry.schedule');
       const deadlineCard = page.locator('.calendar-entry.deadline');
+      await page.getByRole('button', {name: '全部展开', exact: true}).click();
+      await page.locator('.calendar-completed > summary').filter({hasText: '已结束日程'}).click();
       await scheduleCard.waitFor();
       await deadlineCard.waitFor();
-      assert.equal(await scheduleCard.locator('.important-card-time').textContent(), '2026-10-23 14:00–15:00');
-      assert.equal(await deadlineCard.locator('.important-card-time').textContent(), '2026-10-30 23:59（截止）');
+      assert.equal(await scheduleCard.locator('.important-card-time').textContent(), '10/23 14:00–15:00');
+      assert.equal(await deadlineCard.locator('.important-card-time').textContent(), '23:59（截止）');
       assert.equal(await scheduleCard.locator('.important-card-time svg').innerHTML(), await deadlineCard.locator('.important-card-time svg').innerHTML(), 'schedule and deadline use one clock icon');
       for (const card of [scheduleCard, deadlineCard]) {
-        const titleBox = await card.locator('.event-copy>strong').boundingBox();
+        const titleBox = await card.locator('.important-entry-summary>strong').boundingBox();
         const menuBox = await card.locator('.event-manage>summary').boundingBox();
         assert.ok(titleBox.x + titleBox.width <= menuBox.x + 1, 'title and edit never overlap');
-        assert.equal(await card.locator('.event-manage>summary').textContent(), '编辑');
+        assert.equal(await card.locator('.event-manage>summary svg').count(), 1);
         assert.equal(await card.locator('.source-mail-icon svg').count(), 1);
         const timeBox = await card.locator('.important-card-time').boundingBox();
         const locationBox = await card.locator('.important-card-location').boundingBox();
@@ -93,8 +95,8 @@ const path = require('node:path'), os = require('node:os'), assert = require('no
       await page.locator('#event-edit-dialog').waitFor({state: 'hidden'});
       await deadlineCard.locator('.event-manage>summary').click();
       await deadlineCard.getByRole('button', {name: '标记完成', exact: true}).click();
-      await page.locator('.calendar-completed>summary').waitFor();
-      await page.locator('.calendar-completed>summary').click();
+      await page.locator('.calendar-completed>summary').last().waitFor();
+      await page.locator('.calendar-completed>summary').last().click();
       const completedCard = page.locator('.calendar-completed .calendar-entry.deadline');
       await completedCard.evaluate(e => e.scrollIntoView({block: 'center'}));
       await completedCard.locator('.event-manage>summary').click();
