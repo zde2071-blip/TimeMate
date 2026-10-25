@@ -952,7 +952,14 @@ function renderMonthCalendar(items, completed = [], d) {
   chevrons.setAttribute('aria-hidden', 'true');
   chevrons.append(element('span', '', 'picker-chevron-up'), element('span', '', 'picker-chevron-down'));
   title.append(chevrons);
-  head.append(title);
+  const legend = element('div', '', 'calendar-legend');
+  for (const [kind, label] of [['schedule', '日程'], ['deadline', '截止']]) {
+    const entry = element('span', '', 'calendar-legend-entry'), mark = element('span', kind === 'deadline' ? '→' : '', 'calendar-day-marker ' + kind);
+    mark.setAttribute('aria-hidden', 'true');
+    entry.append(mark, element('span', label));
+    legend.append(entry);
+  }
+  head.append(title, legend);
   panel.append(head);
   let grid = element('div', '', 'calendar-grid');
   grid.setAttribute('role', 'grid');
@@ -979,8 +986,9 @@ function renderMonthCalendar(items, completed = [], d) {
     button.setAttribute('aria-label', key + (key === todayKey ? '，今天' : '') + (matches.length ? '，' + matches.length + '项事项' : ''));
     button.append(element('span', String(day), 'calendar-day-number'));
     let marks = element('span', '', 'calendar-day-markers');
-    if (matches.length) {
-      const mark = element('span', '', 'calendar-day-marker');
+    for (const kind of ['schedule', 'deadline']) {
+      if (!matches.some(item => item.kind === kind)) continue;
+      const mark = element('span', kind === 'deadline' ? '→' : '', 'calendar-day-marker ' + kind);
       mark.setAttribute('aria-hidden', 'true');
       marks.append(mark);
     }
@@ -1003,9 +1011,6 @@ function renderMonthCalendar(items, completed = [], d) {
   today.setAttribute('aria-pressed', String(calendarSelected === todayKey));
   controls.append(previous, today, next);
   panel.append(controls);
-  const legend = element('div', '', 'calendar-legend');
-  legend.append(element('span', '', 'calendar-day-marker'), element('span', '当天有事项'));
-  panel.append(legend);
   box.append(panel);
   const now = new Date(),
     viewState = renderMonthCalendar.viewState ||= {groups: {}, expanded: false, history: false, completed: false},
@@ -1045,12 +1050,10 @@ function renderMonthCalendar(items, completed = [], d) {
       group = element('details', '', 'important-date-group'),
       heading = element('summary', '', 'important-date-heading'),
       day = new Date(date + 'T12:00:00'),
-      tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1),
-      relative = date === todayKey ? '今天' : date === localDateKey(tomorrow) ? '明天' : '',
       dateLabel = day.toLocaleDateString('zh-CN', {month: 'long', day: 'numeric', ...(day.getFullYear() !== now.getFullYear() ? {year: 'numeric'} : {})});
     group.open = viewState.groups[key] ?? Boolean(calendarSelected || viewState.expanded || date === todayKey);
     group.addEventListener('toggle', () => { viewState.groups[key] = group.open; });
-    heading.append(eventIcon('down'), element('span', relative || dateLabel), element('span', (relative ? dateLabel + ' · ' : '') + day.toLocaleDateString('zh-CN', {weekday: 'long'}), 'important-date-context'), element('span', entries.length + ' 项', 'important-date-count'));
+    heading.append(eventIcon('down'), element('span', dateLabel, 'important-date-label'), element('span', entries.length + ' 项', 'important-date-count'));
     group.append(heading);
     for (const item of entries) group.append(renderImportantCard(item, d));
     list.append(group);
@@ -1065,7 +1068,9 @@ function renderMonthCalendar(items, completed = [], d) {
       const folded = element('details', '', 'calendar-completed');
       folded.open = viewState[key];
       folded.addEventListener('toggle', () => { viewState[key] = folded.open; });
-      folded.append(element('summary', label + '（' + entries.length + '）'));
+      const heading = element('summary', '', 'important-archive-heading');
+      heading.append(eventIcon('down'), element('span', label + '（' + entries.length + '）', 'important-date-label'));
+      folded.append(heading);
       for (const item of entries.sort((a, b) => -compareImportantItems(a, b))) folded.append(renderImportantCard({...item, archived: true}, d));
       archive.append(folded);
     }

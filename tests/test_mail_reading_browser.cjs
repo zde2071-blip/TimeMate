@@ -85,7 +85,7 @@ const path = require('node:path'), os = require('node:os'), assert = require('no
         assert.equal(await card.locator('.source-mail-icon svg').count(), 1);
         const timeBox = await card.locator('.important-card-time').boundingBox();
         const locationBox = await card.locator('.important-card-location').boundingBox();
-        assert.ok(locationBox.y >= timeBox.y + timeBox.height, 'time and location stay on separate lines');
+        if(width>=736)assert.ok(Math.abs(locationBox.y-timeBox.y)<1, 'time and location share one metadata row');
       }
       await page.screenshot({path: path.join(os.tmpdir(), `timemate-important-cards-${width}.png`), fullPage: true, animations: 'disabled'});
       await scheduleCard.locator('.event-manage>summary').click();

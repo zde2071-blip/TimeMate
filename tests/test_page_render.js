@@ -56,8 +56,10 @@ function run(links,mailCount=23){
  context.renderMonthCalendar(Array.from({length:6},(_,i)=>({date:'2026-10-10',kind:i<3?'schedule':'deadline',event:{title:'事项'+i},mail_id:'stack'+i,index:0})),[],state);
  const day=flatten($('calendar-view')).find(n=>n['aria-label']==='2026-10-10，6项事项');
  const markers=day.children.find(n=>n.className==='calendar-day-markers');
- assert.equal(markers.children.length,1,'many items show one quiet marker for the date');
- assert.equal(markers.children[0].className,'calendar-day-marker');
+ assert.equal(markers.children.length,2,'show one schedule dot and one deadline arrow per date');
+ assert.equal(markers.children[0].className,'calendar-day-marker schedule');
+ assert.equal(markers.children[1].className,'calendar-day-marker deadline');
+ assert.equal(markers.children[1].textContent,'→');
  assert.ok(calendar.some(n=>links?n.title==='选择来源邮件（2封）':n.title==='查看来源邮件'));
 }
 run(false);run(true);run(false,73);
