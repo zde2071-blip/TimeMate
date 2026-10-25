@@ -11,6 +11,14 @@ SCOPES = {'mail:read', 'mail:write', 'items:read', 'items:write', 'changes:read'
 DEFAULT_SCOPE = 'mail:read mail:write items:read changes:read'
 
 
+def connection_identity(name, provider):
+    # ChatGPT plugins are shared with dots. This is a product label only;
+    # never use self-reported client metadata to grant permissions.
+    if provider == 'dot' or (provider == 'oauth' and name.strip().casefold() in ('chatgpt', 'dot', 'chatgpt dot')):
+        return 'Dot', 'dot'
+    return name, provider
+
+
 def digest(value):
     return hashlib.sha256(value.encode()).hexdigest()
 
@@ -177,6 +185,7 @@ def exchange(store, data, origin):
             else:
                 provider='grok' if setup else 'oauth'
                 name='Grok Bot' if setup else client['name']
+                name,provider=connection_identity(name,provider)
                 grant,_=create_grant(store,row['user_id'],name,provider,row['scope'],row['client_id'],c)
             if setup:
                 c.execute('UPDATE agent_setup_intents SET connection_id=? WHERE id=?',(grant,setup['id']))

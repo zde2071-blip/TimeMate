@@ -92,7 +92,7 @@ def install(app,store,origin):
         setup=setup_for_client(client,request.args['redirect_uri'])
         if client['name']=='Cursor' and not setup:
             return '请先从 TimeMate 的 Grok Bot 连接步骤开始授权。',400
-        return render_template_string(AUTH_PAGE,client='Grok Bot' if setup else client['name'],domain=urlsplit(request.args['redirect_uri']).hostname,
+        return render_template_string(AUTH_PAGE,client='Grok Bot' if setup else auth.connection_identity(client['name'],'oauth')[0],domain=urlsplit(request.args['redirect_uri']).hostname,
                                       permissions=[labels[s] for s in scope.split()],csrf=g.auth['csrf'])
 
     @app.post('/api/agents/authorize')

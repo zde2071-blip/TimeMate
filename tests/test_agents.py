@@ -337,10 +337,10 @@ class AgentTests(unittest.TestCase):
         self.post(self.a,'/api/agents/revoke',{'id':self.ga},self.ta)
         self.assertEqual(self.anon.post('/agent/token',base_url=ORIGIN,data=payload).status_code,400)
 
-    def oauth_connection(self):
+    def oauth_connection(self,name='Legacy OAuth Agent'):
         args,verifier=self.oauth_client()
         with self.app.store.db() as c:
-            c.execute("UPDATE agent_clients SET name='Legacy OAuth Agent' WHERE id=?",(args['client_id'],))
+            c.execute("UPDATE agent_clients SET name=? WHERE id=?",(name,args['client_id']))
         response=self.post(self.a,'/api/agents/authorize',{**args,'approve':True},self.ta)
         code=parse_qs(urlsplit(response.json['redirect']).query)['code'][0]
         payload={'grant_type':'authorization_code','code':code,'client_id':args['client_id'],
@@ -460,5 +460,31 @@ class AgentTests(unittest.TestCase):
             for table in ('agent_grants','agent_codes','agent_subscriptions','agent_deliveries'):
                 self.assertFalse(c.execute(f'SELECT 1 FROM {table} WHERE user_id=?',(self.ua,)).fetchone())
         with patch('backend.agents.transport.post_json') as sender:self.app.agents.tick();sender.assert_not_called()
+
+    def test_dot_label_keeps_existing_authorization_tokens_and_subscription(self):
+        grant,tokens,args=self.oauth_connection('ChatGPT')
+        entry=next(c for c in self.app.agents.connections(self.ua) if c['id']==grant)
+        self.assertEqual((entry['name'],entry['provider']),('Dot','dot'))
+        # Existing ChatGPT entries remain usable without a destructive migration.
+        with self.app.store.db() as c:
+            c.execute("UPDATE agent_grants SET name='ChatGPT',provider='oauth' WHERE id=?",(grant,))
+            before_tokens=[tuple(r) for r in c.execute('SELECT * FROM agent_tokens WHERE grant_id=?',(grant,))]
+        def verify(url,body,headers):return {'challenge':json.loads(body)['challenge']}
+        with patch('backend.agents.transport.post_json',side_effect=verify):
+            result=self.rpc('events/subscribe',{'name':EVENT_NAME,'arguments':{},'delivery':{'mode':'webhook','url':'https://callback.example/dot','secret':'whsec_'+base64.b64encode(b'd'*32).decode()}},tokens['access_token'])
+        self.assertNotIn('error',result.json)
+        sid=result.json['result']['id']
+        entry=next(c for c in self.app.agents.connections(self.ua) if c['id']==grant)
+        self.assertEqual((entry['name'],entry['provider'],entry['auth_method']),('Dot','dot','oauth'))
+        self.assertEqual(entry['feedback'][0]['id'],sid)
+        status=self.call('connection_status',key=tokens['access_token'])['structuredContent']
+        self.assertEqual(status['connection_id'],grant)
+        self.assertEqual(set(status['scope']),set(args['scope'].split()))
+        self.assertNotIn(grant,[c['id'] for c in self.app.agents.connections(self.ub)])
+        with self.app.store.db() as c:
+            self.assertEqual(before_tokens,[tuple(r) for r in c.execute('SELECT * FROM agent_tokens WHERE grant_id=?',(grant,))])
+            self.assertEqual(c.execute('SELECT name FROM agent_grants WHERE id=?',(grant,)).fetchone()[0],'ChatGPT')
+        self.assertEqual(auth.connection_identity('Cursor','oauth'),('Cursor','oauth'))
+        self.assertEqual(auth.connection_identity('ChatGPT','muse'),('ChatGPT','muse'))
 
 if __name__=='__main__':unittest.main()

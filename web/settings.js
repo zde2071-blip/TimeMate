@@ -513,7 +513,7 @@ async function openSetupGuide(kind) {
       links: []
     },
     agent: {
-      title: '连接 TimeMate',
+      title: '连接 Dot',
       url: '/assets/guides/agent.html',
       links: [['打开插件页面 ↗', 'https://chatgpt.com/plugins']]
     },

@@ -3817,3 +3817,27 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 #agent-dialog #agent-grok-incoming-next,#agent-dialog #agent-grok-incoming-finish { grid-column:3; grid-row:1; justify-self:end; padding:9px 13px; }
 #agent-dialog #agent-grok-incoming-finish { background:#252929; color:#fff; border:1px solid #252929; border-radius:8px; }
 #agent-dialog #agent-grok-incoming-finish:disabled { opacity:.45; cursor:default; }
+
+/* Dot uses the same image-first settings page as Grok Bot. */
+#agent-dialog.dot-guide-active { width:min(720px,calc(100vw - 24px)); }
+#agent-dialog.dot-guide-active > .ai-dialog-actions { display:none; }
+#agent-dialog.dot-guide-active #agent-details { margin:0; padding:0; border:0; }
+#agent-dot-guide .agent-grok-image img { max-height:53vh; object-fit:contain; background:#f8f9f9; }
+#agent-dot-guide .agent-dot-actions > #agent-dot-previous { grid-column:1;grid-row:1;justify-self:start; }
+#agent-dot-progress { grid-column:2;grid-row:1;color:#79817e;font-size:12px; }
+.agent-dot-next-actions { grid-column:3;grid-row:1;display:flex;align-items:center;justify-content:flex-end;gap:14px; }
+.agent-dot-next-actions a { font-size:12px;white-space:nowrap; }
+#agent-dialog #agent-dot-finish { background:#252929;color:#fff;border:1px solid #252929;border-radius:8px; }
+#agent-dialog .agent-dot-wait { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;color:#737d80;font-size:12px; }
+#agent-dialog .agent-dot-wait button { margin:0;padding:6px 0;font-size:12px; }
+#agent-dot-guide #agent-dot-fields label { margin-top:12px; }
+@media(max-width:450px) {
+  #agent-dialog .agent-dot-actions { gap:8px; }
+  .agent-dot-next-actions { gap:9px;flex-wrap:wrap; }
+  .agent-dot-next-actions a { font-size:11px; }
+}
+
+#agent-dialog #agent-dot-guide { border:0;padding:0;margin:0;background:transparent;box-shadow:none; }
+.agent-dot-shortcut { text-align:right;margin-top:12px; }
+.agent-dot-shortcut:has(a[hidden]) { display:none; }
+.agent-dot-shortcut a { font-size:12px; }

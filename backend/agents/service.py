@@ -32,7 +32,12 @@ class AgentService:
             rows=c.execute('''SELECT id,name,provider,scope,created,expires,last_used,
               CASE WHEN client_id='manual' THEN 'personal' ELSE 'oauth' END AS auth_method FROM agent_grants
               WHERE user_id=? AND revoked=0 ORDER BY created DESC''',(uid,)).fetchall()
-        return [{**dict(r),'feedback':self.feedback_status(r['id'])} for r in rows]
+        connections=[]
+        for row in rows:
+            item=dict(row)
+            item['name'],item['provider']=auth.connection_identity(item['name'],item['provider'])
+            connections.append({**item,'feedback':self.feedback_status(row['id'])})
+        return connections
 
     def subscribe(self,grant,delivery,kind='mcp',ttl_ms=None):
         if ttl_ms is not None and (type(ttl_ms) is not int or ttl_ms<=0): raise ValueError('订阅期限无效。')
