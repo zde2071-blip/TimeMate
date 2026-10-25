@@ -3789,10 +3789,9 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 #agent-grok-progress { grid-column:2; grid-row:1; font-size:12px; color:#79817e; }
 #agent-dialog #agent-grok-next,#agent-dialog #agent-hook-save { grid-column:3; grid-row:1; justify-self:end; padding:9px 13px; }
 #agent-dialog #agent-hook-save { background:#252929; color:#fff; border:1px solid #252929; border-radius:8px; }
-#agent-grok-result { padding:45px 0 30px; text-align:center; }
-#agent-grok-result-title { font-size:16px; font-weight:500; }
-#agent-grok-result-title.is-connected { color:#245e4d; }
-.agent-grok-result-actions { display:flex; align-items:center; justify-content:center; gap:18px; margin-top:22px; }
+#agent-grok-result { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-top:16px; padding:0; text-align:left; }
+#agent-grok-result-title { font-size:13px; font-weight:400; color:#737d80; }
+.agent-grok-result-actions { display:flex; align-items:center; gap:12px; margin:0; }
 #agent-dialog .agent-grok-result-actions button { display:inline-flex; gap:6px; align-items:center; }
 @media(max-width:450px) {
  #agent-dialog .agent-grok-heading { gap:8px; }

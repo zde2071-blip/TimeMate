@@ -134,10 +134,9 @@ function renderAgentGrokFeedback(connection) {
   const sub=agentFeedbackTest?connection.feedback.find(s=>s.id===agentFeedbackTest):
     connection.feedback.find(s=>s.expires*1000>Date.now());
   const connected=!!(sub && sub.enabled && sub.expires*1000>Date.now() && sub.last_ack && !sub.last_error);
-  const showResult=!agentGrokEditing && (!!sub || !!agentFeedbackTest);
-  $('agent-grok-guide').hidden=showResult;$('agent-grok-result').hidden=!showResult;
-  $('agent-grok-result-title').textContent=connected?'✓ 已连接':sub?.last_error?'通知未送达':sub && !sub.enabled?'待检测':'等待 Grok Bot 回执';
-  $('agent-grok-result-title').classList.toggle('is-connected',connected);
+  const showResult=!connected && (!!sub || !!agentFeedbackTest);
+  $('agent-grok-guide').hidden=false;$('agent-grok-result').hidden=!showResult;
+  $('agent-grok-result-title').textContent=!showResult?'':sub?.last_error?'通知未送达':sub && !sub.enabled?'待检测':'等待 Grok Bot 回执';
   $('agent-grok-retry').hidden=connected || agentBusy || !(sub?.last_error || (sub && !sub.enabled));
   $('agent-grok-retry').textContent=sub && !sub.enabled && !sub.last_error?'开始检测':'重新检测';
   $('agent-hook-save').disabled=agentBusy;

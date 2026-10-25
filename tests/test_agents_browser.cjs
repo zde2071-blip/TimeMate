@@ -119,6 +119,7 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    await page.evaluate(()=>{const c=agentConnections.find(c=>c.id===agentEditing);c.feedback=[{id:'existing-sub',kind:'grok',enabled:false,expires:Date.now()/1000+3600,last_ack:null,last_error:''}];renderAgentConnection();});
    assert.equal(await page.locator('#agent-grok-result-title').textContent(),'待检测','saved subscriptions survive reopening without reentering secrets');
    assert.equal(await page.locator('#agent-grok-retry').isVisible(),true);
+   assert.equal(await page.locator('#agent-grok-guide').isVisible(),true,'saved pending configuration keeps the illustrated setup visible');
    await page.evaluate(()=>{agentConnections.find(c=>c.id===agentEditing).feedback=[];renderAgentConnection();});
    let registered=0,tests=0;
    await page.route('**/api/agents/feedback',async route=>{registered++;await route.fulfill({json:{id:'browser-sub'}});});
@@ -129,15 +130,27 @@ const assert=require('node:assert/strict'),path=require('node:path'),os=require(
    await page.evaluate(()=>window.clipboardFixture='fixture-secret-not-real');
    await page.getByRole('button',{name:'粘贴通知密钥',exact:true}).click();
    assert.ok((await page.locator('#agent-hook-url').inputValue()).endsWith('browser-fixture'));
+   await page.evaluate(()=>loadAgentConnections());
+   assert.equal(await page.locator('#agent-grok-progress').textContent(),'3 / 3','polling preserves the current guide page');
+   assert.equal(await page.locator('#agent-hook-url').inputValue(),'https://api2.cursor.sh/automations/webhook/browser-fixture','polling preserves the draft URL');
+   assert.equal(await page.locator('#agent-hook-key').inputValue(),'fixture-secret-not-real','polling preserves the draft key');
+   assert.equal(registered,0);assert.equal(tests,0,'viewing the guide does not replace or test an existing connection');
    await page.locator('#agent-grok-feedback img').evaluateAll(imgs=>Promise.all(imgs.map(img=>img.decode())));
    await page.screenshot({path:path.join(os.tmpdir(),`timemate-grok-form-${width}.png`)});
    await page.locator('#agent-hook-save').click();await page.getByText('等待 Grok Bot 回执',{exact:true}).waitFor();
    assert.equal(registered,1);assert.equal(tests,1,'save starts exactly one verification');
    assert.equal(await page.locator('#agent-hook-key').inputValue(),'','secret cleared after save');
+   assert.equal(await page.locator('#agent-hook-url').inputValue(),'','URL cleared after save');
+   assert.equal(await page.locator('#agent-grok-guide').isVisible(),true,'waiting for acknowledgement does not replace the guide');
    assert.equal(await page.locator('#agent-tab-feedback').evaluate(el=>el.classList.contains('is-connected')),false,'sending a test is not proof of receipt');
    await page.evaluate(()=>{const c=agentConnections.find(c=>c.id===agentEditing);c.feedback=[{id:'browser-sub',enabled:true,expires:Date.now()/1000+3600,last_ack:Date.now()/1000,last_error:''}];renderAgentConnection();});
-   assert.equal(await page.locator('#agent-grok-result-title').textContent(),'✓ 已连接');
-   assert.equal(await page.locator('#agent-grok-guide').isVisible(),false,'successful setup hides the guide');
+   assert.equal(await page.locator('#agent-grok-result').isVisible(),false,'successful connection does not add a duplicate connected screen');
+   assert.equal(await page.locator('#agent-tab-feedback').evaluate(el=>el.classList.contains('is-connected')),true);
+   await page.locator('#agent-settings-back').click();
+   await page.locator('#agent-tab-feedback').click();
+   assert.equal(await page.locator('#agent-grok-guide').isVisible(),true,'connected users open directly into the illustrated setup');
+   assert.equal(await page.locator('#agent-grok-feedback').getByText('修改设置',{exact:true}).count(),0);
+   assert.equal(registered,1);assert.equal(tests,1,'reopening settings does not save or retest the connection');
    await page.unroute('**/api/agents/feedback');await page.unroute('**/api/agents/test');
    await page.evaluate(()=>{agentFeedbackTest='';agentConnections.find(c=>c.id===agentEditing).feedback=[];renderAgentConnection();});
 
