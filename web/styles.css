@@ -3818,26 +3818,32 @@ body.settings-view:has(#mail-settings:not([hidden]) #mail-manual-settings:not([h
 #agent-dialog #agent-grok-incoming-finish { background:#252929; color:#fff; border:1px solid #252929; border-radius:8px; }
 #agent-dialog #agent-grok-incoming-finish:disabled { opacity:.45; cursor:default; }
 
-/* Dot uses the same image-first settings page as Grok Bot. */
-#agent-dialog.dot-guide-active { width:min(720px,calc(100vw - 24px)); }
+/* Dot: related actions stay together; pagination never moves with image decoding. */
+#agent-dialog.dot-guide-active[open] { display:flex;flex-direction:column;width:min(720px,calc(100vw - 24px));height:min(860px,calc(100dvh - 32px));box-sizing:border-box;overflow:hidden; }
 #agent-dialog.dot-guide-active > .ai-dialog-actions { display:none; }
-#agent-dialog.dot-guide-active #agent-details { margin:0; padding:0; border:0; }
-#agent-dot-guide .agent-grok-image img { max-height:53vh; object-fit:contain; background:#f8f9f9; }
+#agent-dialog.dot-guide-active > .ai-dialog-heading { flex:none; }
+#agent-dialog.dot-guide-active #agent-details { margin:0;padding:0;border:0;flex:none; }
+#agent-dialog #agent-dot-guide { border:0;padding:0;margin:16px 0 0;background:transparent;box-shadow:none;flex:1;min-height:0; }
+#agent-dialog #agent-dot-guide:not([hidden]) { display:flex;flex-direction:column; }
+#agent-dot-guide > .agent-grok-heading { flex:none;min-height:22px;margin:0 0 10px; }
+.agent-dot-toolbar { display:flex;justify-content:flex-end;align-items:center;gap:8px;min-height:36px;margin-bottom:14px;flex:none; }
+#agent-dialog .agent-dot-toolbar :is(button,a) { display:inline-flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;height:36px;margin:0;padding:8px 11px;border:1px solid #e7eaea;border-radius:8px;color:#252929;background:#fff;font-size:12px;line-height:18px;text-decoration:none;white-space:nowrap; }
+.agent-dot-toolbar svg { width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round; }
+#agent-dot-guide .agent-grok-image { flex:1;min-height:80px;display:block;overflow:hidden; }
+#agent-dot-guide .agent-grok-image img { display:block;width:100%;height:100%;max-height:none;object-fit:contain;background:#f8f9f9; }
+#agent-dot-fields,#agent-dot-feedback-check { flex:none; }
+#agent-dot-guide #agent-dot-fields label { margin-top:10px; }
+#agent-dot-guide #agent-dot-fields p { margin:8px 0 0; }
+#agent-dialog .agent-dot-actions button { height:36px;box-sizing:border-box;padding:8px 13px;display:inline-flex;align-items:center;justify-content:center; }
+#agent-dialog .agent-dot-actions { flex:none;margin-top:16px;padding-top:16px;min-height:36px; }
 #agent-dot-guide .agent-dot-actions > #agent-dot-previous { grid-column:1;grid-row:1;justify-self:start; }
 #agent-dot-progress { grid-column:2;grid-row:1;color:#79817e;font-size:12px; }
-.agent-dot-next-actions { grid-column:3;grid-row:1;display:flex;align-items:center;justify-content:flex-end;gap:14px; }
-.agent-dot-next-actions a { font-size:12px;white-space:nowrap; }
+.agent-dot-next-actions { grid-column:3;grid-row:1;display:flex;align-items:center;justify-content:flex-end; }
 #agent-dialog #agent-dot-finish { background:#252929;color:#fff;border:1px solid #252929;border-radius:8px; }
 #agent-dialog .agent-dot-wait { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;color:#737d80;font-size:12px; }
 #agent-dialog .agent-dot-wait button { margin:0;padding:6px 0;font-size:12px; }
-#agent-dot-guide #agent-dot-fields label { margin-top:12px; }
 @media(max-width:450px) {
   #agent-dialog .agent-dot-actions { gap:8px; }
-  .agent-dot-next-actions { gap:9px;flex-wrap:wrap; }
-  .agent-dot-next-actions a { font-size:11px; }
+  #agent-dialog.dot-guide-active[open] { height:min(720px,calc(100dvh - 24px));padding:20px 16px; }
+  #agent-dialog .agent-dot-toolbar :is(button,a) { font-size:12px;padding:8px 10px; }
 }
-
-#agent-dialog #agent-dot-guide { border:0;padding:0;margin:0;background:transparent;box-shadow:none; }
-.agent-dot-shortcut { text-align:right;margin-top:12px; }
-.agent-dot-shortcut:has(a[hidden]) { display:none; }
-.agent-dot-shortcut a { font-size:12px; }

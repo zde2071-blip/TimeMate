@@ -321,13 +321,24 @@ const agentDotGuides={
     {title:'① 打开插件页面',image:'/assets/agent-setup/01.png',open:'https://chatgpt.com/plugins',label:'打开插件页面 ↗'},
     {title:'② 添加自定义 MCP 服务器',image:'/assets/agent-setup/02.png'},
     {title:'③ 填写连接信息',image:'/assets/agent-setup/03.png',fields:true},
-    {title:'④ 返回 Dot，验证连接',image:'/assets/dot-setup/connect.png',copy:true,open:'https://chatgpt.com/dots/home',label:'打开 Dot ↗'}
+    {title:'④ 返回 Dot，验证连接',image:'/assets/dot-setup/connect.webp',copy:true,open:'https://chatgpt.com/dots/home',label:'打开 Dot ↗'}
   ],
   feedback:[
-    {title:'① 将通知指令发给 Dot',image:'/assets/dot-setup/subscribe.png',copy:true,open:'https://chatgpt.com/dots/home',label:'打开 Dot ↗'},
-    {title:'② 发送测试，确认收到',image:'/assets/dot-setup/subscribed.png',check:true}
+    {title:'① 发送指令，② 确认订阅',image:'/assets/dot-setup/subscribe-v2.webp',copy:true,open:'https://chatgpt.com/dots/home',label:'打开 Dot ↗'},
+    {title:'③ 发送测试，确认收到',image:'/assets/dot-setup/subscribed-v2.webp',check:true}
   ]
 };
+
+const agentDotImages=new Map();
+function loadAgentDotImage(url) {
+  if(!agentDotImages.has(url)) {
+    const img=new Image();img.decoding='async';img.src=url;
+    // Decode once ahead of navigation; keep the same node when revisiting a step.
+    void img.decode().catch(()=>{});
+    agentDotImages.set(url,img);
+  }
+  return agentDotImages.get(url);
+}
 
 function openAgentDotSetup() {
   agentDotCreating=true;agentDotDirection='connection';agentDotStep=0;
@@ -341,6 +352,7 @@ function renderAgentDotGuide() {
   const visible=(agentDotCreating || connection?.provider==='dot') && !!view;
   $('agent-dot-guide').hidden=!visible;if(!visible)return;
   agentDotDirection=view;
+  for(const page of agentDotGuides[view])loadAgentDotImage(page.image);
   $('agent-dialog-title').textContent=view==='feedback'?'TimeMate → Dot':'Dot → TimeMate';
   for(const key of ['connection','feedback'])$('agent-panel-'+key).hidden=true;
   $('agent-dot-url').value=agentMCP || location.origin+'/mcp';
@@ -360,14 +372,17 @@ function setAgentDotStep(step) {
   const pages=agentDotGuides[agentDotDirection];agentDotStep=Math.max(0,Math.min(pages.length-1,step));
   const page=pages[agentDotStep];
   $('agent-dot-step-title').textContent=page.title;
-  if($('agent-dot-image').getAttribute('src')!==page.image)$('agent-dot-image').src=page.image;
+  const media=$('agent-dot-image-link'),cached=loadAgentDotImage(page.image);
+  if($('agent-dot-image')!==cached) {
+    $('agent-dot-image').removeAttribute('id');cached.id='agent-dot-image';media.replaceChildren(cached);
+  }
   $('agent-dot-image').alt=page.title+'，完整界面操作截图';$('agent-dot-image-link').href=page.image;
   $('agent-dot-copy').hidden=!page.copy;$('agent-dot-copy').querySelector('span').textContent='复制'+(agentDotDirection==='feedback'?'通知':'连接')+'指令';
   $('agent-dot-fields').hidden=!page.fields;$('agent-dot-feedback-check').hidden=!page.check;
   $('agent-dot-previous').hidden=agentDotStep===0;$('agent-dot-next').hidden=agentDotStep===pages.length-1;
   $('agent-dot-finish').hidden=agentDotStep!==pages.length-1;
   $('agent-dot-progress').textContent=(agentDotStep+1)+' / '+pages.length;
-  const link=$('agent-dot-open');link.hidden=!page.open;link.href=page.open || '#';link.textContent=page.label || '';
+  const link=$('agent-dot-open');link.hidden=!page.open;link.href=page.open || '#';link.querySelector('span').textContent=(page.label || '').replace(' ↗','');
 }
 
 async function copyAgentDotInstructions() {
