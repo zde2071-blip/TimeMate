@@ -1,5 +1,10 @@
 // Connection overview only. All changes reuse the existing settings screens.
 function intakeIcon(group) {
+  if(group==='other') {
+    const ns='http://www.w3.org/2000/svg',icon=document.createElementNS(ns,'svg');
+    icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('aria-hidden','true');
+    const path=document.createElementNS(ns,'path');path.setAttribute('d','M14 3H6v18h12V7l-4-4ZM14 3v5h4M9 12h6M9 16h6');icon.append(path);return icon;
+  }
   const icon=$('settings-nav-'+group).querySelector('svg').cloneNode(true);
   icon.setAttribute('aria-hidden','true');return icon;
 }
@@ -40,7 +45,7 @@ function renderInformationIntake() {
   else {const add=element('button','连接个人 Agent','intake-source intake-empty');add.type='button';add.onclick=()=>openIntakeSettings('agents');sources.append(add);}
   const workbench=element('div','','intake-workbench');workbench.append(element('h3','TimeMate'));
   const mail=element('button','','intake-destination');mail.type='button';mail.dataset.destination='mail';mail.append(intakeIcon('mail'),element('span','邮件处理'));mail.onclick=()=>showPage('mail');
-  const other=element('div','','intake-destination intake-future');other.dataset.destination='other';other.append(intakeIcon('agents'),element('span','其他信息'),element('small','规划中'));other.setAttribute('aria-label','其他信息，规划中，暂未开放接收');
+  const other=element('div','','intake-destination intake-future');other.dataset.destination='other';other.append(intakeIcon('other'),element('span','其他信息'),element('small','规划中'));other.setAttribute('aria-label','其他信息，规划中，暂未开放接收');
   workbench.append(mail,other);
   const output=element('div','','intake-output');output.append(element('p','确认后的日程','intake-source-label'));
   const calendar=element('button','','intake-calendar');calendar.type='button';const profiles=calendarProfiles(state?.config || {}),confirmed=profiles.filter(p=>p.confirmed==='yes');
