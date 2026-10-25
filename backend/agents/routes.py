@@ -20,6 +20,23 @@ def install(app,store,origin):
         if not isinstance(d,dict): raise ValueError('请求格式无效。')
         return d
 
+    def setup_for_client(client,redirect_uri):
+        if not g.auth: return None
+        u=urlsplit(redirect_uri)
+        grok_callback=(redirect_uri=='cursor://anysphere.cursor-mcp/oauth/callback' or
+            (u.scheme=='https' and u.hostname in ('cursor.com','www.cursor.com') and u.path=='/agents/mcp/oauth/callback') or
+            (u.scheme=='http' and u.hostname in ('localhost','127.0.0.1','::1')))
+        if not grok_callback: return None
+        with store.db() as c:
+            rows=c.execute('''SELECT * FROM agent_setup_intents WHERE user_id=?
+              AND provider='grok' AND expires>? AND connection_id IS NULL
+              AND (client_id IS NULL OR client_id=?) ORDER BY expires DESC''',
+              (g.auth['user_id'],time.time(),client['id'])).fetchall()
+        own=[row for row in rows if row['session']==g.auth['token']]
+        # The desktop Agent may open the default browser rather than the originating one.
+        # Only reuse another session's intent when the same account has one unambiguous setup.
+        return own[0] if own else rows[0] if len(rows)==1 else None
+
     def limit(bucket,number):
         return store.limited('agent:'+bucket,number)
 
@@ -72,7 +89,10 @@ def install(app,store,origin):
         if not g.auth:
             return render_template_string(AUTH_LOGIN)
         labels={'mail:read':'读取邮件','mail:write':'传入邮件','items:read':'查看事项','items:write':'修改事项','changes:read':'接收变更反馈'}
-        return render_template_string(AUTH_PAGE,client=client['name'],domain=urlsplit(request.args['redirect_uri']).hostname,
+        setup=setup_for_client(client,request.args['redirect_uri'])
+        if client['name']=='Cursor' and not setup:
+            return '请先从 TimeMate 的 Grok Bot 连接步骤开始授权。',400
+        return render_template_string(AUTH_PAGE,client='Grok Bot' if setup else client['name'],domain=urlsplit(request.args['redirect_uri']).hostname,
                                       permissions=[labels[s] for s in scope.split()],csrf=g.auth['csrf'])
 
     @app.post('/api/agents/authorize')
@@ -80,6 +100,9 @@ def install(app,store,origin):
         try:
             data=json_body()
             client,scope=auth.validate_authorize(store,data,origin)
+            setup=setup_for_client(client,data['redirect_uri'])
+            if data.get('approve') is True and client['name']=='Cursor' and not setup:
+                raise ValueError('连接步骤已失效，请从 TimeMate 的 Grok Bot 连接步骤重新开始。')
             params={'state':data.get('state',''),'iss':origin}
             if data.get('approve') is not True:
                 params['error']='access_denied'
@@ -90,6 +113,11 @@ def install(app,store,origin):
                     c.execute('DELETE FROM agent_codes WHERE expires<?',(time.time(),))
                     c.execute('INSERT INTO agent_codes VALUES (?,?,?,?,?,?,?)',
                               (auth.digest(code),g.auth['user_id'],data['client_id'],data['redirect_uri'],data['code_challenge'],scope,time.time()+300))
+                    if setup:
+                        c.execute('DELETE FROM agent_codes WHERE hash=?',(setup['code_hash'],))
+                        changed=c.execute('UPDATE agent_setup_intents SET client_id=?,code_hash=? WHERE id=? AND expires>? AND connection_id IS NULL',
+                                          (client['id'],auth.digest(code),setup['id'],time.time())).rowcount
+                        if not changed: raise ValueError('连接步骤已过期，请重新开始。')
                 params['code']=code
             return jsonify(redirect=data['redirect_uri']+('&' if '?' in data['redirect_uri'] else '?')+urlencode(params))
         except ValueError as e: return jsonify(error=str(e)),400
@@ -155,6 +183,46 @@ def install(app,store,origin):
     @app.get('/api/agents')
     def agent_connections():
         return jsonify(connections=service.connections(g.auth['user_id']),mcp_url=origin+'/mcp')
+
+    @app.post('/api/agents/setup')
+    def agent_setup():
+        try:
+            data=json_body()
+            if data.get('provider')!='grok': raise ValueError('请选择 Agent。')
+            if limit('setup:'+g.auth['user_id'],20): return jsonify(error='操作过于频繁。'),429
+            ident=secrets.token_hex(16)
+            with store.db() as c:
+                c.execute('DELETE FROM agent_codes WHERE hash IN (SELECT code_hash FROM agent_setup_intents WHERE expires<?)',(time.time(),))
+                c.execute('DELETE FROM agent_setup_intents WHERE expires<?',(time.time(),))
+                targets=c.execute("SELECT id FROM agent_grants WHERE user_id=? AND provider='grok' AND revoked=0 AND expires>?",
+                                  (g.auth['user_id'],time.time())).fetchall()
+                target=data.get('id')
+                if target is not None and (not isinstance(target,str) or target not in [r['id'] for r in targets]):
+                    raise ValueError('连接不存在或已失效。')
+                if target is None and len(targets)==1: target=targets[0]['id']
+                c.execute('DELETE FROM agent_codes WHERE hash IN (SELECT code_hash FROM agent_setup_intents WHERE user_id=? AND session=? AND connection_id IS NULL)',
+                          (g.auth['user_id'],g.auth['token']))
+                c.execute('DELETE FROM agent_setup_intents WHERE user_id=? AND session=? AND connection_id IS NULL',
+                          (g.auth['user_id'],g.auth['token']))
+                c.execute('INSERT INTO agent_setup_intents VALUES (?,?,?,?,?,?,NULL,NULL,NULL)',
+                          (ident,g.auth['user_id'],g.auth['token'],'grok',target,time.time()+600))
+            return jsonify(id=ident)
+        except ValueError as e: return jsonify(error=str(e)),400
+
+    @app.get('/api/agents/setup/<ident>')
+    def agent_setup_status(ident):
+        with store.db() as c:
+            row=c.execute('SELECT * FROM agent_setup_intents WHERE id=? AND user_id=? AND expires>?',
+                          (ident,g.auth['user_id'],time.time())).fetchone()
+            if not row: return jsonify(error='连接步骤已过期，请重新开始。'),400
+            connection_id=row['connection_id']
+            if not connection_id and row['target_id']:
+                # The Bot can reuse a working connection without opening OAuth again.
+                # Require a fresh authenticated MCP call rather than just an old saved grant.
+                reused=c.execute("SELECT id FROM agent_grants WHERE id=? AND user_id=? AND provider='grok' AND revoked=0 AND expires>? AND last_used>=?",
+                                 (row['target_id'],g.auth['user_id'],time.time(),row['expires']-600)).fetchone()
+                if reused: connection_id=reused['id']
+        return jsonify(connection_id=connection_id)
 
     @app.post('/api/agents/connect')
     def agent_connect():

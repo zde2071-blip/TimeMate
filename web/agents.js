@@ -1,7 +1,7 @@
 /* External personal agents have their own grants; they never share AI API keys. */
 let agentConnections = [], agentMCP = '', agentEditing = '', agentBusy = false;
 let agentGrokStep=0, agentGrokEditing=false, agentFeedbackTest='';
-let agentGrokIncomingStep=0, agentGrokCreating=false, agentGrokOAuthBaseline=new Set(), agentGrokOAuthSelected='', agentGrokOAuthChosen=false;
+let agentGrokIncomingStep=0, agentGrokCreating=false, agentGrokSetupId='', agentGrokBoundConnection='', agentGrokSetupGeneration=0;
 
 function agentDirections(connection) {
   const alive=connection.expires*1000>Date.now();
@@ -48,14 +48,18 @@ async function loadAgentConnections() {
     $('agent-library-feedback').textContent='';
     if ($('agent-dialog').open) {
       if(agentEditing)renderAgentConnection();
-      if(agentGrokCreating)renderAgentGrokIncoming();
+      if(agentGrokCreating) {
+        if(agentGrokSetupId) {const setup=await agentRequest('/setup/'+agentGrokSetupId);agentGrokBoundConnection=setup.connection_id || '';}
+        renderAgentGrokIncoming();
+      }
     }
-  } catch(e) { $('agent-library-feedback').textContent=e.message; }
+  } catch(e) { $('agent-library-feedback').textContent=e.message;if(agentGrokCreating)$('agent-dialog-feedback').textContent=e.message; }
 }
 
 function openAgentConnection(id='') {
   agentEditing=id;agentGrokStep=0;agentGrokEditing=false;agentFeedbackTest='';
-  agentGrokIncomingStep=0;agentGrokCreating=false;agentGrokOAuthBaseline=new Set();agentGrokOAuthSelected='';agentGrokOAuthChosen=false;
+  agentGrokIncomingStep=0;agentGrokCreating=false;agentGrokSetupId='';agentGrokBoundConnection='';agentGrokSetupGeneration++;
+  $('agent-grok-incoming-copy').disabled=false;
   $('agent-grok-incoming-copy').querySelector('span').textContent='复制连接指令';
   $('agent-grok-copy').querySelector('span').textContent='复制通知指令';
   $('agent-dialog-title').textContent=id ? '连接设置' : '添加 Agent';
@@ -135,42 +139,23 @@ function renderAgentConnection() {
 }
 
 
-function startAgentGrokIncoming() {
-  agentGrokCreating=true;agentGrokIncomingStep=0;agentGrokOAuthSelected='';agentGrokOAuthChosen=false;
-  agentGrokOAuthBaseline=new Set(agentConnections.map(c=>c.id));
+async function startAgentGrokIncoming() {
+  agentGrokCreating=true;agentGrokIncomingStep=0;agentGrokSetupId='';agentGrokBoundConnection='';
+  const generation=++agentGrokSetupGeneration;
   $('agent-picker').hidden=true;$('agent-details').hidden=false;
   $('agent-dialog-title').textContent='Grok Bot → TimeMate';
   $('agent-manual-connection').hidden=true;$('agent-grok-incoming').hidden=false;
+  $('agent-grok-incoming-copy').disabled=true;
   selectAgentTab('connection');renderAgentGrokIncoming();
-}
-
-function agentGrokOAuthCandidates() {
-  return agentConnections.filter(c=>c.expires*1000>Date.now() &&
-    ((c.auth_method==='oauth' && c.provider==='oauth') || c.provider==='grok'))
-    .sort((a,b)=>Number(agentGrokOAuthBaseline.has(a.id))-Number(agentGrokOAuthBaseline.has(b.id)) || b.created-a.created);
+  try {
+    const setup=await agentRequest('/setup',{provider:'grok'});
+    if(agentGrokCreating && generation===agentGrokSetupGeneration)agentGrokSetupId=setup.id;
+  } catch(e) {if(generation===agentGrokSetupGeneration)$('agent-dialog-feedback').textContent=e.message;}
+  finally {if(generation===agentGrokSetupGeneration)$('agent-grok-incoming-copy').disabled=!agentGrokSetupId;}
 }
 
 function renderAgentGrokIncoming() {
-  $('agent-grok-oauth-choice').hidden=!agentGrokCreating;
-  if(agentGrokCreating) {
-    const candidates=agentGrokOAuthCandidates(),select=$('agent-grok-oauth-select');
-    if(!candidates.some(c=>c.id===agentGrokOAuthSelected))agentGrokOAuthChosen=false;
-    const added=candidates.filter(c=>c.provider==='oauth' && !agentGrokOAuthBaseline.has(c.id));
-    if(!agentGrokOAuthChosen)agentGrokOAuthSelected=added.length===1?added[0].id:'';
-    select.replaceChildren();
-    if(!agentGrokOAuthSelected || candidates.length>1) {const placeholder=element('option','选择刚刚授权的连接');placeholder.value='';select.append(placeholder);}
-    for(const connection of candidates) {
-      const date=new Date(connection.created*1000).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
-      const option=element('option',connection.name+' · '+date);option.value=connection.id;select.append(option);
-    }
-    select.value=agentGrokOAuthSelected;select.hidden=!candidates.length;
-    $('agent-grok-oauth-wait').hidden=!!candidates.length;
-  }
-  setAgentGrokIncomingStep(agentGrokIncomingStep);
-}
-
-function selectAgentGrokOAuth(id) {
-  agentGrokOAuthSelected=agentGrokOAuthCandidates().some(c=>c.id===id)?id:'';agentGrokOAuthChosen=!!agentGrokOAuthSelected;
+  $('agent-grok-oauth-choice').hidden=!agentGrokCreating || !!agentGrokBoundConnection;
   setAgentGrokIncomingStep(agentGrokIncomingStep);
 }
 
@@ -180,17 +165,16 @@ function setAgentGrokIncomingStep(step) {
   $('agent-grok-incoming-previous').hidden=agentGrokIncomingStep===0;
   $('agent-grok-incoming-next').hidden=agentGrokIncomingStep===2;
   $('agent-grok-incoming-finish').hidden=agentGrokIncomingStep!==2;
-  $('agent-grok-incoming-finish').disabled=agentBusy || (agentGrokCreating && !agentGrokOAuthSelected);
+  $('agent-grok-incoming-finish').disabled=agentBusy || (agentGrokCreating && !agentGrokBoundConnection);
   $('agent-grok-incoming-progress').textContent=(agentGrokIncomingStep+1)+' / 3';
 }
 
 async function finishAgentGrokIncoming() {
   if(agentBusy)return;
   if(!agentGrokCreating){closeAgentConnection();return;}
-  const selected=agentGrokOAuthCandidates().find(c=>c.id===agentGrokOAuthSelected);if(!selected)return;
+  const selected=agentConnections.find(c=>c.id===agentGrokBoundConnection && c.provider==='grok');if(!selected)return;
   agentBusy=true;setAgentGrokIncomingStep(agentGrokIncomingStep);
   try {
-    if(selected.provider==='oauth')await agentRequest('/classify',{id:selected.id,provider:'grok'});
     agentGrokCreating=false;agentEditing=selected.id;
     await loadAgentConnections();
     $('agent-disconnect').hidden=false;$('agent-cancel').textContent='完成';
@@ -283,11 +267,16 @@ function agentConnectionInstructions(provider, purpose='connection') {
 async function copyAgentInstructions(purpose='connection') {
   const connection=agentConnections.find(c=>c.id===agentEditing);
   const text=agentConnectionInstructions(connection?.provider || $('agent-provider').value,purpose);
-  try{await navigator.clipboard.writeText(text);if(purpose==='feedback')$('agent-grok-copy').querySelector('span').textContent='✓ 已复制';else if(connection?.provider==='grok' || agentGrokCreating)$('agent-grok-incoming-copy').querySelector('span').textContent='✓ 已复制';else $('agent-dialog-feedback').textContent='已复制，发给你的 Agent';}
+  if(purpose==='connection' && connection?.provider==='grok') {
+    try {await agentRequest('/setup',{provider:'grok',id:connection.id});}
+    catch(e){$('agent-dialog-feedback').textContent=e.message;return;}
+  }
+  try{
+    await navigator.clipboard.writeText(text);if(purpose==='feedback')$('agent-grok-copy').querySelector('span').textContent='✓ 已复制';else if(connection?.provider==='grok' || agentGrokCreating)$('agent-grok-incoming-copy').querySelector('span').textContent='✓ 已复制';else $('agent-dialog-feedback').textContent='已复制，发给你的 Agent';}
   catch(e){$('agent-dialog-feedback').textContent=text;}
 }
 
-$('agent-dialog').addEventListener('close',()=>{agentEditing='';agentGrokCreating=false;agentGrokOAuthBaseline=new Set();agentGrokOAuthSelected='';agentGrokOAuthChosen=false;$('agent-issued-key').value='';$('agent-hook-key').value='';});
+$('agent-dialog').addEventListener('close',()=>{agentEditing='';agentGrokCreating=false;agentGrokSetupId='';agentGrokBoundConnection='';agentGrokSetupGeneration++;$('agent-issued-key').value='';$('agent-hook-key').value='';});
 $('agent-dialog').addEventListener('cancel',e=>{if(agentBusy)e.preventDefault();});
 setInterval(()=>{
   if(!document.hidden && !agentBusy && !$('settings-page').hidden && $('settings-page').dataset.settingOpen==='agents') void loadAgentConnections();

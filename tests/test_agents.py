@@ -229,10 +229,118 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(self.anon.post('/agent/revoke',base_url=ORIGIN,data={'token':r.json['refresh_token'],'client_id':args['client_id']}).status_code,200)
         self.assertEqual(self.rpc('ping',key=access).status_code,401)
 
+    def grok_oauth(self,client,csrf,setup_id,scope='mail:read mail:write items:read items:write changes:read',exchange=True):
+        redirect='https://www.cursor.com/agents/mcp/oauth/callback'
+        registered=self.anon.post('/agent/register',base_url=ORIGIN,json={'client_name':'Cursor','redirect_uris':[redirect]}).json
+        verifier=secrets.token_urlsafe(40)
+        challenge=base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip('=')
+        args={'client_id':registered['client_id'],'redirect_uri':redirect,'response_type':'code','resource':ORIGIN+'/mcp',
+              'code_challenge':challenge,'code_challenge_method':'S256','state':'fixture-state','scope':scope}
+        page=client.get('/agent/authorize?'+urlencode(args),base_url=ORIGIN)
+        self.assertIn('<strong>Grok Bot</strong>',page.text)
+        self.assertNotIn('<strong>Cursor</strong>',page.text)
+        approved=self.post(client,'/api/agents/authorize',{**args,'approve':True},csrf)
+        self.assertEqual(approved.status_code,200,approved.text)
+        code=parse_qs(urlsplit(approved.json['redirect']).query)['code'][0]
+        payload={'grant_type':'authorization_code','code':code,'client_id':args['client_id'],'redirect_uri':redirect,
+                 'resource':ORIGIN+'/mcp','code_verifier':verifier}
+        if not exchange:return payload
+        response=self.anon.post('/agent/token',base_url=ORIGIN,data=payload)
+        self.assertEqual(response.status_code,200,response.text)
+        status=client.get('/api/agents/setup/'+setup_id,base_url=ORIGIN,headers={'X-Token':csrf})
+        self.assertEqual(status.status_code,200,status.text)
+        return status.json['connection_id'],response.json
+
+    def test_grok_setup_binds_product_before_list_render_without_classification(self):
+        with self.app.store.db() as c:c.execute("UPDATE agent_grants SET provider='other',name='Other' WHERE id=?",(self.ga,))
+        before=len(self.app.agents.connections(self.ua))
+        setup=self.post(self.a,'/api/agents/setup',{'provider':'grok'},self.ta)
+        self.assertEqual(setup.status_code,200,setup.text)
+        self.assertEqual(len(self.app.agents.connections(self.ua)),before,'opening setup does not create an authorization')
+        grant,tokens=self.grok_oauth(self.a,self.ta,setup.json['id'])
+        entry=next(c for c in self.app.agents.connections(self.ua) if c['id']==grant)
+        self.assertEqual((entry['provider'],entry['name'],entry['last_used']),('grok','Grok Bot',None))
+        self.assertNotIn('Cursor',[c['name'] for c in self.app.agents.connections(self.ua)])
+        with self.app.store.db() as c:
+            self.assertEqual(c.execute('SELECT name FROM agent_clients WHERE id=(SELECT client_id FROM agent_grants WHERE id=?)',(grant,)).fetchone()[0],'Cursor')
+        self.assertEqual(self.call('connection_status',key=tokens['access_token'])['structuredContent']['connection_id'],grant)
+        self.assertEqual(self.rpc('ping').status_code,200,'other connections are unchanged')
+
+    def test_grok_reauthorization_reuses_profile_and_preserves_notifications(self):
+        subscription=self.subscribe()
+        before=len(self.app.agents.connections(self.ua))
+        setup=self.post(self.a,'/api/agents/setup',{'provider':'grok'},self.ta).json
+        self.assertEqual(self.rpc('ping').status_code,200,'preparing setup never rotates credentials')
+        grant,tokens=self.grok_oauth(self.a,self.ta,setup['id'])
+        self.assertEqual(grant,self.ga)
+        self.assertEqual(len(self.app.agents.connections(self.ua)),before)
+        self.assertEqual(self.app.agents.feedback_status(grant)[0]['id'],subscription)
+        self.assertEqual(self.rpc('ping').status_code,401,'reauthorization retires old credentials so their scopes cannot grow')
+        self.assertEqual(self.rpc('ping',key=self.kb).status_code,200)
+        status=self.call('connection_status',key=tokens['access_token'])['structuredContent']
+        self.assertEqual(status['connection_id'],self.ga)
+        self.assertIn('items:write',status['scope'])
+
+    def test_grok_setup_rejects_cross_account_access_and_does_not_guess_from_client_name(self):
+        self.assertEqual(self.post(self.a,'/api/agents/setup',{'provider':'grok'},'bad').status_code,403)
+        self.assertEqual(self.post(self.a,'/api/agents/setup',{'provider':'grok','id':self.gb},self.ta).status_code,400)
+        self.assertEqual(self.post(self.a,'/api/agents/setup',{'provider':'cursor'},self.ta).status_code,400)
+        setup=self.post(self.a,'/api/agents/setup',{'provider':'grok'},self.ta).json
+        self.assertEqual(self.b.get('/api/agents/setup/'+setup['id'],base_url=ORIGIN,headers={'X-Token':self.tb}).status_code,400)
+        # An unrelated callback cannot consume the pending Grok setup.
+        grant,tokens,args=self.oauth_connection()
+        item=next(c for c in self.app.agents.connections(self.ua) if c['id']==grant)
+        self.assertEqual((item['provider'],item['name']),('oauth','Legacy OAuth Agent'))
+        state=self.a.get('/api/agents/setup/'+setup['id'],base_url=ORIGIN,headers={'X-Token':self.ta}).json
+        self.assertIsNone(state['connection_id'])
+        bound,_=self.grok_oauth(self.a,self.ta,setup['id'])
+        self.assertEqual(bound,self.ga)
+
+    def test_cursor_registration_cannot_become_a_standalone_agent_without_product_setup(self):
+        args,verifier=self.oauth_client()
+        with self.app.store.db() as c:c.execute("UPDATE agent_clients SET name='Cursor' WHERE id=?",(args['client_id'],))
+        before=len(self.app.agents.connections(self.ua))
+        self.assertEqual(self.a.get('/agent/authorize?'+urlencode(args),base_url=ORIGIN).status_code,400)
+        response=self.post(self.a,'/api/agents/authorize',{**args,'approve':True},self.ta)
+        self.assertEqual(response.status_code,400)
+        self.assertEqual(len(self.app.agents.connections(self.ua)),before)
+
+    def test_grok_setup_accepts_verified_reuse_without_another_oauth_grant(self):
+        setup=self.post(self.a,'/api/agents/setup',{'provider':'grok'},self.ta).json
+        before=len(self.app.agents.connections(self.ua))
+        state=lambda:self.a.get('/api/agents/setup/'+setup['id'],base_url=ORIGIN,headers={'X-Token':self.ta}).json
+        self.assertIsNone(state()['connection_id'])
+        self.assertEqual(self.call('connection_status')['structuredContent']['connection_id'],self.ga)
+        self.assertEqual(state()['connection_id'],self.ga)
+        self.assertEqual(len(self.app.agents.connections(self.ua)),before)
+        self.assertEqual(self.rpc('ping').status_code,200)
+
+    def test_grok_setup_can_return_through_another_browser_of_the_same_account(self):
+        setup=self.post(self.a,'/api/agents/setup',{'provider':'grok'},self.ta).json
+        other=self.app.test_client();raw=secrets.token_urlsafe(32);csrf=secrets.token_urlsafe(32)
+        with self.app.store.db() as c:
+            c.execute('INSERT INTO sessions VALUES (?,?,?,?)',(digest(raw),self.ua,csrf,time.time()+3600))
+        other.set_cookie('mail_session',raw,domain='timemate.example')
+        grant,tokens=self.grok_oauth(other,csrf,setup['id'])
+        self.assertEqual(grant,self.ga)
+        self.assertEqual(self.a.get('/api/agents/setup/'+setup['id'],base_url=ORIGIN,headers={'X-Token':self.ta}).json['connection_id'],self.ga)
+        self.assertEqual(self.call('connection_status',key=tokens['access_token'])['structuredContent']['connection_id'],self.ga)
+
+    def test_grok_setup_expiry_and_revocation_cannot_be_bypassed_at_exchange(self):
+        setup=self.post(self.a,'/api/agents/setup',{'provider':'grok'},self.ta).json
+        payload=self.grok_oauth(self.a,self.ta,setup['id'],exchange=False)
+        with self.app.store.db() as c:c.execute('UPDATE agent_setup_intents SET expires=? WHERE id=?',(time.time()-1,setup['id']))
+        self.assertEqual(self.anon.post('/agent/token',base_url=ORIGIN,data=payload).status_code,400)
+        self.assertEqual(self.rpc('ping').status_code,200)
+        setup=self.post(self.a,'/api/agents/setup',{'provider':'grok'},self.ta).json
+        payload=self.grok_oauth(self.a,self.ta,setup['id'],exchange=False)
+        self.post(self.a,'/api/agents/revoke',{'id':self.ga},self.ta)
+        self.assertEqual(self.anon.post('/agent/token',base_url=ORIGIN,data=payload).status_code,400)
+
     def oauth_connection(self):
         args,verifier=self.oauth_client()
         with self.app.store.db() as c:
-            c.execute("UPDATE agent_clients SET name='Cursor' WHERE id=?",(args['client_id'],))
+            c.execute("UPDATE agent_clients SET name='Legacy OAuth Agent' WHERE id=?",(args['client_id'],))
         response=self.post(self.a,'/api/agents/authorize',{**args,'approve':True},self.ta)
         code=parse_qs(urlsplit(response.json['redirect']).query)['code'][0]
         payload={'grant_type':'authorization_code','code':code,'client_id':args['client_id'],
@@ -247,7 +355,7 @@ class AgentTests(unittest.TestCase):
         grant,tokens,args=self.oauth_connection()
         before_list=self.app.agents.connections(self.ua)
         entry=next(row for row in before_list if row['id']==grant)
-        self.assertEqual((entry['name'],entry['provider'],entry['auth_method']),('Cursor','oauth','oauth'))
+        self.assertEqual((entry['name'],entry['provider'],entry['auth_method']),('Legacy OAuth Agent','oauth','oauth'))
         self.assertEqual(next(row for row in before_list if row['id']==self.ga)['auth_method'],'personal')
         with self.app.store.db() as c:
             before=dict(c.execute('SELECT * FROM agent_grants WHERE id=?',(grant,)).fetchone())
@@ -298,7 +406,7 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(self.post(self.a,'/api/agents/classify',payload,self.ta).status_code,400)
         with self.app.store.db() as c:
             row=c.execute('SELECT name,provider FROM agent_grants WHERE id=?',(grant,)).fetchone()
-        self.assertEqual(tuple(row),('Cursor','oauth'))
+        self.assertEqual(tuple(row),('Legacy OAuth Agent','oauth'))
 
     def test_grok_desktop_registration_and_pkce_with_exact_redirects(self):
         redirects=['cursor://anysphere.cursor-mcp/oauth/callback',

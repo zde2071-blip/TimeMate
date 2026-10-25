@@ -35,6 +35,10 @@ def install_schema(store):
         CREATE TABLE IF NOT EXISTS agent_codes (
           hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, client_id TEXT NOT NULL,
           redirect_uri TEXT NOT NULL, challenge TEXT NOT NULL, scope TEXT NOT NULL, expires REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS agent_setup_intents (
+          id TEXT PRIMARY KEY, user_id TEXT NOT NULL, session TEXT NOT NULL,
+          provider TEXT NOT NULL, target_id TEXT, expires REAL NOT NULL,
+          client_id TEXT, code_hash TEXT, connection_id TEXT);
         CREATE TABLE IF NOT EXISTS agent_subscriptions (
           id TEXT PRIMARY KEY, user_id TEXT NOT NULL, grant_id TEXT NOT NULL, kind TEXT NOT NULL,
           name TEXT NOT NULL, url TEXT NOT NULL, secret BLOB NOT NULL, cursor INTEGER NOT NULL,
@@ -54,7 +58,7 @@ def install_schema(store):
 
 def remove_user(c, uid):
     c.execute('DELETE FROM agent_tokens WHERE grant_id IN (SELECT id FROM agent_grants WHERE user_id=?)', (uid,))
-    for table in ('agent_codes', 'agent_subscriptions', 'agent_deliveries', 'agent_grants'):
+    for table in ('agent_setup_intents', 'agent_codes', 'agent_subscriptions', 'agent_deliveries', 'agent_grants'):
         c.execute(f'DELETE FROM {table} WHERE user_id=?', (uid,))
 
 
@@ -154,7 +158,28 @@ def exchange(store, data, origin):
                 raise ValueError('invalid_grant')
             client=c.execute('SELECT name FROM agent_clients WHERE id=?',(row['client_id'],)).fetchone()
             if not c.execute('SELECT 1 FROM users WHERE id=?',(row['user_id'],)).fetchone(): raise ValueError('invalid_grant')
-            grant,_=create_grant(store,row['user_id'],client['name'],'oauth',row['scope'],row['client_id'],c)
+            setup=c.execute('''SELECT * FROM agent_setup_intents WHERE code_hash=? AND user_id=?
+              AND client_id=? AND connection_id IS NULL''',
+              (row['hash'],row['user_id'],row['client_id'])).fetchone()
+            if setup and setup['expires']<=time.time(): raise ValueError('invalid_grant')
+            if not setup and client['name']=='Cursor': raise ValueError('invalid_grant')
+            if setup and setup['target_id']:
+                target=c.execute("SELECT id FROM agent_grants WHERE id=? AND user_id=? AND provider='grok' AND revoked=0",
+                                 (setup['target_id'],row['user_id'])).fetchone()
+                if not target: raise ValueError('invalid_grant')
+                grant=target['id']
+                # Reauthorization replaces credentials, never broadens an old token's scope.
+                c.execute('DELETE FROM agent_tokens WHERE grant_id=?',(grant,))
+                c.execute("UPDATE agent_grants SET client_id=?,name='Grok Bot',provider='grok',scope=?,expires=?,last_used=NULL WHERE id=?",
+                          (row['client_id'],row['scope'],time.time()+90*86400,grant))
+                if 'changes:read' not in row['scope'].split():
+                    c.execute('UPDATE agent_subscriptions SET enabled=0 WHERE grant_id=?',(grant,))
+            else:
+                provider='grok' if setup else 'oauth'
+                name='Grok Bot' if setup else client['name']
+                grant,_=create_grant(store,row['user_id'],name,provider,row['scope'],row['client_id'],c)
+            if setup:
+                c.execute('UPDATE agent_setup_intents SET connection_id=? WHERE id=?',(grant,setup['id']))
             scope=row['scope']
             c.execute('DELETE FROM agent_codes WHERE hash=?',(row['hash'],))
         elif data.get('grant_type')=='refresh_token':

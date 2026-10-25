@@ -38,8 +38,7 @@
 <div class="agent-grok-incoming-step" data-step="2" hidden>
 <div class="agent-grok-heading"><h3>③ 允许连接</h3></div>
 <a class="agent-grok-image" href="/assets/grok-setup/connect-03.webp" target="_blank" rel="noopener noreferrer" aria-label="放大 TimeMate 授权页的完整截图"><img src="/assets/grok-setup/connect-03.webp" alt="③ 在 TimeMate 授权页确认权限并点击允许连接，随后返回 Grok Bot 验证连接。完整窗口已遮挡隐私。"></a>
-<p class="agent-grok-oauth-note">授权页会显示 Cursor，这是 Grok Bot 使用的客户端名称。</p>
-<div id="agent-grok-oauth-choice" hidden><div class="agent-grok-oauth-choice-heading"><label for="agent-grok-oauth-select">刚刚授权的连接</label><button id="agent-grok-oauth-refresh" type="button" class="text-button" onclick="loadAgentConnections()">刷新</button></div><select id="agent-grok-oauth-select" onchange="selectAgentGrokOAuth(this.value)" aria-label="刚刚授权的连接" hidden></select><p id="agent-grok-oauth-wait" role="status">等待授权</p></div>
+<div id="agent-grok-oauth-choice" hidden><div class="agent-grok-oauth-choice-heading"><p id="agent-grok-oauth-wait" role="status">等待授权</p><button id="agent-grok-oauth-refresh" type="button" class="text-button" onclick="loadAgentConnections()">刷新</button></div></div>
 </div>
 <footer class="agent-grok-actions"><button id="agent-grok-incoming-previous" type="button" class="text-button" onclick="setAgentGrokIncomingStep(agentGrokIncomingStep-1)" hidden>‹ 上一步</button><span id="agent-grok-incoming-progress">1 / 3</span><button id="agent-grok-incoming-next" type="button" class="secondary" onclick="setAgentGrokIncomingStep(agentGrokIncomingStep+1)">下一步 ›</button><button id="agent-grok-incoming-finish" type="button" onclick="finishAgentGrokIncoming()" hidden>完成</button></footer>
 </div></section>
