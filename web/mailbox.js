@@ -263,7 +263,10 @@ function renderMailDetail(m, d, written) {
         let b = element('button', pin ? '取消加入截止事项' : '', pin ? 'secondary mail-event-cancel' : 'mail-event-add');
         if (!pin) b.append(eventIcon('plus'), element('span', '加入截止事项'));
         if (pin) {
-          const status = element('span', '', 'mail-event-saved');
+          const status = element('button', '', 'mail-event-saved');
+          status.type = 'button';
+          status.title = '查看对应事项';
+          status.onclick = () => focusImportantEvent(target.id, target.index);
           status.append(eventIcon('check'), element('span', pin.state === 'completed' ? '已完成' : '已添加'));
           controls.append(status);
         }
@@ -281,7 +284,10 @@ function renderMailDetail(m, d, written) {
         controls.append(b);
       } else {
         if (saved && saved.status === 'subscribed') {
-          const status = element('span', '', 'mail-event-saved');
+          const status = element('button', '', 'mail-event-saved');
+          status.type = 'button';
+          status.title = '查看对应事项';
+          status.onclick = () => focusImportantEvent(target.id, target.index);
           status.append(eventIcon('check'), element('span', '已添加'));
           controls.append(status);
           let cancel = element('button', '取消同步日历', 'secondary mail-event-cancel');

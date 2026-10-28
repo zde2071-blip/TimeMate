@@ -62,16 +62,27 @@ const path = require('node:path'), os = require('node:os'), assert = require('no
       await page.locator('#calendar-dialog').getByRole('button', {name: '确认添加', exact: true}).click();
       await page.locator('#calendar-dialog').waitFor({state: 'hidden'});
       await first.locator('.mail-event-saved').getByText('已添加', {exact: true}).waitFor();
+      await first.locator('button.mail-event-saved').click();
+      await page.locator('#important-reading-0-0').waitFor({state:'visible'});
+      assert.equal(await page.locator('#important-page').isVisible(),true,'saved schedule status navigates to important items');
+      await page.waitForFunction(()=>document.activeElement?.id==='important-reading-0-0');
+      assert.equal(await page.locator('#important-reading-0-0').evaluate(el=>el===document.activeElement),true,'saved schedule gets keyboard focus');
+      assert.equal(await page.locator('#important-reading-0-0').evaluate(el=>Boolean(el.closest('.calendar-completed[open]'))),true,'ended schedule archive opens automatically');
+      await page.locator('#important-reading-0-0 .important-source-title').click();
       const deadline = rows.nth(1);
       await deadline.getByRole('button', {name: '加入截止事项', exact: true}).click();
       await deadline.locator('.mail-event-saved').getByText('已添加', {exact: true}).waitFor();
+      await deadline.locator('button.mail-event-saved').click();
+      await page.locator('#important-reading-0-1').waitFor({state:'visible'});
+      await page.waitForFunction(()=>document.activeElement?.id==='important-reading-0-1');
+      assert.equal(await page.locator('#important-reading-0-1').evaluate(el=>el===document.activeElement),true,'saved deadline status focuses the matching item');
       // Approved important cards: identical clock icons, compact time text, working menus/source.
       await page.locator('#nav-important').click();
       await page.mouse.move(width - 5, 10);
       const scheduleCard = page.locator('.calendar-entry.schedule');
       const deadlineCard = page.locator('.calendar-entry.deadline');
       await page.getByRole('button', {name: '全部展开', exact: true}).click();
-      await page.locator('.calendar-completed > summary').filter({hasText: '已结束日程'}).click();
+      if(!await scheduleCard.isVisible()) await page.locator('.calendar-completed > summary').filter({hasText: '已结束日程'}).click();
       await scheduleCard.waitFor();
       await deadlineCard.waitFor();
       assert.equal(await scheduleCard.locator('.important-card-time').textContent(), '10/23 14:00–15:00');
@@ -93,15 +104,33 @@ const path = require('node:path'), os = require('node:os'), assert = require('no
       await page.locator('#event-edit-form input').first().fill('ADS102 已核对测试');
       await page.getByRole('button', {name: '保存修改', exact: true}).click();
       await page.locator('#event-edit-dialog').waitFor({state: 'hidden'});
-      await deadlineCard.locator('.event-manage>summary').click();
-      await deadlineCard.getByRole('button', {name: '标记完成', exact: true}).click();
+      await deadlineCard.locator('button.important-complete').click();
       await page.locator('.calendar-completed>summary').last().waitFor();
-      await page.locator('.calendar-completed>summary').last().click();
+      // The mail's completed status must also open its otherwise folded archive.
+      await page.locator('#nav-mail').click();
+      await deadline.locator('button.mail-event-saved').getByText('已完成',{exact:true}).waitFor();
+      await deadline.locator('button.mail-event-saved').click();
       const completedCard = page.locator('.calendar-completed .calendar-entry.deadline');
+      await completedCard.waitFor({state:'visible'});
+      await page.waitForFunction(()=>document.activeElement?.id==='important-reading-0-1');
+      assert.equal(await completedCard.evaluate(el=>el===document.activeElement),true,'completed status opens and focuses the archived item');
       await completedCard.evaluate(e => e.scrollIntoView({block: 'center'}));
       await completedCard.locator('.event-manage>summary').click();
       await completedCard.getByRole('button', {name: '恢复', exact: true}).click();
       await page.locator('.calendar-day-events .calendar-entry.deadline').waitFor();
+      // Render an additional linked source using the existing saved-item state.
+      // This fixture is client-only: no production data and no extra backend behavior.
+      await page.evaluate(()=>{
+        const source=allEventMails(state).find(m=>m.id==='reading-0'&&m.result),alias={...source,id:'linked-fixture'};
+        const data={...state,eventLinks:[...(state.eventLinks||[]),{mail_id:alias.id,event_index:0,target_mail_id:'reading-0',target_index:0},{mail_id:alias.id,event_index:1,target_mail_id:'reading-0',target_index:1}]};
+        showPage('mail');
+        renderMailDetail(alias,data,new Map(state.calendarEvents.map(item=>[item.mail_id+':'+item.event_index,item])));
+      });
+      await rows.nth(1).locator('button.mail-event-saved').click();
+      await page.locator('#important-reading-0-1').waitFor({state:'visible'});
+      await page.waitForFunction(()=>document.activeElement?.id==='important-reading-0-1');
+      assert.equal(await page.locator('#important-reading-0-1').evaluate(el=>el===document.activeElement),true,'linked mail opens the saved target rather than the unsaved source id');
+      assert.equal(await page.locator('#important-linked-fixture-1').count(),0,'linked source does not create another item');
       await scheduleCard.locator('.important-source-title').click();
       await page.locator('#mail-detail-pane').waitFor({state: 'visible'});
       await page.reload();
@@ -115,7 +144,7 @@ const path = require('node:path'), os = require('node:os'), assert = require('no
       await page.locator('#mail-reading-original-panel').waitFor({state: 'visible'});
       await page.locator('#mail-reading-summary-tab').click();
       assert.deepEqual(errors, []);
-      console.log(width + ': aligned metadata/actions; edit persisted; original/summary; add and cancel passed');
+      console.log(width + ': aligned metadata/actions; saved/linked/completed jump; inline complete; edit/original/add/cancel passed');
       await page.close();
     }
   } finally {

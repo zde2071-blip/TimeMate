@@ -162,7 +162,7 @@ function editEventMenu(item, compact = false) {
     openEventEditor(item);
   };
   options.append(edit);
-  if (item.kind === 'deadline') {
+  if (item.kind === 'deadline' && (!compact || item.state === 'completed')) {
     let completed = item.state === 'completed',
       toggle = element('button', '', 'secondary');
     toggle.type = 'button';
@@ -203,7 +203,7 @@ function eventActionFeedback(text) {
   }, 3500);
 }
 async function performEventAction(menu, item, action) {
-  menu.open = false;
+  if (menu) menu.open = false;
   if (await call('/api/event/manage', {
     id: item.mail_id,
     index: item.index,
@@ -845,6 +845,22 @@ function renderImportantCard(item, d) {
   row.append(copy);
   if (item.state === 'completed') row.className += ' is-complete';
   let actions = element('div', '', 'important-actions');
+  if (item.kind === 'deadline' && item.state !== 'completed') {
+    const complete = element('button', '', 'important-complete');
+    complete.type = 'button';
+    complete.title = '标记完成';
+    complete.setAttribute('aria-label', '标记完成：' + (item.event.title || '事项'));
+    complete.append(eventIcon('check'));
+    complete.onclick = async () => {
+      complete.disabled = true;
+      try {
+        await performEventAction(null, item, 'complete');
+      } finally {
+        complete.disabled = false;
+      }
+    };
+    actions.append(complete);
+  }
   actions.append(editEventMenu(item, true));
   row.append(actions);
   return row;
@@ -1021,6 +1037,7 @@ function renderMonthCalendar(items, completed = [], d) {
     upcoming = active.filter(item => !overdue.includes(item)),
     bucket = item => calendarSelected || (scheduleInProgress(item, now) ? todayKey : importantItemDate(item)),
     dates = [...new Set(upcoming.map(bucket))].sort(),
+    defaultDate = dates.includes(todayKey) ? todayKey : dates[0],
     listHead = element('div', '', 'calendar-list-head');
   listHead.append(element('span', (calendarSelected ? calendarSelected.replace(/-/g, ' / ') + ' · ' : '') + active.length + ' 项待处理', 'calendar-list-count'));
   if (calendarSelected) {
@@ -1051,8 +1068,13 @@ function renderMonthCalendar(items, completed = [], d) {
       heading = element('summary', '', 'important-date-heading'),
       day = new Date(date + 'T12:00:00'),
       dateLabel = day.toLocaleDateString('zh-CN', {month: 'long', day: 'numeric', ...(day.getFullYear() !== now.getFullYear() ? {year: 'numeric'} : {})});
-    group.open = viewState.groups[key] ?? Boolean(calendarSelected || viewState.expanded || date === todayKey);
-    group.addEventListener('toggle', () => { viewState.groups[key] = group.open; });
+    group.open = viewState.groups[key] ?? Boolean(calendarSelected || viewState.expanded || date === defaultDate);
+    group.addEventListener('toggle', () => { if (group.isConnected) viewState.groups[key] = group.open; });
+    heading.addEventListener('click', event => {
+      event.preventDefault();
+      group.open = !group.open;
+      viewState.groups[key] = group.open;
+    });
     heading.append(eventIcon('down'), element('span', dateLabel, 'important-date-label'), element('span', entries.length + ' 项', 'important-date-count'));
     group.append(heading);
     for (const item of entries) group.append(renderImportantCard(item, d));

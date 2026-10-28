@@ -30,6 +30,9 @@ const {chromium}=require('playwright'),{spawn}=require('node:child_process'),ass
    const month=await page.locator('.calendar-month-picker').boundingBox(),legend=await page.locator('.calendar-legend').boundingBox();
    assert.ok(Math.abs(month.y+month.height/2-legend.y-legend.height/2)<1,'calendar legend shares the month row');
    assert.ok(legend.x>=month.x+month.width+4,'legend is at the right of the month');
+   const markerColors=await page.locator('.calendar-legend .calendar-day-marker').evaluateAll(nodes=>nodes.map(n=>({color:getComputedStyle(n).color,background:getComputedStyle(n).backgroundColor})));
+   assert.equal(markerColors[0].background,'rgb(57, 113, 88)','schedule dot uses the agreed green');
+   assert.equal(markerColors[1].color,'rgb(57, 113, 88)','deadline arrow uses the same green');
    assert.ok(legend.x+legend.width<=(await page.locator('#calendar-view').boundingBox()).x+(await page.locator('#calendar-view').boundingBox()).width,'legend fits calendar pane');
    for(const row of await rows.all()){
     const date=await row.locator('.important-card-time').boundingBox(),place=await row.locator('.important-card-location').boundingBox(),title=await row.locator('.important-entry-summary>strong').boundingBox(),todo=await row.locator('.important-card-todo').boundingBox();
@@ -55,14 +58,38 @@ const {chromium}=require('playwright'),{spawn}=require('node:child_process'),ass
    await page.locator('#event-edit-form textarea').fill('完成实验并上传报告');
    await page.getByRole('button',{name:'保存修改',exact:true}).click();await page.locator('#event-edit-dialog').waitFor({state:'hidden'});
    await item.locator('.important-card-todo').getByText('完成实验并上传报告',{exact:true}).waitFor();
-   await item.locator('.event-manage > summary').click();await item.getByRole('button',{name:'标记完成',exact:true}).click();
+   assert.equal(await item.locator('button.important-complete').isVisible(),true,'complete is directly available without opening a menu');
+   assert.equal(await page.locator('.calendar-entry.schedule button.important-complete').count(),0,'schedules do not get deadline completion controls');
+   await item.locator('button.important-complete').click();
    await page.waitForFunction(()=>document.querySelector('#important-item-1-0')?.closest('.calendar-completed'));
    await page.locator('.calendar-completed').last().locator('summary').first().click();
+   assert.equal(await item.locator('button.important-complete').count(),0,'completed item has no active completion button');
    await item.locator('.event-manage > summary').click();await item.getByRole('button',{name:'恢复',exact:true}).click();
    await page.waitForFunction(()=>document.querySelector('#important-item-1-0')?.closest('.important-date-group'));
    await item.locator('.important-source-title').click();assert.equal(await page.locator('#mail-page').isVisible(),true,'source title opens the real mail page');
    await page.locator('#nav-important').click();assert.equal(await item.isVisible(),true,'return preserves expanded date groups');
-   assert.deepEqual(errors,[]);await page.close();console.log('PASS dense agenda, dates, filters, edit/complete/restore/source '+width);
+   // No events today: opening the page should show the nearest upcoming day.
+   await page.evaluate(()=>{
+    const today=localDateKey(new Date());
+    state.calendarEvents=state.calendarEvents.filter(item=>JSON.parse(item.detail||'{}').start?.slice(0,10)>today);
+    state.pins=state.pins.filter(item=>item.due?.slice(0,10)>today);
+    importantView='all';calendarSelected='';renderMonthCalendar.viewState={groups:{},expanded:false,history:false,completed:false};
+    renderImportant(state);
+   });
+   assert.equal(await page.locator('.important-date-group[open]').count(),1,'nearest upcoming day is the only default-open group when today is empty');
+   assert.equal(await page.locator('#important-item-4-0').isVisible(),true,'tomorrow is visible without expanding all dates');
+   const nearest=page.locator('.important-date-group').first();
+   await nearest.locator(':scope > summary').click();
+   await page.waitForFunction(()=>!document.querySelector('.important-date-group')?.open);
+   await page.evaluate(()=>renderImportant(state));
+   assert.equal(await nearest.getAttribute('open'),null,'refresh preserves the user explicitly closing the nearest day');
+   const nextGroup=page.locator('.important-date-group').nth(1);
+   await nextGroup.locator(':scope > summary').click();
+   await page.waitForFunction(()=>document.querySelectorAll('.important-date-group')[1]?.open);
+   await page.evaluate(()=>renderImportant(state));
+   assert.equal(await nearest.getAttribute('open'),null,'opening another date does not reopen the closed nearest day');
+   assert.equal(await nextGroup.getAttribute('open'),'','manually opened future date survives refresh');
+   assert.deepEqual(errors,[]);await page.close();console.log('PASS dense agenda, nearest day, disclosure state, direct complete, filters/edit/source '+width);
   }
  }finally{await browser?.close();server.kill();}
 })().catch(e=>{console.error(e);process.exit(1)});
