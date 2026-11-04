@@ -8,13 +8,13 @@
 
 - `local`：本地单人版，不需要租服务器，也不需要注册 TimeMate 网站账号。
 - `online`：原多人网站版，保留原有功能；是否恢复线上服务另行决定。
-- `main`：原有主分支，本次不改变其代码或触发部署。
+- [`main`](https://github.com/zde2071-blip/TimeMate)：项目总览与原完整版本基础。
 
 ## 启动
 
 支持 macOS、Linux；Windows 请先使用 WSL。目前提供源码版，尚未打包成独立安装应用。
 
-先安装 Python 3.12 或更高版本，下载本分支代码并解压。在终端进入此目录：
+先安装 Python 3.12 或更高版本，[下载本地版源码 ZIP](https://github.com/zde2071-blip/TimeMate/archive/refs/heads/local.zip) 并解压。在终端进入此目录：
 
 ```sh
 python3 -m venv .venv
@@ -60,3 +60,7 @@ for test in tests/test_*.js; do node "$test"; done
 TimeMate 项目代码使用 GNU AGPL-3.0-only，见 [LICENSE](LICENSE)。第三方依赖与素材保留各自许可。
 
 允许使用、修改和商用；分发修改版或以修改版提供网络服务时，须按 AGPL 要求提供对应源码并保留相关声明。仓库公开不代表可以任意去掉许可。
+
+## 反馈与开发
+
+问题与建议请提交 [Issue](https://github.com/zde2071-blip/TimeMate/issues)，截图请遮住邮件内容和凭证。代码结构见 [开发说明](docs/development.md)；其中多人账号、AI 对话和 Agent 部分仅适用于完整网站版。
