@@ -126,6 +126,7 @@ let setupGuideRevision = 0;
 const setupGuideCache = new Map();
 
 function showPage(name) {
+  if (document.querySelector('meta[name="timemate-local"]') && !['important','mail','settings'].includes(name)) name='mail';
   if (name === 'settings' && !document.querySelector('.settings-nav-item[aria-current="page"]')) selectConnectionSettings('account');
   for (let page of ['important', 'mail', 'chat', 'intake', 'settings']) {
     $(page + '-page').hidden = page !== name;
@@ -156,6 +157,7 @@ function showPage(name) {
 }
 
 function selectConnectionSettings(group) {
+  if (document.querySelector('meta[name="timemate-local"]') && ['account','agents'].includes(group)) group='mail';
   const labels = {
     account: ['账户', ''],
     mail: ['邮箱', ''],

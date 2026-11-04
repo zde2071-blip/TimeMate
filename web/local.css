@@ -1,0 +1,5 @@
+/* Keep shared, inactive DOM anchors for mail/settings dependencies. */
+#nav-chat, #nav-intake, #chat-page, #intake-page, #agent-connection-dialog,
+#logout, .account-menu hr, .account-identity,
+.settings-nav-group:has(#settings-nav-account),
+.settings-nav-group:has(#settings-nav-agents) { display: none !important; }

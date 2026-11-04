@@ -127,7 +127,7 @@ async function refresh() {
   }
 }
 
-$('account-email').textContent = loginEmail;
+$('account-email').textContent = document.querySelector('meta[name="timemate-local"]') ? '本地版' : loginEmail;
 $('settings-account-email').textContent = loginEmail;
 
 if (domain === 'qq.com') {

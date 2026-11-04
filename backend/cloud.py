@@ -270,13 +270,20 @@ def send_auth_email(address,code,subject,action):
         logging.getLogger(__name__).warning('Email API request failed (%s)',type(error).__name__)
         raise ValueError('验证码邮件暂时发送失败，请稍后重试。') from None
 
-def create_app(directory,key,origin='http://127.0.0.1:18744'):
+def create_app(directory,key,origin='http://127.0.0.1:18744', *, local=False):
     # Environment variables are strings; HMAC requires bytes.
     key=key.encode('ascii') if isinstance(key,str) else key
     url=urlsplit(origin)
     if url.scheme not in ('http','https') or not url.netloc or url.path or url.query or url.fragment: raise ValueError('请设置完整站点来源地址')
     if url.scheme!='https' and url.hostname not in ('localhost','127.0.0.1'): raise ValueError('公网必须使用 HTTPS')
+    if local and (url.scheme != 'http' or url.hostname != '127.0.0.1'):
+        raise ValueError('本地版只允许 127.0.0.1 地址。')
     store=Store(directory,key)
+    local_uid='0'*32
+    local_csrf=secrets.token_urlsafe(32)
+    if local:
+        with store.db() as c:
+            c.execute('INSERT OR IGNORE INTO users VALUES (?,?,?)', (local_uid, 'local@timemate.local', '!local-only'))
     app=Flask(__name__,static_folder=str(ROOT/'web/assets'),static_url_path='/assets'); app.store=store
     # MAIL_ORIGIN is the canonical address used in generated links. Also accept
     # Railway's generated domain as an alias so both public URLs keep working.
@@ -297,6 +304,18 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         if request.path == '/api/chat' and request.method == 'POST':
             from backend.mail.chat_images import CHAT_REQUEST_BYTES
             request.max_content_length = CHAT_REQUEST_BYTES
+        if local:
+            if request.path.startswith(('/api/auth/', '/api/agents', '/api/chat', '/api/mail/oauth', '/oauth', '/.well-known', '/mcp')):
+                return jsonify(error='本地版不提供此功能。'),404
+            if request.method not in ('GET', 'HEAD', 'OPTIONS'):
+                if request.headers.get('Origin') != origin:
+                    return jsonify(error='页面来源不匹配。'),403
+                if not request.is_json:
+                    return jsonify(error='请求格式不正确。'),415
+            if request.path.startswith('/api/') and not secrets.compare_digest(request.headers.get('X-Token',''), local_csrf):
+                return jsonify(error='请刷新页面。'),403
+            g.auth={'user_id':local_uid, 'csrf':local_csrf}
+            return None
         g.auth=None
         token=request.cookies.get('mail_session','')
         with store.db() as c:
@@ -332,7 +351,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         response.set_cookie('mail_session',token,max_age=30*86400,httponly=True,secure=secure,samesite='Lax',path='/')
         return response
     @app.get('/login')
-    def login_page(): return (ROOT/'web/login.html').read_text()
+    def login_page(): return redirect('/') if local else (ROOT/'web/login.html').read_text()
     @app.get('/about')
     def public_homepage(): return (ROOT/'web/homepage.html').read_text()
     @app.get('/privacy')
@@ -342,7 +361,13 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         if not g.auth: return redirect('/login')
         with store.db() as c: user=c.execute('SELECT email FROM users WHERE id=?',(g.auth['user_id'],)).fetchone()
         if not user: return redirect('/login')
-        return (ROOT/'web/index.html').read_text().replace('__TOKEN__',g.auth['csrf']).replace('__EMAIL__',escape(user['email'],quote=True))
+        page=(ROOT/'web/index.html').read_text().replace('__TOKEN__',g.auth['csrf']).replace('__EMAIL__',escape(user['email'],quote=True))
+        if local:
+            page=page.replace('<meta charset="utf-8">', '<meta charset="utf-8"><meta name="timemate-local" content="true"><link rel="stylesheet" href="/local.css">')
+            for script in ('chat.js', 'chat-events.js', 'agents.js', 'intake.js'):
+                page=page.replace('<script src="/'+script+'"></script>', '')
+            page=page.replace('<script src="/main.js"></script>', '<script src="/local.js"></script><script src="/main.js"></script>')
+        return page
     @app.get('/<filename>.js')
     def javascript(filename):
         if not re.fullmatch(r'[a-z][a-z0-9_-]*', filename): return '',404
@@ -350,6 +375,12 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         if not path.is_file(): return '',404
         response=make_response(path.read_text())
         response.headers['Content-Type']='text/javascript; charset=utf-8'
+        return response
+    @app.get('/local.css')
+    def local_stylesheet():
+        if not local: return '',404
+        response=make_response((ROOT/'web/local.css').read_text())
+        response.headers['Content-Type']='text/css; charset=utf-8'
         return response
     @app.get('/styles.css')
     def stylesheet():
@@ -509,7 +540,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
         except sqlite3.IntegrityError: return jsonify(error='无法注册，请核对账号或登录。'),400
         except ValueError as e: return jsonify(error=str(e)),400
     from backend.mail.oauth import install as install_mail_oauth
-    install_mail_oauth(app,store,origin)
+    if not local: install_mail_oauth(app,store,origin)
     @app.route('/api/<path:path>',methods=['GET','POST'])
     def api(path):
         if path == 'chat' and request.method == 'POST' and store.limited('chat:'+g.auth['user_id'],20):
@@ -564,7 +595,7 @@ def create_app(directory,key,origin='http://127.0.0.1:18744'):
             else: handler.post()
         return handler.result
     from backend.agents.routes import install as install_agents
-    install_agents(app,store,origin)
+    if not local: install_agents(app,store,origin)
     app.dummy_hash=generate_password_hash(secrets.token_urlsafe(32),method='scrypt')
     return app
 
