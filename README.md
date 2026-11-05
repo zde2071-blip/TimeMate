@@ -7,11 +7,15 @@
 | 版本 | 适合谁 | 包含什么 |
 | --- | --- | --- |
 | [本地版](https://github.com/zde2071-blip/TimeMate/tree/local) | 希望在自己电脑上使用 | 邮件处理、重要事项，以及邮箱、AI 服务和日历设置 |
-| [线上版](https://github.com/zde2071-blip/TimeMate/tree/online) | 希望自行部署多人网站 | 原有完整功能，包括 AI 对话、信息接入和个人 Agent |
+| 完整多人版（当前 `main`） | 希望自行部署多人网站 | 原有完整功能，包括 AI 对话、信息接入和个人 Agent |
 
 **想直接使用，先选择本地版。** [下载本地版源码 ZIP](https://github.com/zde2071-blip/TimeMate/archive/refs/heads/local.zip)，按[本地版启动说明](https://github.com/zde2071-blip/TimeMate/tree/local#启动)运行。
 
-`main` 保留原完整版本，作为两个分支的共同基础。当前提供源码，不是独立安装包。仓库公开不代表线上托管服务已经恢复；线上版的部署与运行状态另行维护。
+`main` 保留经过验证的完整多人版；`local` 是当前本地开发和使用分支。不再维护单独的 `online` 分支。
+
+先在 `local` 完善功能，测试后将共用改动合回 `main`，保留多人登录与数据隔离。当前本地启动入口尚未合入 `main`，本机单人使用请下载 `local`。
+
+当前提供源码，不是独立安装包。合并代码与上线部署分别安排；仓库公开不代表线上托管服务已经恢复。
 
 ## 能做什么
 
